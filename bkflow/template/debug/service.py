@@ -483,8 +483,12 @@ class DebugService:
         ctx.refresh_from_db()
         return True
 
+    @transaction.atomic
     def reset_run_results(self, ctx: DebugContext, node_ids=None, update_snapshot=True):
         """清运行结果，保留 mock 配置；node_ids 为 None 时全量。"""
+        # 与存量回填使用相同锁顺序；重置不能使用等待锁之前读取的旧快照。
+        current = DebugContext.objects.select_for_update().get(pk=ctx.pk)
+        ctx.debug_snapshot = current.debug_snapshot
         qs = DebugNodeState.objects.filter(debug_context=ctx)
         if node_ids is not None:
             qs = qs.filter(node_id__in=node_ids)
@@ -499,7 +503,7 @@ class DebugService:
             log_ref={},
             last_run_at=None,
         )
-        if update_snapshot and ctx.debug_snapshot:
+        if update_snapshot and (ctx.debug_snapshot or node_ids is None):
             if node_ids is None:
                 ctx.debug_snapshot = {}
             else:
