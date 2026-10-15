@@ -33,23 +33,29 @@ def _read_history(method, *args, **kwargs):
     return data
 
 
+def read_debug_task(client, task_id, context):
+    """核实任务归属及生命周期，供快照回填和输入修复共用。"""
+    detail = _read_history(client.get_task_detail, task_id)
+    if (
+        detail.get("id") != task_id
+        or detail.get("space_id") != context["space_id"]
+        or detail.get("template_id") != context["template_id"]
+        or detail.get("create_method") != "DEBUG"
+        or not detail.get("is_started")
+        or detail.get("is_deleted")
+        or detail.get("is_expired")
+    ):
+        raise BackfillSkipped("task_identity_mismatch")
+    return detail
+
+
 class HistoricalTask:
     """一个历史任务的节点和顺序，模板 ID 与运行时 ID 分开使用。"""
 
     def __init__(self, client, task_id, context):
         self.client = client
         self.task_id = task_id
-        self.detail = _read_history(client.get_task_detail, task_id)
-        if (
-            self.detail.get("id") != task_id
-            or self.detail.get("space_id") != context["space_id"]
-            or self.detail.get("template_id") != context["template_id"]
-            or self.detail.get("create_method") != "DEBUG"
-            or not self.detail.get("is_started")
-            or self.detail.get("is_deleted")
-            or self.detail.get("is_expired")
-        ):
-            raise BackfillSkipped("task_identity_mismatch")
+        self.detail = read_debug_task(client, task_id, context)
         tree = self.detail.get("pipeline_tree")
         if not isinstance(tree, dict) or any(
             not isinstance(tree.get(key), dict)

@@ -57,3 +57,23 @@ python manage.py backfill_debug_snapshots --space-id 245 --after-id 1200 --limit
 ```
 
 `next_after_id` 是本轮已扫描位置，可能包含失败或跳过记录；续跑不会自动重试游标之前的记录。**预览后正式执行同一批时，使用预览前的游标，不能直接使用预览输出的新游标。** 预览结果只代表读取时的可恢复性，实际写入还会再次校验。
+
+## 修复已有快照的空输入
+
+旧版本在同步引擎结果时遗漏了输入参数，可能出现节点已有执行结果但 `debug_snapshot.nodes[].inputs` 为 `{}` 的情况。修复版会在真实调试节点成功或失败时保存引擎返回的实际输入，包括引擎已做的脱敏处理。尚未完成的节点仍可能没有输入；不经过引擎的本地 Mock 不生成真实输入，也不会沿用上一轮参数。
+
+已有快照不会因为发布或读取 `debug_context` 自动修复。待 Interface 完成滚动发布后，在同一模块使用 `--repair-inputs` 先预览、再写入。例如，修复空间 205 下的模板 2512：
+
+```bash
+python manage.py backfill_debug_snapshots --space-id 205 --template-id 2512 --repair-inputs --dry-run
+python manage.py backfill_debug_snapshots --space-id 205 --template-id 2512 --repair-inputs --apply
+```
+
+此模式只修复已有快照，未生成快照的存量记录需要先按前面的普通回填方式生成，再执行输入修复。范围筛选、分页和默认预览规则不变；汇总的 `operation` 为 `repair_inputs`，每条记录的 `nodes` 表示本次可补充输入的节点数。
+
+- 只处理空闲上下文中，输入为 `{}`、已成功或失败且有历史任务引用的活动或子画布节点。已有非空输入、未执行节点、网关、本地 Mock、已重置和缺少快照的记录保持原样。
+- 按快照自己的 `log_ref` 查询历史任务，核对空间、模板、DEBUG 类型、节点映射及运行版本。只接受同一版本、同一状态的实际执行输入；不从当前草稿渲染或推测，不补写旧版兜底版本 `v1` 对应的记录。
+- 仅修改快照内目标节点的 `inputs`，保留节点顺序、名称、状态、输出、耗时、日志引用和配置比较基准；不改变当前节点控制状态，不启动或重跑任务。
+- 同一上下文的候选节点全部核实后才写入。历史读取失败、版本不匹配，或者读取期间发生新调试、重置、快照变化时整条跳过或报错，不部分覆盖。写入前会锁定并重新核对上下文，重复执行不会覆盖已修复输入。
+
+输入修复的额外原因：`snapshot_missing_or_reset` 缺少快照或已重置；`no_missing_inputs` 没有符合条件的空输入；`no_execution_inputs` 引擎同版本输入本来就为空；`node_version_mismatch` 运行版本不一致；`node_state_mismatch` 节点状态不一致；`missing_execution_inputs` 引擎未返回合法输入对象。`missing_log_ref` 也包括缺少可核实的运行版本。
