@@ -287,3 +287,33 @@ class UpdateTaskLabelsSerializer(serializers.Serializer):
     def validate_label_ids(self, value):
         _validate_task_label_ids(value, self.context.get("space_id"))
         return value
+
+
+class GetNodeOutputsSerializer(serializers.Serializer):
+    task_id = serializers.IntegerField(required=True)
+    node_ids = serializers.ListField(child=serializers.CharField())
+
+
+class GetTaskPipelineSerializer(serializers.Serializer):
+    task_ids = serializers.CharField(help_text=_("任务ID，多个用逗号分隔"), required=True)
+
+    def validate_task_ids(self, value):
+        """校验逗号分隔的任务 ID 列表，每个 ID 必须是正整数。"""
+        raw_items = str(value).split(",")
+        task_ids = []
+        for raw in raw_items:
+            raw = raw.strip()
+            if not raw:
+                raise serializers.ValidationError(_("task_ids 包含空的任务ID，请检查逗号分隔格式"))
+            try:
+                task_id = int(raw)
+            except (TypeError, ValueError):
+                raise serializers.ValidationError(_("task_ids 包含非数字的任务ID: {}").format(raw))
+            if task_id <= 0:
+                raise serializers.ValidationError(_("task_ids 包含非法的任务ID: {}").format(raw))
+            task_ids.append(task_id)
+
+        if not task_ids:
+            raise serializers.ValidationError(_("task_ids 不能为空"))
+
+        return value

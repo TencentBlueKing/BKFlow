@@ -7624,3 +7624,283 @@ paths:
         descriptionEn: Batch delete template
         enableWebsocket: false
         pluginConfigs: [ ]
+  /space/{space_id}/task/{task_id}/get_task_operation_record/:
+    get:
+      operationId: get_task_operation_record
+      description: 获取任务操作记录
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        required: true
+        description: 空间 ID
+        schema:
+          type: integer
+      - in: path
+        name: task_id
+        required: true
+        description: 任务 ID
+        schema:
+          type: integer
+      - in: query
+        name: node_id
+        required: false
+        description: 仅返回该节点的操作记录；省略时返回任务全部操作记录
+        schema:
+          type: string
+      tags: []
+      responses:
+        '200':
+          description: 成功或参数校验失败；请根据 result 和 code 判断结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - result
+                - data
+                - message
+                properties:
+                  result:
+                    type: boolean
+                  data:
+                    type: array
+                    nullable: true
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: 操作记录 ID
+                        operator:
+                          type: string
+                          description: 操作人
+                        instance_id:
+                          type: integer
+                          description: 任务 ID
+                        operate_date:
+                          type: string
+                          format: date-time
+                          description: 操作时间
+                        extra_info:
+                          type: object
+                          additionalProperties: true
+                          description: 扩展信息
+                        node_id:
+                          type: string
+                          description: 节点 ID；空字符串表示任务级操作
+                        operate_type:
+                          type: string
+                          description: 操作类型
+                        operate_source:
+                          type: string
+                          description: 操作来源
+                        operate_type_name:
+                          type: string
+                          description: 操作类型名称
+                        operate_source_name:
+                          type: string
+                          description: 操作来源名称
+                  message:
+                    type: string
+                  code:
+                    oneOf:
+                    - type: string
+                    - type: integer
+                    description: 成功为 0，参数校验失败为 400；部分 Engine 响应不包含此字段
+                  trace_id:
+                    type: string
+                    description: 请求链路 ID（若可用）
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: get
+          path: /{env.api_sub_path}apigw/space/{space_id}/task/{task_id}/get_task_operation_record/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Get task operation record
+        enableWebsocket: false
+        pluginConfigs: []
+  /space/{space_id}/get_node_outputs/:
+    post:
+      operationId: get_node_outputs
+      description: 获取节点输出
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        required: true
+        description: 空间 ID
+        schema:
+          type: integer
+      tags: []
+      responses:
+        '200':
+          description: 成功或参数校验失败；请根据 result 和 code 判断结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - result
+                - data
+                - message
+                properties:
+                  result:
+                    type: boolean
+                  data:
+                    type: array
+                    nullable: true
+                    items:
+                      type: object
+                      additionalProperties:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties: true
+                  message:
+                    type: string
+                  code:
+                    oneOf:
+                    - type: string
+                    - type: integer
+                    description: 成功为 0，参数校验失败为 400；部分 Engine 响应不包含此字段
+                  trace_id:
+                    type: string
+                    description: 请求链路 ID（若可用）
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_node_outputs/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Get node outputs
+        enableWebsocket: false
+        pluginConfigs: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - task_id
+              - node_ids
+              properties:
+                task_id:
+                  type: integer
+                  description: 任务 ID
+                node_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: 属于该任务的节点 ID 列表
+            example:
+              task_id: 17
+              node_ids:
+              - n1
+              - n2
+  /space/{space_id}/get_tasks_pipeline/:
+    get:
+      operationId: get_tasks_pipeline
+      description: 获取任务流水线
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: path
+        name: space_id
+        required: true
+        description: 空间 ID
+        schema:
+          type: integer
+      - in: query
+        name: task_ids
+        required: true
+        description: 逗号分隔的正整数任务 ID，例如 17,18；不允许空项
+        schema:
+          type: string
+      tags: []
+      responses:
+        '200':
+          description: 成功或参数校验失败；请根据 result 和 code 判断结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                - result
+                - data
+                - message
+                properties:
+                  result:
+                    type: boolean
+                  data:
+                    type: object
+                    nullable: true
+                    additionalProperties:
+                      type: object
+                      nullable: true
+                      additionalProperties: true
+                    description: 任务 ID 到执行流程树的映射；缺少执行快照的任务对应 null
+                  message:
+                    type: string
+                  code:
+                    oneOf:
+                    - type: string
+                    - type: integer
+                    description: 成功为 0，参数校验失败为 400；部分 Engine 响应不包含此字段
+                  trace_id:
+                    type: string
+                    description: 请求链路 ID（若可用）
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          method: get
+          path: /{env.api_sub_path}apigw/space/{space_id}/get_tasks_pipeline/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Get tasks pipeline
+        enableWebsocket: false
+        pluginConfigs: []
