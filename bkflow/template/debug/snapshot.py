@@ -3,6 +3,8 @@
 import copy
 import heapq
 
+from bkflow.utils.handlers import mask_sensitive_data_for_display
+
 
 def debug_nodes(tree):
     """返回当前层的活动和网关，子画布作为一个节点展示。"""
@@ -72,6 +74,32 @@ def config_changed(config_hash, node_name, current_node, current_hash):
     )
 
 
+def configured_inputs(node):
+    """提取调试时填写的参数值；不解析变量，不用执行结果或当前草稿补齐。"""
+    node_type = node.get("type")
+    if node_type == "ServiceActivity":
+        component = node.get("component")
+        data = component.get("data") if isinstance(component, dict) else None
+    elif node_type in ("SubCanvas", "SubProcess"):
+        pipeline = node.get("pipeline")
+        constants = pipeline.get("constants") if isinstance(pipeline, dict) else None
+        if not isinstance(constants, dict):
+            return None
+        data = {
+            key: field
+            for key, field in constants.items()
+            if isinstance(field, dict) and field.get("show_type") == "show"
+        }
+    elif node_type in ("ExclusiveGateway", "ConditionalParallelGateway", "ParallelGateway", "ConvergeGateway"):
+        return {}
+    else:
+        return None
+    if not isinstance(data, dict):
+        return None
+    values = {key: field.get("value") if isinstance(field, dict) else field for key, field in data.items()}
+    return mask_sensitive_data_for_display(values)
+
+
 def node_result(state, node, operator):
     """冻结名称、运行结果和比较基准，不混入当前 Mock 预设或可执行性。"""
     return copy.deepcopy(
@@ -83,6 +111,7 @@ def node_result(state, node, operator):
             "status": state.status,
             "waiting_reason": state.waiting_reason or None,
             "inputs": state.inputs,
+            "configured_inputs": configured_inputs(node),
             "outputs": state.outputs,
             "duration_ms": state.duration_ms,
             "error_detail": state.error_detail or None,
