@@ -142,6 +142,7 @@ All gateways have `execution_mode=real`. After debugging a conditional gateway, 
 | debug_snapshot.nodes[].execution_mode | string | Actual mode used for this result: real / mock; independent of current Mock settings. |
 | debug_snapshot.nodes[].status / waiting_reason | string / string or null | Same runtime state and waiting reason meanings as existing node states. |
 | debug_snapshot.nodes[].inputs / outputs | object | Recorded input/output values. Gateway outputs contain selected_flow_ids and condition_results. Inputs are {} if not collected. |
+| debug_snapshot.nodes[].configured_inputs | object / null | Configuration inputs frozen when debugging starts, mapped by parameter name. Preserves expressions, nested structures and empty values without variable substitution, using existing credential masking rules. Available for unexecuted nodes too; null when historical configuration is unavailable. Never reconstructed from the current draft. |
 | debug_snapshot.nodes[].duration_ms / error_detail / log_ref | int or null / object or null / object or null | Recorded duration, error and engine log reference. |
 | debug_snapshot.nodes[].operator / last_run_at | string / string or null | Debug initiator and recorded run time; null when no reliable time was recorded. |
 
@@ -150,5 +151,12 @@ All gateways have `execution_mode=real`. After debugging a conditional gateway, 
 - Ordering follows the frozen control flow: predecessors precede successors and joins follow all branches. Parallel branches use a stable node-ID order, not chronological execution order. Loop back-edges are not expanded repeatedly. A subcanvas is one node; start/end events are excluded.
 - A newly stepped node is inserted according to that run's flow order without reordering previous entries. The next global run establishes a new full ordering.
 - Explicit node reset clears only that result; full reset clears the snapshot. Termination preserves completed results and resets active nodes to not_run, as before.
-- Legacy names and snapshots are not backfilled. Existing configuration hashes remain valid; a new attempt establishes a name baseline. Restoring the original name/configuration clears the marker.
+- Reading this endpoint does not automatically backfill legacy names or snapshots; `backfill_debug_snapshots` can recover them from reliable historical tasks. Existing configuration hashes remain valid; a new attempt establishes a name baseline. Restoring the original name/configuration clears the marker.
 - `node_deleted` and `config_changed` compare against the saved draft only. The frontend handles unsaved edits, canvas linking and user-facing hints. Deleted result nodes are not executable controls.
+
+### Displaying input parameters
+
+- For `status=not_run`, display `configured_inputs` as "Configured inputs (not executed, variables unresolved)". If null or absent on an older service, show "Configuration inputs not recorded" instead of using the current draft. Executed nodes continue to display actual `inputs`; an empty object must not silently fall back to configuration values. Local Mock execution has no engine inputs and keeps `inputs={}`; configuration values may be shown separately.
+- Plugin nodes use each parameter's `value` from launch-time `component.data`. Subcanvas/subprocess nodes expose only `pipeline.constants` parameters with `show_type=show`, without expanding inner nodes. Gateways return `{}` because they have no such input parameters.
+- A successfully started global run captures configuration inputs for all nodes, including unreached ones. A step updates only its target. Draft edits, deletion and runtime polling do not replace these values. Resetting a node clears runtime results but preserves its captured configuration; a full reset removes the entire snapshot.
+- Existing snapshots without the field return null until a new debug attempt records it. Legacy snapshot backfill also captures these values when the original task node configuration is available, otherwise null. The backfill command does not overwrite existing snapshots. No database migration is required: the field lives in the existing JSON snapshot.

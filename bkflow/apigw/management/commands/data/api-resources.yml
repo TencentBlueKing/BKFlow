@@ -6911,6 +6911,12 @@ paths:
                                 inputs:
                                   type: object
                                   additionalProperties: true
+                                  description: 引擎实际执行输入，未采集时为 {}；不使用配置输入填充。
+                                configured_inputs:
+                                  type: object
+                                  nullable: true
+                                  additionalProperties: true
+                                  description: 调试发起时冻结的配置输入，按参数名返回原始值，不解析变量，沿用凭证脱敏规则。未执行节点也有值；旧快照未记录时为 null，不读取当前草稿补齐。网关无此类参数，返回 {}。
                                 outputs:
                                   type: object
                                   additionalProperties: true

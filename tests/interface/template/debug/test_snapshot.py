@@ -279,6 +279,7 @@ def test_gateway_snapshot_uses_original_conditions(template, mocker):
         "data": {"state": "FINISHED", "children": {"rtG": {"state": "FINISHED"}}},
     }
     node = snapshot_nodes(template)["gateway"]
+    assert node["configured_inputs"] == {}
     assert node["outputs"]["selected_flow_ids"] == ["flow_positive"]
     assert node["config_changed"] is True
 

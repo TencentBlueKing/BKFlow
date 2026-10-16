@@ -278,6 +278,8 @@ class DebugService:
             return None
         snapshot = copy.deepcopy(ctx.debug_snapshot)
         for node in snapshot["nodes"]:
+            # 旧快照没有冻结原始配置；不得用当前草稿冒充调试时输入。
+            node.setdefault("configured_inputs", None)
             node_id = node["node_id"]
             node["node_deleted"] = node_id not in current_nodes
             node["config_changed"] = config_changed(
