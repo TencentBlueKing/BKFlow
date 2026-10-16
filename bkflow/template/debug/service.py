@@ -766,7 +766,9 @@ class DebugService:
             ns.waiting_reason = waiting_reason
             observed_statuses.append(ns.status)
             ns.duration_ms = int((child.get("elapsed_time") or 0) * 1000)
-            if ns.status in ("finished", "failed"):
+            # 以本轮引擎状态确认节点已开始执行，等待回调也已采用本次配置。
+            # 不能使用 ns.status：单步任务创建时会先写 running，尚不代表引擎已执行。
+            if node_status in ("running", "waiting", "finished", "failed"):
                 run_config_hash = (ctx.active_config_hashes or {}).get(tpl_node_id)
                 if run_config_hash:
                     # 不使用当前草稿：调试运行期间可能已经保存了新配置。
@@ -774,6 +776,7 @@ class DebugService:
                     # 旧实例启动的任务没有名称快照，不能拿当前草稿补造历史。
                     if active:
                         ns.debug_node_name = run_nodes[tpl_node_id].get("name", "")
+            if ns.status in ("finished", "failed"):
                 detail = client.get_task_node_detail(
                     task_id,
                     runtime_id,
