@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>05 内容没有变化</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 05 · 流程编排人员</div>
+    <h2>内容没有变化</h2>
+    <div class="sub">假设草稿保存后没有任何改动，与上一发布版 v1.3.0 完全一致。</div>
+    <div class="note"><b class="n">1</b><span>直接显示空状态，不渲染空画布和空清单。文案只说结论，不出现技术术语。</span></div>
+    <div class="note"><b class="n">2</b><span>仍然可以切换对比基线，查看与更早版本的差异。</span></div>
+    <div class="note"><b class="n">3</b><span>仍然可以发布，版本号照常预填。</span></div>
+    <div class="note"><b class="n">4</b><span>没有差异时「JSON 对比」置灰。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="diff.js"></script>
+<script>
+  renderBg();
+  document.getElementById('dlg').outerHTML = releaseDialog({
+    desc: '', descCnt: '0/500',
+    formMk: '<i class="mk" style="right:-12px;top:276px">2</i>',
+    panel: summaryBar('v1.3.0（2026-09-18 10:24 发布）', '<span class="stat zero">无变化</span>') +
+      '<div class="empty rel"><div class="big" style="background:#e4faf0;color:#2dcb56">' + ic('check') + '</div>' +
+      '<h3>与 v1.3.0 相比，流程内容没有变化</h3>' +
+      '<p>当前草稿和上一发布版一致，发布后执行效果不变。<br>仍然可以直接发布（会生成新的版本号），也可以切换对比基线，查看与更早版本的差异。</p>' +
+      '</div>' +
+      '<i class="mk" style="left:50%;top:330px;margin-left:120px">1</i>',
+    leftFt: '<span class="rel"><button class="btn disabled">JSON 对比</button><i class="mk" style="left:-10px;top:-10px">4</i></span>',
+    pubMk: '<i class="mk" style="left:-10px;top:-10px">3</i>',
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>

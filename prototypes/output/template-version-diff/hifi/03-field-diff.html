@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>03 修改节点的字段对比</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 03 · 流程编排人员</div>
+    <h2>修改节点的字段对比</h2>
+    <div class="sub">在设计稿 01 的清单里点「灰度发布 · 3 个字段」，或在画布上点这个节点。</div>
+    <div class="note"><b class="n">1</b><span>标题变为面包屑「发布流程 / 灰度发布」。点「发布流程」或底栏「返回总览」回到总览，清单的展开状态、搜索词和画布位置保持不变。</span></div>
+    <div class="note"><b class="n">2</b><span>节点概要：节点名、插件和版本、节点 ID（可复制）。「在画布中定位」回到总览并高亮该节点。</span></div>
+    <div class="note"><b class="n">3</b><span>左右对比：左列为基线版本，右列为当前草稿。左右布局只用在这里，总览画布是单画布叠加。</span></div>
+    <div class="note"><b class="n">4</b><span>字段名用节点配置表单上的名称，下方附原始字段路径，便于和 JSON 对比对应。多个相关字段合并为一行，如自动重试的开关和间隔。</span></div>
+    <div class="note"><b class="n">5</b><span>未变化的字段默认折叠，可以展开查看。</span></div>
+    <div class="note"><b class="n">6</b><span>展示该节点在两个版本中的前后连线，说明它在流程中的位置怎么变了。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="diff.js"></script>
+<script>
+  renderBg();
+  const panel =
+    '<div class="pnl-hd"><span class="ttl">灰度发布</span><span class="stat mod">修改</span>' +
+    '<span class="muted">作业平台(JOB)-快速执行脚本 · v1.2</span><span class="muted mono">node3f1c…d4c8</span><span class="muted">' + ic('copy', 's12') + '</span>' +
+    '<span class="link ml-auto row gap4">' + ic('locate', 's14') + '在画布中定位</span></div>' +
+    '<div style="padding:16px 20px;overflow:hidden">' +
+    '<div class="muted" style="margin-bottom:10px">3 个字段有变化，2 个未变字段已折叠</div>' +
+    '<div class="tb-wrap"><table class="fd"><colgroup><col style="width:300px"><col><col></colgroup>' +
+    '<thead><tr><th>字段</th><th>基线 v1.3.0</th><th>当前草稿</th></tr></thead><tbody>' +
+    '<tr><td>输入参数 · 灰度比例（%）<span class="path">component.data.gray_ratio.value</span></td><td class="old"><del class="v">20</del></td><td class="new"><ins class="v">30</ins></td></tr>' +
+    '<tr><td>超时控制 · 超时时间<span class="path">timeout_config.seconds</span></td><td class="old"><del class="v">600</del> 秒</td><td class="new"><ins class="v">900</ins> 秒</td></tr>' +
+    '<tr><td>失败处理 · 自动重试<span class="path">auto_retry.enable / auto_retry.interval</span></td><td class="old"><del class="v">关闭</del></td><td class="new"><ins class="v">开启</ins>，间隔 <ins class="v">30</ins> 秒，最多重试 1 次</td></tr>' +
+    '<tr class="fold"><td colspan="3">' + '展开 2 个未变字段（目标业务、脚本内容）' + '</td></tr>' +
+    '</tbody></table></div>' +
+    '<div class="sec-label" style="margin-top:24px">前后连线</div>' +
+    '<div class="tb-wrap"><table class="fd"><colgroup><col style="width:300px"><col></colgroup><tbody>' +
+    '<tr><td class="muted">基线 v1.3.0</td><td>开始 <span class="muted">→</span> <b>灰度发布</b> <span class="muted">→</span> <del class="v">旧版通知</del></td></tr>' +
+    '<tr><td class="muted">当前草稿</td><td><ins class="v">审批确认</ins> <span class="muted">→</span> <b>灰度发布</b> <span class="muted">→</span> <ins class="v">灰度验证</ins></td></tr>' +
+    '</tbody></table></div>' +
+    '</div>' +
+    '<i class="mk" style="left:-10px;top:14px">2</i>' +
+    '<i class="mk" style="left:560px;top:96px">3</i>' +
+    '<i class="mk" style="left:-10px;top:150px">4</i>' +
+    '<i class="mk" style="left:-10px;top:298px">5</i>' +
+    '<i class="mk" style="left:-10px;top:384px">6</i>';
+  document.getElementById('dlg').outerHTML = releaseDialog({
+    crumb: '灰度发布',
+    panel: panel,
+    leftFt: '<button class="btn">返回总览</button><button class="btn">查看 JSON 片段</button>',
+  }).replace('<span class="crumb">发布流程</span>', '<span class="crumb rel">发布流程<i class="mk" style="left:-26px;top:4px">1</i></span>');
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>

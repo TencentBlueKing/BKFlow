@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>07 首次发布</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 07 · 流程编排人员</div>
+    <h2>首次发布</h2>
+    <div class="sub">流程「订单服务发布」刚创建，还没有发布过任何版本。</div>
+    <div class="note"><b class="n">1</b><span>没有可选的基线，对比基线置灰并显示「暂无已发布版本」。</span></div>
+    <div class="note"><b class="n">2</b><span>差异区显示空状态，说明这是第一个版本，并告诉用户下次发布时默认与这个版本对比。</span></div>
+    <div class="note"><b class="n">3</b><span>可以直接发布，版本号按现有规则预填。「JSON 对比」不显示。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="diff.js"></script>
+<script>
+  renderBg();
+  document.getElementById('dlg').outerHTML = releaseDialog({
+    version: '1.0.0', desc: '首个版本', descCnt: '4/500',
+    baseline: '<div class="select" style="background:#fafbfd;border-color:#dcdee5"><span style="color:#c4c6cc">暂无已发布版本</span>' + ic('down', 's12') + '</div>',
+    baseHelp: '',
+    formMk: '<i class="mk" style="right:-12px;top:276px">1</i>',
+    panel: '<div class="pnl-hd"><span class="ttl">版本差异</span><span class="muted">当前草稿（2026-09-24 14:32 由 admin 保存）</span></div>' +
+      '<div class="empty"><div class="big" style="background:#edf4ff;color:#3a84ff">' + ic('flow') + '</div>' +
+      '<h3>这是该流程的第一个版本，还没有可对比的已发布版本</h3>' +
+      '<p>发布后，下次发布时会默认与这个版本对比。</p></div>' +
+      '<i class="mk" style="left:50%;top:330px;margin-left:190px">2</i>',
+    leftFt: '',
+    pubMk: '<i class="mk" style="left:-10px;top:-10px">3</i>',
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
