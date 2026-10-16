@@ -101,6 +101,18 @@ def run_command(**kwargs):
 
 @pytest.mark.django_db
 class TestDebugSnapshotBackfill:
+    def test_configured_inputs_use_original_task_for_unreached_nodes(self, legacy, template):
+        """旧快照回填从任务原始配置提取输入，未执行节点也不读取当前草稿。"""
+        ctx, tasks, _, _ = legacy
+        for node in tasks[101]["pipeline_tree"]["activities"].values():
+            node["component"] = {"data": {"text": {"value": "${historical}"}}}
+        DebugNodeState.objects.filter(debug_context=ctx, node_id="B").update(status="not_run", inputs={}, log_ref={})
+        assert backfill_context(ctx.pk, apply=True)["outcome"] == "applied"
+        nodes = DebugService(template.id).build_context_view()["debug_snapshot"]["nodes"]
+        assert [node["configured_inputs"] for node in nodes] == [{"text": "${historical}"}] * 2
+        assert nodes[1]["status"] == "not_run"
+        assert nodes[1]["inputs"] == {}
+
     def test_preview_and_idempotent_apply(self, legacy, template):
         """预览零写入；实际回填保存旧名称和结果，重复执行不再查询引擎。"""
         ctx, tasks, client, factory = legacy
@@ -116,6 +128,7 @@ class TestDebugSnapshotBackfill:
         assert nodes[0]["node_name"] == "old A"
         assert nodes[0]["outputs"] == {"result": "A"}
         assert nodes[0]["inputs"] == {"original": "A"}
+        assert nodes[0]["configured_inputs"] is None
         assert nodes[0]["log_ref"]["version"] == "v3"
         assert nodes[0]["duration_ms"] == 20
         assert nodes[0]["operator"] == "runner101"
