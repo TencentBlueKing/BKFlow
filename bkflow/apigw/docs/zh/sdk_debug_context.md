@@ -145,7 +145,8 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
         "execution_mode": "real",
         "status": "finished",
         "waiting_reason": null,
-        "inputs": {},
+        "inputs": {"text": "实际执行值"},
+        "configured_inputs": {"text": "${message}"},
         "outputs": {"result": "ok"},
         "duration_ms": 120,
         "error_detail": null,
@@ -169,6 +170,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
 | debug_snapshot.nodes[].execution_mode | string | 结果对应的实际调试模式，real / mock，不随 Mock 预设调整而变化。 |
 | debug_snapshot.nodes[].status / waiting_reason | string / string或null | 运行状态及等待原因，含义与现有节点态相同。 |
 | debug_snapshot.nodes[].inputs / outputs | object | 已记录的输入输出。网关的 outputs 包含 selected_flow_ids 和 condition_results。未采集到的输入为 {}。 |
+| debug_snapshot.nodes[].configured_inputs | object / null | 发起调试时冻结的配置输入，按参数名返回原始值，保留 `${变量}`、嵌套结构及空值，不进行变量替换，沿用凭证脱敏规则。未执行节点也会保存；缺少历史配置时为 null，不用当前草稿补齐。 |
 | debug_snapshot.nodes[].duration_ms / error_detail / log_ref | int或null / object或null / object或null | 保存的耗时、错误和日志引用。 |
 | debug_snapshot.nodes[].operator / last_run_at | string / string或null | 发起调试的用户及已记录的运行时间；没有可靠时间时返回 null。 |
 
@@ -177,5 +179,12 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
 - 节点按调试时的控制流顺序返回，前驱在后继之前、汇聚在分支之后；并行分支按节点 ID 稳定展开，不代表真实执行先后。循环回边不重复展开；子画布作为一个节点，开始和结束节点不出现在列表中。
 - 编辑名称、增删节点或调整连线不会改写旧列表；单步新增节点按本次流程位置插入，已有历史节点相对顺序不变。下一次全局调试重新建立完整顺序。
 - 显式重置单节点会清空该节点结果；全量重置清空快照。终止调试沿用现有规则：保留已完成结果，活跃节点恢复 not_run。
-- 存量缺失名称或快照不回填；名称基准在重新调试后建立。原有配置基准继续有效，不因升级而批量标记变化。
+- 查询接口不会自动回填存量缺失名称或快照；可通过 `backfill_debug_snapshots` 从可靠历史任务回填。名称比较基准在重新调试后建立。原有配置基准继续有效，不因升级而批量标记变化。
 - 两种差异标记都只针对已保存的草稿。未保存编辑、点击画布联动和提示文案由前端结合当前画布处理。
+
+### 输入参数展示
+
+- `status=not_run` 时使用 `configured_inputs`，标注“配置输入（未执行，变量未解析）”；为 `null`（或旧服务未返回此字段）时提示“未记录配置输入”，不要从当前草稿补值。已执行节点继续使用 `inputs` 展示实际执行输入；不能仅因 `inputs={}` 就把配置冒充执行值。本地 Mock 未经过引擎，其 `inputs` 仍为 `{}`，可另行展示配置输入。
+- 普通插件节点从调试时的 `component.data` 提取各参数的 `value`；子画布、子流程仅提取内部 `constants` 中 `show_type=show` 的参数值，不展开内部节点；网关没有这类参数，返回 `{}`。
+- 全局调试成功启动后冻结所有节点的配置输入，包括未执行到的节点；单步调试只更新目标节点。之后修改或删除草稿节点、轮询执行结果，不会覆盖配置输入。单节点重置清空执行结果但保留这份配置；全量重置清空整份快照。
+- 已有快照缺少该字段时返回 `null`，重新调试后建立。存量快照回填命令若能取得原始任务节点配置，会同时写入；缺少可靠配置则为 `null`。已有快照不会被回填命令覆盖。字段保存在现有 JSON 快照中，无需新增数据库迁移。
