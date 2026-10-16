@@ -27,6 +27,8 @@ from pipeline.core.data.expression import ConstantTemplate
 from bkflow.pipeline_web.parser.format import classify_constants
 from bkflow.template.utils import _system_constants_to_mako_str
 
+DEBUG_CONFIG_HASH_PREFIX = "v2:"
+
 
 def _hash_obj(obj) -> str:
     raw = json.dumps(obj, sort_keys=True, ensure_ascii=False)
@@ -106,14 +108,28 @@ def compute_tree_fingerprint(pipeline_tree: dict) -> dict:
 def compute_debug_config_hashes(pipeline_tree: dict) -> dict:
     """逐节点调试配置指纹，独立于全局重置影响分析的指纹。
 
-    保留节点执行配置（包括网关条件、子流程及循环配置），排除名称、说明和画布布局。
+    保留节点执行配置（包括网关条件、子流程及循环配置），排除名称、布局及节点外部连线。
+    使用版本前缀，旧算法包含 incoming/outgoing，不能与新指纹直接比较。
     不推断上游产出或全局变量变化的下游影响。
     """
     hashes = {}
-    display_fields = {"id", "name", "desc", "description", "stage_name", "icon", "x", "y", "width", "height"}
+    ignored_fields = {
+        "id",
+        "name",
+        "desc",
+        "description",
+        "stage_name",
+        "icon",
+        "x",
+        "y",
+        "width",
+        "height",
+        "incoming",
+        "outgoing",
+    }
     nodes = {**pipeline_tree.get("activities", {}), **pipeline_tree.get("gateways", {})}
     for node_id, node in nodes.items():
-        config = {key: value for key, value in node.items() if key not in display_fields}
+        config = {key: value for key, value in node.items() if key not in ignored_fields}
         if isinstance(config.get("pipeline"), dict):
             pipeline = config["pipeline"]
             config["pipeline"] = {
@@ -122,7 +138,7 @@ def compute_debug_config_hashes(pipeline_tree: dict) -> dict:
                 "constants": pipeline.get("constants", {}),
                 "outputs": pipeline.get("outputs", []),
             }
-        hashes[node_id] = _hash_obj(config)
+        hashes[node_id] = DEBUG_CONFIG_HASH_PREFIX + _hash_obj(config)
     return hashes
 
 
