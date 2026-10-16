@@ -3,6 +3,7 @@
 import copy
 import heapq
 
+from bkflow.template.debug.dependency import DEBUG_CONFIG_HASH_PREFIX
 from bkflow.utils.handlers import mask_sensitive_data_for_display
 
 
@@ -66,12 +67,17 @@ def ordered_node_ids(tree):
 
 
 def config_changed(config_hash, node_name, current_node, current_hash):
-    """兼容旧配置哈希；没有可靠名称基准时不推断改名。"""
+    """只比较同版配置指纹；缺少新版基准时仍保留独立的名称、删除判断。"""
     if current_node is None:
         return bool(config_hash)
-    return bool(config_hash and config_hash != current_hash) or (
-        node_name is not None and node_name != current_node.get("name", "")
+    hash_changed = (
+        isinstance(config_hash, str)
+        and config_hash.startswith(DEBUG_CONFIG_HASH_PREFIX)
+        and isinstance(current_hash, str)
+        and current_hash.startswith(DEBUG_CONFIG_HASH_PREFIX)
+        and config_hash != current_hash
     )
+    return hash_changed or (node_name is not None and node_name != current_node.get("name", ""))
 
 
 def configured_inputs(node):

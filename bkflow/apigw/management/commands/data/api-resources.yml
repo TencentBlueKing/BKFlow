@@ -6874,7 +6874,7 @@ paths:
                               type: string
                             config_changed:
                               type: boolean
-                              description: 已保存的名称或执行配置与可靠调试基准不一致。缺少基准时默认 false；名称独立比较，保留旧配置哈希。
+                              description: 名称或自身执行配置与可靠调试基准不一致，不包含外部 incoming/outgoing 连线。仅比较同版配置指纹，旧版或缺失配置基准不据此标记；名称独立比较，不改变历史执行状态。
                       debug_snapshot:
                         type: object
                         nullable: true
@@ -6904,7 +6904,7 @@ paths:
                                   nullable: true
                                 config_changed:
                                   type: boolean
-                                  description: 已保存名称或执行配置与可靠调试基准不一致；无基准默认 false。
+                                  description: 已保存名称或自身执行配置与可靠调试基准不一致，不包含外部 incoming/outgoing 连线；旧版或缺失配置基准不据此标记，名称和删除独立判断。仅作提示，不覆盖历史 status。
                                 node_deleted:
                                   type: boolean
                                   description: 节点已不在当前已保存草稿中，保留历史结果。
