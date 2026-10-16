@@ -164,6 +164,111 @@ class TestConfigChanged:
         assert nodes["B"]["config_changed"] is True
 
     @pytest.mark.parametrize("run_type", ["global", "step"])
+    @pytest.mark.parametrize("change", ["input", "name"])
+    @pytest.mark.parametrize("schedule_type", [None, "CALLBACK", "MULTIPLE_CALLBACK", "POLL"])
+    def test_started_node_uses_current_run_baseline(self, template, mocker, run_type, change, schedule_type):
+        """新节点配置变更后开始真实执行，运行中和等待中均采用本次配置比较。"""
+        assert context_nodes(template)["A"]["status"] == "not_run"
+        tree = copy.deepcopy(DebugService(template.id).pipeline_tree)
+        if change == "input":
+            tree["activities"]["A"]["component"]["data"]["text"]["value"] = "after"
+        else:
+            tree["activities"]["A"]["name"] = "renamed"
+        tree["activities"]["B"]["component"]["version"] = "2"
+        template.update_draft_snapshot(tree, "tester")
+        assert context_nodes(template)["A"]["config_changed"] is True
+
+        client = engine_client(mocker)
+        svc = DebugService(template.id)
+        if run_type == "global":
+            svc.global_run({}, "tester")
+        else:
+            mocker.patch("bkflow.template.debug.pipeline_builder.build_single_node_pipeline_tree", return_value={})
+            svc.step_run("A", "tester", mode="real")
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {
+                "state": "RUNNING",
+                "children": {
+                    "rtA": {"state": "RUNNING", "schedule_type": schedule_type},
+                    "rtB": {"state": "READY"},
+                },
+            },
+        }
+        view = DebugService(template.id).build_context_view()
+        for nodes in (view["nodes"], view["debug_snapshot"]["nodes"]):
+            node = next(node for node in nodes if node["node_id"] == "A")
+            assert node["status"] == ("waiting" if schedule_type else "running")
+            assert node["waiting_reason"] == (schedule_type.lower() if schedule_type else None)
+            assert node["config_changed"] is False
+        assert next(node for node in view["nodes"] if node["node_id"] == "B")["config_changed"] is True
+        # 运行中只更新比较基准，不新增节点详情请求或把未完成结果当作完成结果读取。
+        client.get_task_node_detail.assert_not_called()
+
+    @pytest.mark.parametrize("run_type", ["global", "step"])
+    @pytest.mark.parametrize("change", ["input", "name"])
+    @pytest.mark.parametrize("poll_before_save", [False, True])
+    def test_waiting_node_keeps_changes_saved_during_run(self, template, mocker, run_type, change, poll_before_save):
+        """无论保存发生在首次轮询前后，比较基准都来自本次运行而非新草稿。"""
+        mock_run(template)
+        run_tree = edit_node(template, "run-input")
+        run_tree["activities"]["A"]["name"] = "run-name"
+        template.update_draft_snapshot(run_tree, "tester")
+        client = engine_client(mocker)
+        svc = DebugService(template.id)
+        if run_type == "global":
+            svc.global_run({}, "tester")
+        else:
+            mocker.patch("bkflow.template.debug.pipeline_builder.build_single_node_pipeline_tree", return_value={})
+            svc.step_run("A", "tester", mode="real")
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {
+                "state": "RUNNING",
+                "children": {"rtA": {"state": "RUNNING", "schedule_type": "CALLBACK"}},
+            },
+        }
+        if poll_before_save:
+            assert context_nodes(template)["A"]["config_changed"] is False
+        tree = copy.deepcopy(run_tree)
+        if change == "input":
+            tree["activities"]["A"]["component"]["data"]["text"]["value"] = "saved-during-run"
+        else:
+            tree["activities"]["A"]["name"] = "saved-during-run"
+        template.update_draft_snapshot(tree, "tester")
+        view = DebugService(template.id).build_context_view()
+        for nodes in (view["nodes"], view["debug_snapshot"]["nodes"]):
+            node = next(node for node in nodes if node["node_id"] == "A")
+            assert node["status"] == "waiting"
+            assert node["config_changed"] is True
+        snapshot_node = next(node for node in view["debug_snapshot"]["nodes"] if node["node_id"] == "A")
+        assert snapshot_node["configured_inputs"] == {"text": "run-input"}
+        assert snapshot_node["node_name"] == "run-name"
+        template.update_draft_snapshot(run_tree, "tester")
+        assert context_nodes(template)["A"]["config_changed"] is False
+
+    @pytest.mark.parametrize("run_type", ["global", "step"])
+    @pytest.mark.parametrize("child", [None, {"state": "READY"}, {"state": "SUSPENDED"}, {"state": "UNKNOWN"}])
+    def test_unconfirmed_execution_keeps_previous_baseline(self, template, mocker, run_type, child):
+        """创建成功、缺少状态或执行前挂起均不能把配置记为已被引擎执行。"""
+        mock_run(template)
+        edit_node(template)
+        client = engine_client(mocker)
+        svc = DebugService(template.id)
+        if run_type == "global":
+            svc.global_run({}, "tester")
+        else:
+            mocker.patch("bkflow.template.debug.pipeline_builder.build_single_node_pipeline_tree", return_value={})
+            svc.step_run("A", "tester", mode="real")
+        client.get_task_states.return_value = {
+            "result": True,
+            "data": {"state": "RUNNING", "children": {"rtA": child} if child else {}},
+        }
+        view = DebugService(template.id).build_context_view()
+        for nodes in (view["nodes"], view["debug_snapshot"]["nodes"]):
+            assert next(node for node in nodes if node["node_id"] == "A")["config_changed"] is True
+
+    @pytest.mark.parametrize("run_type", ["global", "step"])
     @pytest.mark.parametrize("state", ["FINISHED", "FAILED"])
     def test_current_real_run_clears_marker_on_completion(self, template, mocker, run_type, state):
         """真实执行按最新配置成功或失败后均消除配置不一致。"""
