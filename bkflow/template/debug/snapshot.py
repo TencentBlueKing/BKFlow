@@ -6,6 +6,26 @@ import heapq
 from bkflow.template.debug.dependency import DEBUG_CONFIG_HASH_PREFIX
 from bkflow.utils.handlers import mask_sensitive_data_for_display
 
+EXECUTED_CONFIG_PREFIX = "run:"
+
+
+def executed_config_hash(config_hash):
+    """在已有指纹中记录实际执行依据，重置状态时不丢失；不改变哈希算法版本。"""
+    config_hash = config_hash or ""
+    if config_hash.startswith(EXECUTED_CONFIG_PREFIX):
+        return config_hash
+    return EXECUTED_CONFIG_PREFIX + config_hash
+
+
+def has_execution_baseline(config_hash, status, duration_ms):
+    """兼容旧完成记录；旧版 not_run 指纹可能仅来自初始化，不能证明已调试。"""
+    return (
+        bool(config_hash and config_hash.startswith(EXECUTED_CONFIG_PREFIX))
+        or status == "finished"
+        # 真实执行失败会记录耗时；单步启动失败也会写 failed，但耗时为 None。
+        or (status == "failed" and duration_ms is not None)
+    )
+
 
 def debug_nodes(tree):
     """返回当前层的活动和网关，子画布作为一个节点展示。"""
@@ -66,8 +86,12 @@ def ordered_node_ids(tree):
     return ordered
 
 
-def config_changed(config_hash, node_name, current_node, current_hash):
-    """只比较同版配置指纹；缺少新版基准时仍保留独立的名称、删除判断。"""
+def config_changed(config_hash, node_name, current_node, current_hash, status, duration_ms):
+    """只使用实际执行过的基准比较配置，未调试新节点不产生失效提示。"""
+    if not has_execution_baseline(config_hash, status, duration_ms):
+        return False
+    if config_hash and config_hash.startswith(EXECUTED_CONFIG_PREFIX):
+        config_hash = config_hash[len(EXECUTED_CONFIG_PREFIX) :]
     if current_node is None:
         return bool(config_hash)
     hash_changed = (
@@ -124,7 +148,11 @@ def node_result(state, node, operator):
             "log_ref": state.log_ref or None,
             "last_run_at": state.last_run_at.isoformat() if state.last_run_at else None,
             "operator": operator,
-            "_config_hash": state.debug_config_hash,
+            "_config_hash": (
+                executed_config_hash(state.debug_config_hash)
+                if has_execution_baseline(state.debug_config_hash, state.status, state.duration_ms)
+                else None
+            ),
             "_node_name": state.debug_node_name,
         }
     )

@@ -166,9 +166,15 @@ class TestConfigChanged:
     @pytest.mark.parametrize("run_type", ["global", "step"])
     @pytest.mark.parametrize("change", ["input", "name"])
     @pytest.mark.parametrize("schedule_type", [None, "CALLBACK", "MULTIPLE_CALLBACK", "POLL"])
-    def test_started_node_uses_current_run_baseline(self, template, mocker, run_type, change, schedule_type):
-        """新节点配置变更后开始真实执行，运行中和等待中均采用本次配置比较。"""
+    @pytest.mark.parametrize("previous_run", [False, True])
+    def test_started_node_uses_current_run_baseline(
+        self, template, mocker, run_type, change, schedule_type, previous_run
+    ):
+        """新节点和已有调试记录的节点进入运行或等待后，均采用本次配置比较。"""
         assert context_nodes(template)["A"]["status"] == "not_run"
+        if previous_run:
+            mock_run(template)
+        mock_run(template, "B")
         tree = copy.deepcopy(DebugService(template.id).pipeline_tree)
         if change == "input":
             tree["activities"]["A"]["component"]["data"]["text"]["value"] = "after"
@@ -176,7 +182,7 @@ class TestConfigChanged:
             tree["activities"]["A"]["name"] = "renamed"
         tree["activities"]["B"]["component"]["version"] = "2"
         template.update_draft_snapshot(tree, "tester")
-        assert context_nodes(template)["A"]["config_changed"] is True
+        assert context_nodes(template)["A"]["config_changed"] is previous_run
 
         client = engine_client(mocker)
         svc = DebugService(template.id)
