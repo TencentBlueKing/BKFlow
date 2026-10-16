@@ -6,6 +6,7 @@ import pytest
 
 from bkflow.template.debug.dependency import compute_debug_config_hashes
 from bkflow.template.debug.service import DebugService
+from bkflow.template.debug.snapshot import executed_config_hash
 from bkflow.template.models import DebugContext, DebugNodeState
 from tests.interface.template.debug import test_config_changed
 from tests.interface.template.debug.test_snapshot import (
@@ -152,10 +153,9 @@ class TestStructureChanges:
         assert node["status"] == "finished"
         assert node["config_changed"] is False
         assert node["configured_inputs"] == {"text": "before"}
-        assert (
-            DebugNodeState.objects.get(debug_context__template_id=template.id, node_id="A").debug_config_hash
-            == old_hash
-        )
+        assert DebugNodeState.objects.get(
+            debug_context__template_id=template.id, node_id="A"
+        ).debug_config_hash == executed_config_hash(old_hash)
 
 
 @pytest.mark.parametrize(
@@ -172,6 +172,7 @@ def test_external_connections_do_not_change_versioned_hash(node_type):
     assert compute_debug_config_hashes(tree) == before
     assert before["A"].startswith("v2:")
     assert len(before["A"]) <= DebugNodeState._meta.get_field("debug_config_hash").max_length
+    assert len(executed_config_hash(before["A"])) <= DebugNodeState._meta.get_field("debug_config_hash").max_length
 
 
 @pytest.mark.parametrize("node_type", ["SubCanvas", "SubProcess"])

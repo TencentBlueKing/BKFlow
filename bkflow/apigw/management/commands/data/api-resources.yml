@@ -6874,7 +6874,7 @@ paths:
                               type: string
                             config_changed:
                               type: boolean
-                              description: 名称或自身执行配置与可靠调试基准不一致，不包含外部 incoming/outgoing 连线。引擎确认运行或等待时即使用本次冻结配置更新基准，未执行节点不更新。仅比较同版配置指纹，旧版或缺失配置基准不据此标记；名称独立比较，不改变历史执行状态。
+                              description: 名称或自身执行配置与可靠调试基准不一致，不包含外部 incoming/outgoing 连线。从未实际执行或缺少可靠执行依据时为 false；已执行后重置仍保留比较依据。引擎确认运行或等待时使用本次冻结配置更新基准。仅比较同版配置指纹；名称独立比较，不改变历史执行状态。
                       debug_snapshot:
                         type: object
                         nullable: true
@@ -6904,7 +6904,7 @@ paths:
                                   nullable: true
                                 config_changed:
                                   type: boolean
-                                  description: 已保存名称或自身执行配置与可靠调试基准不一致，不包含外部 incoming/outgoing 连线。引擎确认运行或等待时即使用本次冻结配置更新基准，未执行节点不更新；旧版或缺失配置基准不据此标记，名称和删除独立判断。仅作提示，不覆盖历史 status。
+                                  description: 已保存名称或自身执行配置与可靠调试基准不一致，不包含外部 incoming/outgoing 连线。从未实际执行或缺少可靠执行依据时为 false；已执行后重置仍保留比较依据。引擎确认运行或等待时使用本次冻结配置更新基准；名称和删除独立判断。仅作提示，不覆盖历史 status。
                                 node_deleted:
                                   type: boolean
                                   description: 节点已不在当前已保存草稿中，保留历史结果。
