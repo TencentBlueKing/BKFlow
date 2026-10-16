@@ -44,6 +44,8 @@ from bkflow.template.debug.gateway import (
 from bkflow.template.debug.snapshot import (
     config_changed,
     debug_nodes,
+    executed_config_hash,
+    has_execution_baseline,
     merge_step_result,
     node_result,
     ordered_node_ids,
@@ -125,16 +127,21 @@ class DebugService:
         tree_node_ids = set(debug_nodes)
 
         new_node_ids = [node_id for node_id in debug_nodes if node_id not in existing]
-        historical = {node["node_id"]: node for node in (ctx.debug_snapshot or {}).get("nodes", [])}
-        config_hashes = compute_debug_config_hashes(self.pipeline_tree) if new_node_ids else {}
+        historical = {
+            node["node_id"]: node
+            for node in (ctx.debug_snapshot or {}).get("nodes", [])
+            if has_execution_baseline(node.get("_config_hash"), node["status"], node.get("duration_ms"))
+        }
         to_create = [
             DebugNodeState(
                 debug_context=ctx,
                 node_id=node_id,
                 node_type=debug_nodes[node_id].get("type", "ServiceActivity"),
-                # 首次出现时只建立比较起点，是否调试过仍由 status=not_run 表示。
-                debug_config_hash=historical.get(node_id, {}).get("_config_hash", config_hashes[node_id]),
-                debug_node_name=historical.get(node_id, {}).get("_node_name", debug_nodes[node_id].get("name", "")),
+                # 新节点首次读取不代表已调试；仅恢复同一节点已有的历史比较依据。
+                debug_config_hash=(
+                    executed_config_hash(historical[node_id].get("_config_hash")) if node_id in historical else None
+                ),
+                debug_node_name=historical.get(node_id, {}).get("_node_name"),
             )
             for node_id in new_node_ids
         ]
@@ -244,6 +251,8 @@ class DebugService:
                         ns.debug_node_name,
                         current_nodes[ns.node_id],
                         config_hashes.get(ns.node_id),
+                        ns.status,
+                        ns.duration_ms,
                     ),
                     "waiting_reason": ns.waiting_reason or None,
                     "can_step": can_step,
@@ -287,6 +296,8 @@ class DebugService:
                 node.pop("_node_name", None),
                 current_nodes.get(node_id),
                 config_hashes.get(node_id),
+                node["status"],
+                node.get("duration_ms"),
             )
         return snapshot
 
@@ -494,7 +505,18 @@ class DebugService:
         qs = DebugNodeState.objects.filter(debug_context=ctx)
         if node_ids is not None:
             qs = qs.filter(node_id__in=node_ids)
-        reset_ids = list(qs.values_list("node_id", flat=True))
+        states = list(qs)
+        reset_ids = [state.node_id for state in states]
+        # 旧版已完成结果在清空状态、耗时前保留执行依据；新节点的初始化指纹不升级。
+        baselines = []
+        for state in states:
+            if has_execution_baseline(state.debug_config_hash, state.status, state.duration_ms):
+                baseline = executed_config_hash(state.debug_config_hash)
+                if baseline != state.debug_config_hash:
+                    state.debug_config_hash = baseline
+                    baselines.append(state)
+        if baselines:
+            DebugNodeState.objects.bulk_update(baselines, ["debug_config_hash"])
         qs.update(
             status="not_run",
             waiting_reason="",
@@ -511,6 +533,8 @@ class DebugService:
             else:
                 for node in ctx.debug_snapshot["nodes"]:
                     if node["node_id"] in node_ids:
+                        if has_execution_baseline(node.get("_config_hash"), node["status"], node.get("duration_ms")):
+                            node["_config_hash"] = executed_config_hash(node.get("_config_hash"))
                         node.update(
                             status="not_run",
                             waiting_reason=None,
@@ -772,7 +796,7 @@ class DebugService:
                 run_config_hash = (ctx.active_config_hashes or {}).get(tpl_node_id)
                 if run_config_hash:
                     # 不使用当前草稿：调试运行期间可能已经保存了新配置。
-                    ns.debug_config_hash = run_config_hash
+                    ns.debug_config_hash = executed_config_hash(run_config_hash)
                     # 旧实例启动的任务没有名称快照，不能拿当前草稿补造历史。
                     if active:
                         ns.debug_node_name = run_nodes[tpl_node_id].get("name", "")
@@ -1194,7 +1218,7 @@ class DebugService:
                 }
 
             ns.duration_ms = int((time.monotonic() - started_at) * 1000)
-            ns.debug_config_hash = compute_debug_config_hashes(self.pipeline_tree)[ns.node_id]
+            ns.debug_config_hash = executed_config_hash(compute_debug_config_hashes(self.pipeline_tree)[ns.node_id])
             ns.debug_node_name = debug_nodes(self.pipeline_tree)[ns.node_id].get("name", "")
             ns.save()
             self._capture_debug_snapshot(ctx, operator, ns.node_id, execution_mode="real")
@@ -1206,7 +1230,7 @@ class DebugService:
 
     def _step_run_mock(self, ctx, ns, mock_result, mock_outputs, mock_error):
         # Mock 同样是一次实际调试；纯 Mock 配置接口不更新此基准。
-        ns.debug_config_hash = compute_debug_config_hashes(self.pipeline_tree)[ns.node_id]
+        ns.debug_config_hash = executed_config_hash(compute_debug_config_hashes(self.pipeline_tree)[ns.node_id])
         ns.debug_node_name = debug_nodes(self.pipeline_tree)[ns.node_id].get("name", "")
         ns.log_ref = {}
         # 本地 Mock 不经过引擎，没有真实执行输入；不能沿用上一轮 real 参数。
@@ -1286,6 +1310,9 @@ class DebugService:
             if not runtime_id:
                 raise DebugStateError("node id map missing")
 
+            # 先保留旧版已完成结果的执行依据，避免启动失败或尚未取得引擎状态时丢失。
+            if has_execution_baseline(ns.debug_config_hash, ns.status, ns.duration_ms):
+                ns.debug_config_hash = executed_config_hash(ns.debug_config_hash)
             ns.status = "running"
             ns.waiting_reason = ""
             ns.duration_ms = None
@@ -1297,6 +1324,7 @@ class DebugService:
             ns.save(
                 update_fields=[
                     "status",
+                    "debug_config_hash",
                     "waiting_reason",
                     "duration_ms",
                     "inputs",
