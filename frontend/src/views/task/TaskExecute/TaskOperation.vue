@@ -1451,7 +1451,7 @@
                 directives: [{
                   name: 'bk-overflow-tips',
                 }],
-              }, [i18n.t('重新节点将重新执行当前节点（使用最新的参数值）')]),
+              }, [i18n.t('重试后，系统将重新执行当前节点')]),
             ]),
             extCls: 'dialog-custom-header-title',
             maskClose: false,
@@ -1467,12 +1467,12 @@
               });
               if (resp.result) {
                 this.$bkMessage({
-                  message: i18n.t('重试成功'),
+                  message: i18n.t('已开始重试'),
                   theme: 'success',
                 });
                 // 重新轮询任务状态
                 this.isFailedSubproceeNodeInfo = null;
-                this.setTaskStatusTimer();
+                this.setTaskStatusTimer(0);
                 this.updateNodeActived(id, false);
                 this.updateExecuteInfo();
               }
@@ -1529,7 +1529,7 @@
           }
           if (res.result) {
             this.$bkMessage({
-              message: i18n.t('重试成功'),
+              message: i18n.t('已开始重试'),
               theme: 'success',
             });
             this.nodeInfo = {};
@@ -1592,7 +1592,7 @@
           this.retryNodeId = undefined;
           // 重新轮询任务状态
           this.isFailedSubproceeNodeInfo = null;
-          this.setTaskStatusTimer();
+          this.setTaskStatusTimer(0);
           this.updateNodeActived(this.nodeDetailConfig.id, false);
         } catch (error) {
           console.warn(error);
@@ -2257,7 +2257,7 @@
           await this.onRetryTask(data);
           this.isNodeInfoPanelShow = false;
           this.isFailedSubproceeNodeInfo = null;
-          this.setTaskStatusTimer();
+          this.setTaskStatusTimer(0);
           this.updateNodeActived(this.nodeDetailConfig.id, false);
         } catch (error) {
           console.warn(error);
