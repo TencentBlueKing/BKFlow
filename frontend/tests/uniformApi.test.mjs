@@ -249,6 +249,18 @@ async function main() {
     });
   });
 
+  test('buildUniformApiMetaParams requests structured errors only when enabled', () => {
+    assert.deepEqual(buildUniformApiMetaParams({
+      meta_url: 'https://example.com/meta',
+      structured_error: true,
+    }), {
+      meta_url: 'https://example.com/meta',
+      scope_type: undefined,
+      scope_value: undefined,
+      structured_error: 1,
+    });
+  });
+
   test('isV4OpenPlugin requires the V4 wrapper and open-plugin identity', () => {
     assert.equal(isV4OpenPlugin(savedComponent), true);
     assert.equal(isV4OpenPlugin({

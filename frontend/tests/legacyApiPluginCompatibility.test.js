@@ -47,7 +47,7 @@ function loadJsonFormSchema() {
   });
 }
 
-function loadVueComponent(relativePath) {
+function loadVueComponent(relativePath, uniformApiOverrides = {}) {
   const source = fs.readFileSync(path.resolve(__dirname, relativePath), 'utf8');
   const script = source.match(/<script>([\s\S]*?)<\/script>/);
   assert.ok(script, `${relativePath} must contain a script block`);
@@ -62,6 +62,7 @@ function loadVueComponent(relativePath) {
       methodList: detail.methods || [],
       wrapperVersion: detail.version,
     }),
+    ...uniformApiOverrides,
   }, {
     get(target, key) {
       if (key in target) return target[key];
@@ -238,6 +239,120 @@ async function testTaskExecutePagesKeepLegacySchema() {
   }
 }
 
+async function testSideDrawerRequestsStructuredPluginErrors() {
+  const component = loadVueComponent('../src/views/task/TaskExecute/SideDrawerExecuteInfo.vue');
+  const context = createCommonContext();
+  context.renderConfig = null;
+  context.nodeDetailConfig = { node_id: 'node-1' };
+  context.nodeActivity = {
+    id: 'node-1',
+    component: {
+      ...legacyComponent,
+      api_meta: {
+        ...legacyComponent.api_meta,
+        id: 'hy3-preview',
+        name: 'hy3-preview',
+        source_key: 'sops',
+      },
+    },
+  };
+  let request;
+  context.loadUniformApiMeta = async (payload) => {
+    request = payload;
+    return { result: false };
+  };
+
+  await component.methods.getNodeConfig.call(
+    context,
+    'uniform_api',
+    'v3.0.0',
+    '1.0.0',
+  );
+
+  assert.strictEqual(request.plugin_id, undefined);
+  assert.strictEqual(request.plugin_version, undefined);
+  assert.strictEqual(request.structured_error, true);
+  assert.strictEqual(typeof request.businessErrorFormatter, 'function');
+  context.isDestroyed = true;
+  assert.strictEqual(request.businessErrorFormatter({ data: {} }), null);
+}
+
+async function testSideDrawerSuppressesPreviousNodePluginError() {
+  const component = loadVueComponent('../src/views/task/TaskExecute/SideDrawerExecuteInfo.vue');
+  const context = createCommonContext();
+  context.renderConfig = null;
+  context.nodeDetailConfig = { node_id: 'node-1' };
+  context.nodeActivity = {
+    id: 'node-1',
+    component: {
+      ...legacyComponent,
+      api_meta: {
+        ...legacyComponent.api_meta,
+        id: 'hy3-preview',
+        name: 'hy3-preview',
+      },
+    },
+  };
+  let request;
+  let resolveRequest;
+  context.loadUniformApiMeta = payload => new Promise((resolve) => {
+    request = payload;
+    resolveRequest = resolve;
+  });
+
+  const pending = component.methods.getNodeConfig.call(
+    context,
+    'uniform_api',
+    'v3.0.0',
+    '1.0.0',
+  );
+  await Promise.resolve();
+  context.nodeDetailConfig = { node_id: 'node-2' };
+
+  assert.strictEqual(request.businessErrorFormatter({ data: {} }), null);
+  resolveRequest({ result: false });
+  await pending;
+}
+
+async function testSideDrawerFormatsV4PluginDetailErrorsOnce() {
+  const component = loadVueComponent(
+    '../src/views/task/TaskExecute/SideDrawerExecuteInfo.vue',
+    {
+      isV4OpenPlugin: () => true,
+      buildV4PluginDetailRequest: () => ({ plugin_code: 'hy3-preview' }),
+      resolveV4OpenPluginVersion: () => '1.0.0',
+    },
+  );
+  const context = createCommonContext();
+  context.nodeDetailConfig = { node_id: 'node-1', instance_id: 'task-1' };
+  context.nodeActivity = {
+    id: 'node-1',
+    component: {
+      ...legacyComponent,
+      api_meta: {
+        ...legacyComponent.api_meta,
+        id: 'hy3-preview',
+        name: 'hy3-preview',
+        plugin_version: '1.0.0',
+      },
+    },
+  };
+  let payload;
+  context.loadV4OpenPluginForm = async (value) => {
+    payload = value;
+    throw { businessErrorHandled: true };
+  };
+  let notificationCount = 0;
+  context.$bkMessage = () => {
+    notificationCount += 1;
+  };
+
+  await component.methods.getNodeConfig.call(context, 'uniform_api', 'v4.0.0', '1.0.0');
+
+  assert.strictEqual(typeof payload.businessErrorFormatter, 'function');
+  assert.strictEqual(notificationCount, 0);
+}
+
 async function testTaskDetailFormsKeepLegacySchemaAndHookState() {
   const pages = [
     '../src/views/task/TaskExecute/ExecuteInfo/ExecuteInfoForm.vue',
@@ -379,6 +494,9 @@ Promise.resolve()
   .then(testNodeConfigKeepsLegacySchema)
   .then(testLegacyApiPluginKeepsVersionSelectorHidden)
   .then(testTaskExecutePagesKeepLegacySchema)
+  .then(testSideDrawerRequestsStructuredPluginErrors)
+  .then(testSideDrawerSuppressesPreviousNodePluginError)
+  .then(testSideDrawerFormatsV4PluginDetailErrorsOnce)
   .then(testTaskDetailFormsKeepLegacySchemaAndHookState)
   .then(testMockSettingKeepsLegacySchemaAndHookState)
   .then(testLegacyInputVariableKeepsApiFieldMetadata)

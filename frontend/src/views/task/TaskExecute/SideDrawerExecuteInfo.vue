@@ -259,6 +259,7 @@
     resolveUniformApiPluginVersion,
     resolveV4OpenPluginVersion,
   } from '@/utils/uniformApi.js';
+  import { formatTaskPluginMetaError } from '@/utils/taskPluginError.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
   import SubStageCanvas from '../../../components/canvas/StageCanvas/SubStageCanvas.vue';
   // import { DEBUG_MOCK_PIPELINE_TREE } from './__debug_mock_pipeline_tree.js'; // DEBUG MOCK
@@ -1490,11 +1491,16 @@
       async getNodeConfig(type, version, pluginVersion, runtimeContext = {}) {
         this.pluginFormRequestId += 1;
         const requestId = this.pluginFormRequestId;
+        const requestNodeId = this.nodeDetailConfig && this.nodeDetailConfig.node_id;
         const canApply = () => !this.isDestroyed
-          && canApplyPluginDetailResult(requestId, this.pluginFormRequestId);
+          && canApplyPluginDetailResult(requestId, this.pluginFormRequestId)
+          && requestNodeId === (this.nodeDetailConfig && this.nodeDetailConfig.node_id);
         const component = this.nodeActivity && this.nodeActivity.component;
         const isV4 = this.pluginCode === 'uniform_api' && isV4OpenPlugin(component);
         if (isV4) {
+          const apiMeta = component.api_meta || {};
+          const pluginId = apiMeta.id || apiMeta.plugin_id || '';
+          const businessPluginVersion = resolveV4OpenPluginVersion(component) || pluginVersion || '';
           this.renderConfig = [];
           this.outputRenderConfig = [];
           this.outputs = [];
@@ -1513,6 +1519,15 @@
               nodeId: this.nodeDetailConfig.node_id,
               templateNodeId: this.nodeActivity && this.nodeActivity.template_node_id,
               isCurrent: canApply,
+              businessErrorFormatter: (response) => {
+                if (!canApply()) return null;
+                return formatTaskPluginMetaError(response, {
+                  pluginCode: pluginId,
+                  pluginName: apiMeta.name || '',
+                  pluginVersion: businessPluginVersion,
+                  t: i18n.t.bind(i18n),
+                });
+              },
               runtimeContext: {
                 inputs: runtimeContext.inputs || {},
                 outputs: runtimeContext.outputs || [],
@@ -1526,8 +1541,9 @@
             this.isRenderOutputForm = result.isRenderOutputForm;
           } catch (error) {
             if (!canApply()) return;
+            if (error && error.businessErrorHandled) return;
             const errorCode = error && error.code ? error.code : 'FORM_LOAD_FAILED';
-            const loadedVersion = resolveV4OpenPluginVersion(component) || pluginVersion || '--';
+            const loadedVersion = businessPluginVersion || '--';
             this.$bkMessage({
               message: `${errorCode}: ${loadedVersion}`,
               theme: 'error',
@@ -1549,6 +1565,9 @@
             if (this.pluginCode === 'uniform_api') {
               const { api_meta: apiMeta } = this.nodeActivity.component || {};
               if (!apiMeta) return;
+              const resolvedPluginVersion = resolveUniformApiPluginVersion(this.nodeActivity.component);
+              const pluginId = apiMeta.id || apiMeta.plugin_id || '';
+              const businessPluginVersion = apiMeta.plugin_version || '';
               // 先获取api插件配置，以获取正确的version
               const resp = await this.loadUniformApiMeta({
                 taskId: this.taskId,
@@ -1557,8 +1576,18 @@
                 ...this.scopeInfo,
                 meta_url_template: apiMeta.meta_url_template,
                 source_key: apiMeta.source_key,
-                version: resolveUniformApiPluginVersion(this.nodeActivity.component),
+                version: resolvedPluginVersion,
                 api_name: apiMeta.api_key,
+                structured_error: true,
+                businessErrorFormatter: (response) => {
+                  if (!canApply()) return null;
+                  return formatTaskPluginMetaError(response, {
+                    pluginCode: pluginId,
+                    pluginName: apiMeta.name || '',
+                    pluginVersion: businessPluginVersion,
+                    t: i18n.t.bind(i18n),
+                  });
+                },
               });
               if (!canApply()) return;
               if (!resp.result) return;
