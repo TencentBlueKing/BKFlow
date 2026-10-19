@@ -12,7 +12,7 @@ export const formatTaskPluginMetaError = (response, context) => {
       message: t('插件可能已下架或当前无访问权限，请联系管理员确认。'),
     };
   }
-  if (response.status === 404 || data.error_code === 'PLUGIN_UNAVAILABLE') {
+  if (response.status === 404) {
     return {
       title: t('插件已下架，节点参数无法加载'),
       message: t(

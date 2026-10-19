@@ -7,17 +7,17 @@ def test_query_response_handler_serializes_structured_error():
     @query_response_handler
     def view():
         raise QueryResponseError(
-            "插件版本不存在或已下架",
-            error_code="PLUGIN_UNAVAILABLE",
+            "插件详情不可用",
+            error_code="PLUGIN_DETAIL_UNAVAILABLE",
         )
 
     response = view()
 
     assert response.data == {
         "result": False,
-        "message": "插件版本不存在或已下架",
+        "message": "插件详情不可用",
         "data": None,
-        "error_code": "PLUGIN_UNAVAILABLE",
+        "error_code": "PLUGIN_DETAIL_UNAVAILABLE",
     }
 
 

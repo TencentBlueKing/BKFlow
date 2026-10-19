@@ -6,7 +6,6 @@ from requests import Response
 
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.query.uniform_api import uniform_api as uniform_api_query
-from bkflow.pipeline_plugins.query.utils import QueryResponseError
 from bkflow.space.configs import UniformApiConfig, ApiGatewayCredentialConfig
 from bkflow.utils.api_client import HttpRequestResult
 
@@ -235,8 +234,8 @@ def test_meta_serializer_accepts_structured_error():
     assert serializer.validated_data["structured_error"] is True
 
 
-def test_structured_meta_error_marks_explicit_provider_code_unavailable():
-    """上游稳定业务码明确表示插件不存在时才判定下架。"""
+def test_structured_meta_error_ignores_uncontracted_provider_code():
+    """统一 API 协议未约定错误码，不得据此判定插件已下架。"""
     error = uniform_api_query._build_structured_meta_error(
         request_result=_failed_meta_result(
             200,
@@ -245,8 +244,7 @@ def test_structured_meta_error_marks_explicit_provider_code_unavailable():
         ),
     )
 
-    assert isinstance(error, QueryResponseError)
-    assert error.error_code == "PLUGIN_UNAVAILABLE"
+    assert error is None
 
 
 def test_structured_meta_error_keeps_uncontracted_provider_message_generic():

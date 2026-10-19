@@ -96,28 +96,7 @@ class UniformAPIMetaSerializer(UniformAPIBaseSerializer):
 
 
 def _build_structured_meta_error(request_result):
-    """仅根据稳定业务码或 HTTP 状态生成插件详情业务错误。"""
-    payload = getattr(request_result, "json_resp", None)
-    if not isinstance(payload, dict) or not payload:
-        try:
-            payload = request_result.resp.json()
-        except (AttributeError, ValueError):
-            payload = {}
-    if not isinstance(payload, dict):
-        payload = {}
-
-    provider_code = str(payload.get("error_code") or "").upper()
-    unavailable_codes = {
-        "PLUGIN_NOT_FOUND",
-        "PLUGIN_UNAVAILABLE",
-        "PLUGIN_VERSION_NOT_FOUND",
-    }
-    if provider_code in unavailable_codes:
-        return QueryResponseError(
-            "插件版本不存在或已下架",
-            error_code="PLUGIN_UNAVAILABLE",
-        )
-
+    """将上游不可用状态转换为不确定性的插件详情错误。"""
     status_code = getattr(getattr(request_result, "resp", None), "status_code", None)
     if status_code in (403, 404, 410):
         return QueryResponseError(

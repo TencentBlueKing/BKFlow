@@ -27,9 +27,7 @@ const context = {
 };
 
 const unavailableResponse = response('PLUGIN_UNAVAILABLE');
-const unavailable = formatTaskPluginMetaError(unavailableResponse, context);
-assert.strictEqual(unavailable.title, '插件已下架，节点参数无法加载');
-assert.ok(unavailable.message.includes('hy3-preview'));
+assert.strictEqual(formatTaskPluginMetaError(unavailableResponse, context), undefined);
 
 const denied = formatTaskPluginMetaError(response('PLUGIN_DETAIL_UNAVAILABLE'), context);
 assert.strictEqual(denied.title, '插件详情加载失败');
@@ -40,9 +38,6 @@ assert.strictEqual(v4Unavailable.title, '插件已下架，节点参数无法加
 
 const v4Denied = formatTaskPluginMetaError(response(undefined, 403), context);
 assert.strictEqual(v4Denied.title, '插件详情加载失败');
-
-const conflictingV4Denied = formatTaskPluginMetaError(response('PLUGIN_UNAVAILABLE', 403), context);
-assert.strictEqual(conflictingV4Denied.title, '插件详情加载失败');
 
 const emptyV4Denied = formatTaskPluginMetaError({ data: null, status: 403 }, context);
 assert.strictEqual(emptyV4Denied.title, '插件详情加载失败');
