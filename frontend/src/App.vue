@@ -115,7 +115,7 @@
       });
       bus.$on('showErrMessage', (info) => {
         const msg = typeof info.message === 'string' ? info.message : JSON.stringify(info.message);
-        window.show_msg(msg, 'error', '', info.traceId, info.errorSource);
+        window.show_msg(msg, 'error', info.title || '', info.traceId, info.errorSource);
       });
       /**
        * 兼容标准插件配置项里，异步请求用到的全局弹窗提示

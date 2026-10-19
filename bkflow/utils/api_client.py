@@ -180,7 +180,10 @@ class HttpRequestMixin:
                 # 部分服务除了返回合法的status_code外，还会返回错误信息
                 try:
                     json_resp = response.json()
-                    message = f"[request api error] message: {json_resp.get('message')}."
+                    if isinstance(json_resp, dict):
+                        message = f"[request api error] message: {json_resp.get('message')}."
+                    else:
+                        message = f"[request api error] status_code: {response.status_code}."
                 except json.JSONDecodeError:
                     message = f"[request api error] status_code: {response.status_code}."
 

@@ -30,7 +30,7 @@ from bkflow.pipeline_plugins.query.uniform_api.utils import (
     UniformAPIClient,
     resolve_meta_url,
 )
-from bkflow.pipeline_plugins.query.utils import query_response_handler
+from bkflow.pipeline_plugins.query.utils import QueryResponseError, query_response_handler
 from bkflow.plugin.models import OpenPluginCatalogIndex
 from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
 from bkflow.space.configs import (
@@ -82,6 +82,7 @@ class UniformAPIMetaSerializer(UniformAPIBaseSerializer):
     meta_url_template = serializers.CharField(required=False, allow_blank=True)
     version = serializers.CharField(required=False, allow_blank=True)
     source_key = serializers.CharField(required=False, allow_blank=True)
+    structured_error = serializers.BooleanField(required=False, default=False)
 
     def validate(self, attrs: dict) -> dict:
         attrs = super().validate(attrs)
@@ -92,6 +93,17 @@ class UniformAPIMetaSerializer(UniformAPIBaseSerializer):
         if attrs.get("meta_url_template") and not attrs.get("source_key"):
             raise serializers.ValidationError({"source_key": "开放插件详情请求必须指定来源"})
         return attrs
+
+
+def _build_structured_meta_error(request_result):
+    """将上游不可用状态转换为不确定性的插件详情错误。"""
+    status_code = getattr(getattr(request_result, "resp", None), "status_code", None)
+    if status_code in (403, 404, 410):
+        return QueryResponseError(
+            "插件详情不可用",
+            error_code="PLUGIN_DETAIL_UNAVAILABLE",
+        )
+    return None
 
 
 def _get_request_scope(space_id: int, template_id: int = None, task_id: int = None):
@@ -417,12 +429,14 @@ def get_space_uniform_api_meta(requests, space_id):
     serializer = UniformAPIMetaSerializer(data=requests.query_params)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
+    structured_error = data.pop("structured_error", False)
     meta_url_template = data.pop("meta_url_template", "")
     data.pop("source_key", "")
+    version = data.pop("version", "")
     meta_url = resolve_meta_url(
         meta_url=data.pop("meta_url", ""),
         meta_url_template=meta_url_template,
-        version=data.pop("version", ""),
+        version=version,
     )
     username = requests.user.username
 
@@ -447,6 +461,10 @@ def get_space_uniform_api_meta(requests, space_id):
         url=meta_url, method="GET", data=data, headers=headers, username=username
     )
     if request_result.result is False:
+        if structured_error:
+            error = _build_structured_meta_error(request_result)
+            if error:
+                raise error
         raise APIResponseError(f"请求统一API元数据失败: {request_result.message}")
     client.validate_response_data(
         request_result.json_resp.get("data", {}), client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA

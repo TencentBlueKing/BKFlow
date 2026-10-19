@@ -25,11 +25,28 @@ from rest_framework.response import Response
 logger = logging.getLogger("root")
 
 
+class QueryResponseError(Exception):
+    """可由 query_response_handler 稳定序列化的业务错误。"""
+
+    def __init__(self, message, error_code):
+        super().__init__(message)
+        self.error_code = error_code
+
+
 def query_response_handler(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             data = func(*args, **kwargs)
+        except QueryResponseError as e:
+            logger.exception(f"call query function {func.__name__} error: {e}")
+            data = {
+                "result": False,
+                "message": str(e),
+                "data": None,
+                "error_code": e.error_code,
+            }
+            return Response(data)
         except Exception as e:
             logger.exception(f"call query function {func.__name__} error: {e}")
             return Response({"result": False, "message": str(e), "data": None})

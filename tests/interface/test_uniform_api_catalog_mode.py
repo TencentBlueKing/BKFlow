@@ -1,13 +1,17 @@
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from requests import Response
 
 from bkflow.exceptions import ValidationError
 from bkflow.pipeline_plugins.query.uniform_api import uniform_api as uniform_api_query
 from bkflow.space.configs import UniformApiConfig, ApiGatewayCredentialConfig
+from bkflow.utils.api_client import HttpRequestResult
 
 LIST_KEY = UniformApiConfig.Keys.META_APIS.value
 CATEGORY_KEY = UniformApiConfig.Keys.API_CATEGORIES.value
+_UNSET = object()
 LIST_URL = "https://bk-sops.example/plugins/?plugin_source=builtin"
 CATEGORY_URL = "https://bk-sops.example/categories/?plugin_source=builtin"
 
@@ -187,6 +191,113 @@ def test_open_plugin_meta_requires_source_key():
 
     assert serializer.is_valid() is False
     assert "source_key" in str(serializer.errors)
+
+
+def _failed_meta_result(status_code, message="provider failed", json_resp=None, response_json=_UNSET):
+    response = Response()
+    response.status_code = status_code
+    if response_json is not _UNSET:
+        response._content = json.dumps(response_json).encode()
+    return HttpRequestResult(
+        result=False,
+        message=message,
+        resp=response,
+        json_resp=json_resp if json_resp is not None else {},
+    )
+
+
+@pytest.mark.parametrize("response_json", ([], None))
+def test_uniform_api_client_handles_non_object_http_error_body(response_json):
+    """非对象 HTTP 错误体也应返回失败结果，供调用方按状态分类。"""
+    response = Response()
+    response.status_code = 403
+    response._content = json.dumps(response_json).encode()
+    with patch("bkflow.utils.api_client.requests.get", return_value=response):
+        result = uniform_api_query.UniformAPIClient.http_request("https://example.com/meta", "GET")
+
+    assert result.result is False
+    assert result.resp is response
+    assert "status_code: 403" in result.message
+
+
+def test_meta_serializer_accepts_structured_error():
+    """任务执行页可以显式请求结构化错误。"""
+    serializer = uniform_api_query.UniformAPIMetaSerializer(
+        data={
+            "task_id": "10001",
+            "meta_url": "https://example.com/meta",
+            "structured_error": True,
+        }
+    )
+
+    assert serializer.is_valid(), serializer.errors
+    assert serializer.validated_data["structured_error"] is True
+
+
+def test_structured_meta_error_ignores_uncontracted_provider_code():
+    """统一 API 协议未约定错误码，不得据此判定插件已下架。"""
+    error = uniform_api_query._build_structured_meta_error(
+        request_result=_failed_meta_result(
+            200,
+            message="[request api error] message: plugin not found.",
+            json_resp={"error_code": "PLUGIN_NOT_FOUND", "message": "plugin not found"},
+        ),
+    )
+
+    assert error is None
+
+
+def test_structured_meta_error_keeps_uncontracted_provider_message_generic():
+    """没有稳定业务码时不得根据自由文本断言插件已下架。"""
+    error = uniform_api_query._build_structured_meta_error(
+        request_result=_failed_meta_result(
+            400,
+            message="[request api error] message: 插件已下架.",
+            json_resp={"message": "插件已下架"},
+        ),
+    )
+
+    assert error is None
+
+
+def test_structured_meta_error_does_not_call_ambiguous_403_unavailable():
+    """无业务语义的 403 只能提示详情不可用，不能直接判定下架。"""
+    error = uniform_api_query._build_structured_meta_error(
+        request_result=_failed_meta_result(403),
+    )
+
+    assert error.error_code == "PLUGIN_DETAIL_UNAVAILABLE"
+
+
+def test_structured_meta_error_does_not_call_ambiguous_404_unavailable():
+    """无业务语义的 404 也只能提示详情不可用。"""
+    error = uniform_api_query._build_structured_meta_error(
+        request_result=_failed_meta_result(404),
+    )
+
+    assert error.error_code == "PLUGIN_DETAIL_UNAVAILABLE"
+
+
+@pytest.mark.parametrize(
+    "response_json",
+    ([], None),
+)
+def test_structured_meta_error_handles_non_object_response_body(response_json):
+    """非对象错误体不得击穿 403 的谨慎提示。"""
+    error = uniform_api_query._build_structured_meta_error(
+        request_result=_failed_meta_result(403, response_json=response_json),
+    )
+
+    assert error.error_code == "PLUGIN_DETAIL_UNAVAILABLE"
+
+
+def test_structured_meta_error_keeps_network_failure_generic():
+    """无 HTTP 状态的网络失败应沿用原有通用错误。"""
+    error = uniform_api_query._build_structured_meta_error(
+        request_result=HttpRequestResult(result=False, message="network failed"),
+    )
+
+    assert error is None
 
 
 def test_cache_first_uses_initialized_cache_without_remote_request():

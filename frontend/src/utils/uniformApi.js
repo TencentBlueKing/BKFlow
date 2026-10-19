@@ -613,6 +613,7 @@ export const buildUniformApiMetaParams = ({
   source_key: sourceKey,
   scope_type: scopeType,
   scope_value: scopeValue,
+  structured_error: structuredError,
 }) => {
   const params = {
     meta_url: metaUrl,
@@ -628,6 +629,9 @@ export const buildUniformApiMetaParams = ({
     if (version !== undefined && version !== null && version !== '') {
       params.version = String(version);
     }
+  }
+  if (structuredError) {
+    params.structured_error = 1;
   }
   return params;
 };
