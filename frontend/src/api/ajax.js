@@ -16,6 +16,11 @@ axios.defaults.xsrfHeaderName = 'X-CSRFToken';
 axios.defaults.withCredentials = true;
 axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
+const formatBusinessError = (response) => {
+  const formatter = response.config && response.config.businessErrorFormatter;
+  return typeof formatter === 'function' ? formatter(response) : undefined;
+};
+
 axios.interceptors.request.use(
   (config) => {
     config.headers['Bkflow-TOKEN'] = store.state.token || '';
@@ -29,12 +34,16 @@ axios.interceptors.request.use(
 axios.interceptors.response.use(
   (response) => {
     if (Object.prototype.hasOwnProperty.call(response.data, 'result') && !response.data.result) {
-      const info = {
-        message: response.data,
-        traceId: response.headers['bkflow-engine-trace-id'],
-        errorSource: 'result',
-      };
-      if (!response.config.url.includes('template/admin/batch_delete/')) {
+      const formatted = formatBusinessError(response);
+      const info = formatted === null
+        ? null
+        : {
+          message: response.data,
+          traceId: response.headers['bkflow-engine-trace-id'],
+          errorSource: 'result',
+          ...(formatted || {}),
+        };
+      if (info && !response.config.url.includes('template/admin/batch_delete/')) {
         bus.$emit('showErrMessage', info);
       }
     }
@@ -48,6 +57,17 @@ axios.interceptors.response.use(
     }
 
     const { response } = error;
+    const formatted = formatBusinessError(response);
+    if (formatted !== undefined) {
+      response.businessErrorHandled = true;
+      if (formatted) {
+        bus.$emit('showErrMessage', {
+          traceId: response.headers['bkflow-engine-trace-id'],
+          ...formatted,
+        });
+      }
+      return Promise.reject(response);
+    }
     if (response.data.message) {
       response.data.msg = response.data.message;
     }

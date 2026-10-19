@@ -76,11 +76,27 @@ async function testLoadsNativeFormFromSuccessEnvelope() {
   assert.strictEqual(typeof loaded.formCalls[0][1].isCurrent, 'function');
 }
 
+async function testPassesRequestErrorFormatterToPluginDetailRequest() {
+  const detail = { forms: { input: null } };
+  const formatter = () => ({ message: 'friendly failure' });
+  const loaded = loadAtomForm({ response: { data: { result: true, data: detail } } });
+
+  await loaded.actions.loadV4OpenPluginForm({}, {
+    request: { plugin_code: 'demo' },
+    businessErrorFormatter: formatter,
+  });
+
+  assert.strictEqual(loaded.postCalls[0][2].businessErrorFormatter, formatter);
+}
+
 async function testRejectsResultFalseEnvelope() {
   const loaded = loadAtomForm({ response: { data: { result: false, message: 'detail failed' } } });
   await assert.rejects(
-    () => loaded.actions.loadV4OpenPluginForm({}, { request: {} }),
-    error => error.message === 'detail failed',
+    () => loaded.actions.loadV4OpenPluginForm({}, {
+      request: {},
+      businessErrorFormatter: () => ({ message: 'friendly failure' }),
+    }),
+    error => error.message === 'detail failed' && error.businessErrorHandled === true,
   );
   assert.deepStrictEqual(loaded.contextCalls, []);
   assert.deepStrictEqual(loaded.formCalls, []);
@@ -253,6 +269,7 @@ async function testEditableStillRequestsLiveDetailEvenWithSnapshot() {
 
 Promise.resolve()
   .then(testLoadsNativeFormFromSuccessEnvelope)
+  .then(testPassesRequestErrorFormatterToPluginDetailRequest)
   .then(testRejectsResultFalseEnvelope)
   .then(testPropagatesAxiosRejection)
   .then(testStaleDetailDoesNotApplyContextOrLoadForms)

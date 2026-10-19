@@ -244,10 +244,14 @@ const atomForm = {
       };
 
       try {
-        const response = await axios.post('/api/plugin/detail/', payload.request);
+        const response = await axios.post('/api/plugin/detail/', payload.request, {
+          businessErrorFormatter: payload.businessErrorFormatter,
+        });
         if (!isCurrent()) throw createPluginFormStaleError();
         if (!response.data.result) {
-          throw new Error(response.data.message || 'load plugin detail failed');
+          const error = new Error(response.data.message || 'load plugin detail failed');
+          error.businessErrorHandled = typeof payload.businessErrorFormatter === 'function';
+          throw error;
         }
         const form = await loadForm(response.data.data);
         return form;

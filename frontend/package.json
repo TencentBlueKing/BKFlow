@@ -13,7 +13,7 @@
     "test:render-form-schema": "node tests/renderFormSchema.test.js",
     "test:tenant": "node tests/tenantCompatibility.test.js",
     "test:release-compatibility": "node tests/releaseCompatibility.test.js",
-    "test:plugin-form": "node tests/renderFormSchema.test.js && node tests/pluginFormLoader.test.js && node tests/uniformApi.test.mjs && node tests/atomForm.test.js && node tests/legacyApiPluginCompatibility.test.js && node tests/legacyApiVariableForm.test.js && node tests/createTaskSideslider.test.js && node tests/staticImageImports.test.js && node tests/tenantCompatibility.test.js && node tests/releaseCompatibility.test.js",
+    "test:plugin-form": "node tests/renderFormSchema.test.js && node tests/pluginFormLoader.test.js && node tests/uniformApi.test.mjs && node tests/atomForm.test.js && node tests/taskPluginError.test.js && node tests/legacyApiPluginCompatibility.test.js && node tests/legacyApiVariableForm.test.js && node tests/createTaskSideslider.test.js && node tests/staticImageImports.test.js && node tests/tenantCompatibility.test.js && node tests/releaseCompatibility.test.js",
     "lint": "eslint --ext .js,.vue src/",
     "fix": "eslint --fix --ext .js,.vue src/"
   },
@@ -29,7 +29,7 @@
     "@blueking/bk-user-display-name": "^1.0.3-beta.7",
     "@blueking/bk-user-selector": "^0.1.8",
     "@blueking/bkcharts": "^2.0.6",
-    "@blueking/bkflow-canvas-editor-vue2": "1.0.5",
+    "@blueking/bkflow-canvas-editor-vue2": "1.0.19",
     "@blueking/bkui-form": "^0.0.51",
     "@blueking/crypto-js-sdk": "^0.0.5",
     "@blueking/bkui-library": "^0.0.0-beta.6",

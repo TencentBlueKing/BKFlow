@@ -1401,7 +1401,7 @@ const template = {
     },
     // api插件请求详情
     loadUniformApiMeta({ state }, data) {
-      const { spaceId, taskId, templateId } = data;
+      const { spaceId, taskId, templateId, businessErrorFormatter } = data;
       const paramsData = buildUniformApiMetaParams(data);
       if (taskId) {
         paramsData.task_id = taskId;
@@ -1412,6 +1412,7 @@ const template = {
         params: {
           ...paramsData,
         },
+        businessErrorFormatter,
       }).then(response => response.data);
     },
     // 空间相关配置
