@@ -242,6 +242,7 @@ async function testTaskExecutePagesKeepLegacySchema() {
 async function testSideDrawerRequestsStructuredPluginErrors() {
   const component = loadVueComponent('../src/views/task/TaskExecute/SideDrawerExecuteInfo.vue');
   const context = createCommonContext();
+  context.loading = true;
   context.renderConfig = null;
   context.nodeDetailConfig = { node_id: 'node-1' };
   context.nodeActivity = {
@@ -273,8 +274,41 @@ async function testSideDrawerRequestsStructuredPluginErrors() {
   assert.strictEqual(request.plugin_version, undefined);
   assert.strictEqual(request.structured_error, true);
   assert.strictEqual(typeof request.businessErrorFormatter, 'function');
+  assert.strictEqual(context.loading, false);
   context.isDestroyed = true;
   assert.strictEqual(request.businessErrorFormatter({ data: {} }), null);
+}
+
+async function testTaskConfigSnapshotRequestsStructuredPluginErrors() {
+  const component = loadVueComponent('../src/views/task/TaskExecute/ExecuteInfoCompoment/ExecuteInfoForm.vue');
+  const context = createCommonContext();
+  context.nodeDetailConfig = { node_id: 'node-1' };
+  let request;
+  context.loadUniformApiMeta = async (payload) => {
+    request = payload;
+    return { result: false };
+  };
+
+  await component.methods.getAtomConfig.call(context, {
+    plugin: 'uniform_api',
+    version: 'v3.0.0',
+    isThird: false,
+  });
+
+  assert.strictEqual(request.taskId, 'task-1');
+  assert.strictEqual(request.structured_error, true);
+  assert.strictEqual(typeof request.businessErrorFormatter, 'function');
+  context.isDestroyed = true;
+  assert.strictEqual(request.businessErrorFormatter({ data: {} }), null);
+}
+
+function testOptionsPanelPassesTaskIdToConfigSnapshot() {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, '../src/views/task/TaskExecute/ExecuteInfoCompoment/OptionsPanel.vue'),
+    'utf8',
+  );
+  assert.ok(source.includes(':task-id="taskId"'));
+  assert.ok(!source.includes(':task_id="taskId"'));
 }
 
 async function testSideDrawerSuppressesPreviousNodePluginError() {
@@ -495,6 +529,8 @@ Promise.resolve()
   .then(testLegacyApiPluginKeepsVersionSelectorHidden)
   .then(testTaskExecutePagesKeepLegacySchema)
   .then(testSideDrawerRequestsStructuredPluginErrors)
+  .then(testTaskConfigSnapshotRequestsStructuredPluginErrors)
+  .then(testOptionsPanelPassesTaskIdToConfigSnapshot)
   .then(testSideDrawerSuppressesPreviousNodePluginError)
   .then(testSideDrawerFormatsV4PluginDetailErrorsOnce)
   .then(testTaskDetailFormsKeepLegacySchemaAndHookState)

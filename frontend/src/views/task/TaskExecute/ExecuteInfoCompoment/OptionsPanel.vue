@@ -87,7 +87,7 @@
           :space-id="spaceId"
           :plugin-code="pluginCode"
           :template-id="templateId"
-          :task_id="taskId"
+          :task-id="taskId"
           :scope-info="scopeInfo" />
         <!-- 操作历史 -->
         <section
