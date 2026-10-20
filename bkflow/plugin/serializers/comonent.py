@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,7 +22,7 @@ import re
 from enum import Enum
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.component_framework.library import ComponentLibrary
 from pipeline.component_framework.models import ComponentModel
 from pipeline.exceptions import ComponentNotExistException
@@ -96,7 +95,7 @@ class ComponentModelSerializer(serializers.ModelSerializer):
             self.component_name = instance.name.split("-")
         except ComponentNotExistException:
             raise NotFound("Can not found {}({})".format(instance.code, instance.version))
-        return super(ComponentModelSerializer, self).to_representation(instance)
+        return super().to_representation(instance)
 
 
 class ComponentModelListSerializer(ComponentModelSerializer):
@@ -107,8 +106,7 @@ class ComponentListQuerySerializer(serializers.Serializer):
     space_id = serializers.CharField(help_text="空间ID")
     scope_type = serializers.CharField(help_text="空间下scope类型", required=False)
     scope_id = serializers.CharField(help_text="空间下scope ID", required=False)
-    skip_space_config = serializers.BooleanField(help_text="跳过空间插件配置过滤，返回全量", required=False,
-                                                 default=False)
+    skip_space_config = serializers.BooleanField(help_text="跳过空间插件配置过滤，返回全量", required=False, default=False)
 
 
 class ComponentDetailQuerySerializer(serializers.Serializer):

@@ -16,13 +16,14 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import datetime
 import time
 from unittest.mock import patch
 
+import pytz
 from django.conf import settings
 from django.test import TestCase
-from django.utils import timezone
 from pipeline.component_framework.test import (
     ComponentTestCase,
     ComponentTestMixin,
@@ -53,7 +54,7 @@ class SleepTimerComponentTest(TestCase, ComponentTestMixin):
         return [INVALID_SECONDS_TEST_CASE, VALID_DATETIME_TEST_CASE]
 
 
-BUSINESS_TIMEZONE = timezone.pytz.timezone(settings.TIME_ZONE)
+BUSINESS_TIMEZONE = pytz.timezone(settings.TIME_ZONE)
 
 INVALID_SECONDS_INPUT = {"bk_timing": time.time() + 600, "force_check": True}
 VALID_DATETIME_INPUT = {

@@ -23,7 +23,7 @@ from functools import wraps
 
 from bamboo_engine import states as bamboo_engine_states
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.core import constants as pipeline_constants
 from pipeline.engine.utils import calculate_elapsed_time
 from redis.client import Redis

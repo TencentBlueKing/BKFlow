@@ -255,7 +255,7 @@ class SpaceViewSet(TenantScopeMixin, AdminModelViewSet):
     queryset = Space.objects.filter(is_deleted=False)
     serializer_class = SpaceSerializer
     filter_backends = [DjangoFilterBackend]
-    filter_class = SpaceFilterSet
+    filterset_class = SpaceFilterSet
     pagination_class = BKFLOWDefaultPagination
     permission_classes = [AdminPermission | SpaceSuperuserPermission | SpaceExemptionPermission]
 

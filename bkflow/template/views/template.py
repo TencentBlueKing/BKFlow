@@ -26,7 +26,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Subquery
 from django.utils.decorators import method_decorator
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import CharFilter, DjangoFilterBackend, FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import mixins
@@ -169,7 +169,7 @@ class AdminTemplateViewSet(TenantScopeMixin, AdminModelViewSet):
     queryset = Template.objects.filter(is_deleted=False).order_by("-id")
     serializer_class = AdminTemplateSerializer
     filter_backends = [DjangoFilterBackend]
-    filter_class = TemplateFilterSet
+    filterset_class = TemplateFilterSet
     pagination_class = BKFLOWNoMaxLimitPagination
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
 
@@ -460,7 +460,7 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
     queryset = Template.objects.filter(is_deleted=False)
     serializer_class = TemplateSerializer
     filter_backends = [DjangoFilterBackend]
-    filter_class = TemplateFilterSet
+    filterset_class = TemplateFilterSet
     EDIT_ABOVE_ACTIONS = ["update"]
     MOCK_ABOVE_ACTIONS = ["create_mock_task"]
     pagination_class = BKFLOWNoMaxLimitPagination
@@ -1009,7 +1009,7 @@ class TemplateMockSchemeViewSet(
     queryset = TemplateMockScheme.objects.filter()
     serializer_class = TemplateMockSchemeSerializer
     permission_classes = [AdminPermission | SpaceSuperuserPermission | TemplateRelatedResourcePermission]
-    filter_class = TemplateMockSchemeFilterSet
+    filterset_class = TemplateMockSchemeFilterSet
 
     def perform_create(self, serializer):
         if TemplateMockScheme.objects.filter(

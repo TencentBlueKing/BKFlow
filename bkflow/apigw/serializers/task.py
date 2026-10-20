@@ -22,7 +22,7 @@ import binascii
 import json
 
 from django.db.models import Q
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
 

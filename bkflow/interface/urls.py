@@ -17,8 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-from django.conf.urls import url
-from django.urls import include
+from django.urls import include, re_path
 
 from .itsm.itsm import itsm_approve, itsm_approve_new
 from .views import (
@@ -30,13 +29,13 @@ from .views import (
 )
 
 urlpatterns = [
-    url(r"^$", home),
-    url(r"^logout/$", user_exit),
-    url(r"^is_admin_user/$", is_admin_or_space_superuser),
-    url(r"^is_current_space_admin/$", is_admin_or_current_space_superuser),
-    url(r"^callback/(?P<token>.+)/$", callback),
-    url(r"^itsm_approve/$", itsm_approve),
-    url(r"^itsm_approve_new/$", itsm_approve_new),
-    url(r"^openapi/", include("bkflow.interface.openapi.urls")),
-    url(r"", include("bkflow.interface.task.urls")),
+    re_path(r"^$", home),
+    re_path(r"^logout/$", user_exit),
+    re_path(r"^is_admin_user/$", is_admin_or_space_superuser),
+    re_path(r"^is_current_space_admin/$", is_admin_or_current_space_superuser),
+    re_path(r"^callback/(?P<token>.+)/$", callback),
+    re_path(r"^itsm_approve/$", itsm_approve),
+    re_path(r"^itsm_approve_new/$", itsm_approve_new),
+    re_path(r"^openapi/", include("bkflow.interface.openapi.urls")),
+    re_path(r"", include("bkflow.interface.task.urls")),
 ]
