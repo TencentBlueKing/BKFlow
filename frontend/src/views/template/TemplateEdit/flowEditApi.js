@@ -115,8 +115,7 @@ export const fetchBkFlowInnerPluginList = () => axios.get('api/plugin/', {
 export const fetchSubprocessOutput = (params) => {
   const { code, version } = params;
   return axios.get(`/api/plugin/${code}/`, {
-    params: { space_id: store.state.spaceId, version }},
-  ).then(response => response.data.data);
+    params: { space_id: store.state.spaceId, version } },).then(response => response.data.data);
 };
 
 /**
@@ -204,11 +203,9 @@ export const fetchTaskState = ({ task_id: taskId }) => axios.get(`task/get_task_
 /**
  * 获取流程任务详情
  */
-export const getFlowTaskDetail = ({ task_id: taskId }) => {
-  return axios.get(`task/get_task_detail/${taskId}/`, {
-    params: { space_id: store.state.spaceId },
-  }).then(response => response.data.data);
-};
+export const getFlowTaskDetail = ({ task_id: taskId }) => axios.get(`task/get_task_detail/${taskId}/`, {
+  params: { space_id: store.state.spaceId },
+}).then(response => response.data.data);
 
 /**
  * 获取流程任务节点详情
@@ -315,3 +312,117 @@ export const fetchLabelList = params => axios.get('/api/label/', { params }).the
  * 新建标签
  */
 export const createLabel = params => axios.post('/api/label/', params).then(response => response.data);
+
+/**
+ * 获取流程版本快照列表（limit=-1 取全量）
+ */
+export const fetchFlowVersionList = templateId => axios.get('/api/template/snapshot/', {
+  params: {
+    template_id: Number(templateId),
+    space_id: store.state.spaceId,
+    limit: -1,
+  },
+}).then(response => response.data.data);
+
+/**
+ * 计算下一个建议版本号
+ */
+export const calculateNextFlowVersion = templateId => axios.get(`/api/template/${templateId}/calculate_version/`, {
+  params: { space_id: store.state.spaceId },
+}).then(response => response.data.data);
+
+/**
+ * 发布流程版本
+ */
+export const releaseFlowVersion = (templateId, params) => axios.post(`/api/template/${templateId}/release_template/`, {
+  version: params.version,
+  desc: params.desc || '',
+  space_id: store.state.spaceId,
+}).then(response => response.data.data);
+
+/**
+ * 回滚版本
+ */
+export const rollbackFlowVersion = (templateId, params) => axios.post(`/api/template/${templateId}/rollback_template/`, {
+  version: params.version,
+  space_id: store.state.spaceId,
+}).then(response => response.data.data);
+
+
+/**
+ * 获取调试上下文（调试唯一事实源，页面加载与轮询均调用）
+ */
+export const fetchDebugContext = templateId => axios.get('/api/template/debug/context/', {
+  params: { template_id: Number(templateId) },
+}).then(response => response.data.data);
+
+/**
+ * 获取调试输入参数 schema（全局调试输入侧滑表单）
+ */
+export const fetchDebugInputSchema = templateId => axios.get('/api/template/debug/input_schema/', {
+  params: { template_id: Number(templateId) },
+}).then(response => response.data.data);
+
+/**
+ * 获取调试重置影响面
+ */
+export const fetchDebugResetImpact = templateId => axios.post('/api/template/debug/reset_impact/', {
+  template_id: Number(templateId),
+}).then(response => response.data.data);
+
+/**
+ * 更新节点调试 Mock 配置（保存/启停节点 mock 输出）
+ */
+export const updateNodeDebugMock = (params) => {
+  const body = {
+    template_id: Number(params.templateId),
+    node_id: params.nodeId,
+    enable: params.enable,
+  };
+  if (params.mockResult !== undefined) body.mock_result = params.mockResult;
+  if (params.mockOutputs !== undefined) body.mock_outputs = params.mockOutputs;
+  if (params.mockError !== undefined) body.mock_error = params.mockError;
+  return axios.post('/api/template/debug/node_mock/', body).then(response => response.data.data);
+};
+
+/**
+ * 单步调试运行节点（mode: real 实际执行 / mock 使用 mock 输出）
+ */
+export const runNodeDebugStep = (params) => {
+  const body = {
+    template_id: Number(params.templateId),
+    node_id: params.nodeId,
+    mode: params.mode,
+  };
+  if (params.inputOverrides !== undefined) body.input_overrides = params.inputOverrides;
+  if (params.mockResult !== undefined) body.mock_result = params.mockResult;
+  if (params.mockOutputs !== undefined) body.mock_outputs = params.mockOutputs;
+  if (params.mockError !== undefined) body.mock_error = params.mockError;
+  return axios.post('/api/template/debug/step_run/', body).then(response => response.data.data);
+};
+
+/**
+ * 全局调试运行（整条流程）
+ */
+export const runGlobalDebug = params => axios.post('/api/template/debug/global_run/', {
+  template_id: Number(params.templateId),
+  inputs: params.inputs,
+}).then(response => response.data.data);
+
+/**
+ * 终止调试（nodeId 传值时为单节点维度终止）
+ */
+export const terminateDebug = (params) => {
+  const body = { template_id: Number(params.templateId) };
+  if (params.nodeId !== undefined) body.node_id = params.nodeId;
+  return axios.post('/api/template/debug/terminate/', body).then(response => response.data.data);
+};
+
+/**
+ * 重置调试结果（nodeIds 传值时重置指定节点）
+ */
+export const resetDebugResult = (params) => {
+  const body = { template_id: Number(params.templateId) };
+  if (params.nodeIds !== undefined) body.node_ids = params.nodeIds;
+  return axios.post('/api/template/debug/reset/', body).then(response => response.data.data);
+};

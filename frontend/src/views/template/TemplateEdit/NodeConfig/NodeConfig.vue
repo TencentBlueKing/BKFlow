@@ -298,6 +298,7 @@
   import { mapActions, mapState, mapMutations } from 'vuex';
   import atomFilter from '@/utils/atomFilter.js';
   import tools from '@/utils/tools.js';
+  import { getCanvasRoute } from '@/utils/canvasRoute.js';
   import BasicInfo from './BasicInfo.vue';
   import InputParams from './InputParams.vue';
   import OutputParams from './OutputParams.vue';
@@ -1913,16 +1914,10 @@
         this.$parent.isNotExistAtomOrVersion = false;
         this.isSelectorPanelShow = true;
       },
-      // 查看子流程模板
-      onViewSubflow(id) {
-        const pathData = {
-          name: 'templatePanel',
-          params: {
-            templateId: id,
-            type: 'view',
-          },
-        };
-        const { href } = this.$router.resolve(pathData);
+      // 查看子流程模板（按空间 canvas_mode 分流）
+      async onViewSubflow(id) {
+        const route = await getCanvasRoute(id, this.$store.state.spaceId);
+        const { href } = this.$router.resolve(route);
         window.open(href, '_blank');
       },
       // 是否渲染豁免切换

@@ -17,7 +17,6 @@
       v-if="!templateDataLoading"
       class="pipeline-canvas-wrapper">
       <TemplateHeader
-        v-if="!useCanvasEditor"
         ref="templateHeader"
         :name="name"
         :project-id="projectId"
@@ -54,36 +53,9 @@
         @publishTemplate="onPublishTemplate"
         @editTemplate="onEditTemplate" />
       <template v-if="isEditProcessPage">
-        <FlowEditBridge
-          v-if="useCanvasEditor && !isViewMode"
-          ref="flowEditRef"
-          :flow-id="String(templateId)"
-          :api-config="tplCanvasEditorApiConfig"
-          :permissions="{ canSave: true }"
-          :enable-debug="true"
-          :enable-version="isEnableVersionManage"
-          :flow-version="compVersion"
-          :on-before-leave="handleBeforeLeave"
-          @save="onSaveFlowTemplate"
-          @subflow-view="onViewSubflow"
-          @back="handleFlowBack"
-          @exit-edit="handleFlowBack"
-          @label-manage="handleLabelManage" />
-        <FlowViewBridge
-          v-if="useCanvasEditor && isViewMode"
-          ref="flowViewRef"
-          :flow-id="String(templateId)"
-          :api-config="tplCanvasEditorApiConfig"
-          :thumbnail="false"
-          :enable-version="isEnableVersionManage"
-          :flow-version="compVersion"
-          :on-execute-success="onFlowExecuteSuccess"
-          @label-manage="handleLabelManage"
-          @edit="onEditFlowTemplate"
-          @back="handleFlowBack" />
         <!-- 子流程更新提示 -->
         <SubflowUpdateTips
-          v-if="subflowShouldUpdated.length > 0 && !useCanvasEditor"
+          v-if="subflowShouldUpdated.length > 0"
           class="update-tips"
           :list="subflowShouldUpdated"
           :locations="locations"
@@ -92,7 +64,6 @@
           @foldClick="clearDotAnimation" />
         <component
           :is="templateComponentName"
-          v-if="!useCanvasEditor"
           ref="processCanvas"
           :key="`${isViewMode}-${isChangeTplVersionTime}-${isNeedToProhibitEdit}`"
           class="canvas-comp-wrapper"
@@ -283,12 +254,6 @@
   import SubflowUpdateTips from './SubflowUpdateTips.vue';
   import LoopGlobalVariables from './NodeConfig/LoopGlobalVariables.vue';
   import { cloneDeepWith } from 'lodash';
-  import '@blueking/bkflow-canvas-editor-vue2/style';
-  import { FlowEditBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-edit';
-  import { FlowViewBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-view';
-  import { FlowDebugBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-debug';
-  import { FlowCreateTaskBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-create-task';
-  import * as canvasEditorApi from './flowEditApi';
 
   export default {
     name: 'TemplateEdit',
@@ -304,10 +269,6 @@
       ProcessCanvas,
       StageCanvas,
       VersionList,
-      FlowEditBridge,
-      FlowViewBridge,
-      FlowDebugBridge,
-      FlowCreateTaskBridge,
       LoopGlobalVariables,
     },
     mixins: [permission],
@@ -535,12 +496,6 @@
       isViewMode() {
         return this.type === 'view' || !this.tplActions.some(action => ['EDIT', 'MOCK'].includes(action));
       },
-      useCanvasEditor() {
-        if (this.isIframe) {
-            return this.$route.query.useCanvasEditor === 'true';
-        }
-        return this.canvasMode === 'horizontal';
-      },
       templateComponentName() {
           const canvasModeToComponentMap = {
             horizontal: 'ProcessCanvas',
@@ -548,17 +503,6 @@
             stage: 'StageCanvas',
           };
           return canvasModeToComponentMap[this.canvasMode] || canvasModeToComponentMap.horizontal;
-      },
-      tplCanvasEditorApiConfig() {
-        return {
-          scopeData: {
-            scope_type: 'space',
-            scope_value: this.spaceId,
-          },
-          ...canvasEditorApi,
-          // 覆盖 executeFlowTask：不启动任务，直接返回成功
-          executeFlowTask: async () => ({ result: true, data: {} }),
-        };
       },
     },
     watch: {
@@ -2743,14 +2687,6 @@
           await this.getDraftPipelineTree(true);
         }
       },
-      async onEditFlowTemplate() {
-        const { params, query, name } = this.$route;
-        this.$router.push({
-          name,
-          params: { ...params, type: 'edit' },
-          query: Object.assign({}, query),
-        });
-      },
       goBackViewMode() {
         this.isBackViewMode = true;
         this.$bkInfo({
@@ -2763,95 +2699,6 @@
             this.initData();
           },
         });
-      },
-      onSaveFlowTemplate(flowData) {
-        // 未开启版本管理，保存后回到查看模式
-        if (this.isEnableVersionManage) {
-          this.getDraftPipelineTree();
-          return;
-        }
-        // 从编辑模式保存，跳转到查看模式
-        this.$router.replace({
-          name: 'templatePanel',
-          params: { type: 'view' },
-          query: Object.assign({ templateId: flowData.id }, this.$route.query),
-        });
-      },
-      // SDK 执行流程成功回调
-      onFlowExecuteSuccess({ createResult, executeResult }) {
-        // 使用 result.executeResult.data.url 跳转任务详情
-        const executeUrl = executeResult?.data?.url;
-        if (executeUrl) {
-          window.open(executeUrl, '_blank');
-          return;
-        }
-        const taskId = createResult?.data?.id;
-        if (!taskId) {
-          return;
-        }
-        const { href } = this.$router.resolve({
-          name: 'taskExecute',
-          params: { spaceId: this.spaceId },
-          query: { instanceId: taskId },
-        });
-        window.open(href, '_blank');
-      },
-      onViewSubflow(template) {
-        const { name } = this.$route;
-        const pathData = {
-          name,
-          params: {
-            type: 'view',
-            templateId: template.id,
-          },
-        };
-        const { href } = this.$router.resolve(pathData);
-        window.open(href, '_blank');
-      },
-      handleFlowBack() {
-        // isEditProcessPage是为了区别执行方案页面(bkflow无执行方案)
-        const edited = this.$refs.flowEditRef?.isFlowEdited;
-        if (this.type === 'edit' && edited) {
-          // 编辑态下返回上一个路由时先保存再back
-          this.$bkInfo({
-            ...this.infoBasicConfig,
-            confirmFn: () => {
-              // 返回查看模式时初始化数据
-              this.$router.back();
-              this.initData();
-            },
-          });
-        } else {
-          this.$router.push({
-            name: 'spaceAdmin',
-            query: {
-              space_id: this.spaceId,
-              activeTab: 'template',
-            },
-          });
-        }
-      },
-      handleLabelManage() {
-        const { href } = this.$router.resolve({
-          name: 'spaceAdmin',
-          query: {
-            space_id: this.spaceId,
-            activeTab: 'labelManage',
-          },
-        });
-        window.open(href, '_blank');
-      },
-      // 新版画布 - 离开前确认
-      handleBeforeLeave(isEdited) {
-        if (!isEdited) return Promise.resolve(true);
-        // return new Promise((resolve) => {
-        //   this.$bkInfo({
-        //     title: this.$t('确认离开？'),
-        //     subtitle: this.$t('当前流程未保存，离开将丢失修改'),
-        //     confirmFn: () => resolve(true),
-        //     cancelFn: () => resolve(false),
-        //   });
-        // });
       },
       // 关闭版本列表侧滑
       onCloseVersionListPanel() {

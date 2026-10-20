@@ -759,6 +759,7 @@
 <script>
   import i18n from '@/config/i18n/index.js';
   import tools from '@/utils/tools.js';
+  import { getCanvasRoute } from '@/utils/canvasRoute.js';
   // import BkUserSelector from '@blueking/user-selector'
   import { mapState, mapActions, mapMutations, mapGetters } from 'vuex';
   import { NAME_REG, STRING_LENGTH, INVALID_NAME_CHAR } from '@/constants/index.js';
@@ -1305,15 +1306,10 @@
           },
         });
       },
-      onViewSubflow(id) {
-        const pathData = {
-          name: 'templatePanel',
-          params: {
-            templateId: id,
-            type: 'view',
-          },
-        };
-        const { href } = this.$router.resolve(pathData);
+      // 查看子流程模板（按空间 canvas_mode 分流）
+      async onViewSubflow(id) {
+        const route = await getCanvasRoute(id, this.$store.state.spaceId);
+        const { href } = this.$router.resolve(route);
         return href;
       },
       // 执行控制类型变化处理

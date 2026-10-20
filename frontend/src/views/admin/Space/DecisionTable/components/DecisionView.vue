@@ -48,19 +48,13 @@
         </p>
         <p v-if="path === 'admin_decision'">
           <span class="label">{{ $t('关联流程：') }}</span>
-          <router-link
+          <a
             v-if="row.template_id"
             class="template-name"
-            target="_blank"
-            :to="{
-              name: 'templatePanel',
-              params: {
-                templateId: row.template_id,
-                type: 'view'
-              }
-            }">
+            href="javascript:;"
+            @click="onViewSubflow(row.template_id)">
             {{ `[${row.template_id}] ${templateData.name || ''}` }}
-          </router-link>
+          </a>
           <span v-else>{{ '--' }}</span>
         </p>
       </div>
@@ -82,6 +76,7 @@
   import DecisionTable from '@/components/DecisionTable/index.vue';
   import DecisionDelete from './DecisionDelete.vue';
   import { mapActions } from 'vuex';
+  import { getCanvasRoute } from '@/utils/canvasRoute.js';
   export default {
     name: '',
     components: {
@@ -139,6 +134,12 @@
       ...mapActions('template/', [
         'loadTemplateData',
       ]),
+      // 查看关联流程：点击时按空间 canvas_mode 分流
+      async onViewSubflow(templateId) {
+        const route = await getCanvasRoute(templateId, this.spaceId);
+        const { href } = this.$router.resolve(route);
+        window.open(href, '_blank');
+      },
       async getTemplateData() {
         try {
           this.templateData = await this.loadTemplateData({

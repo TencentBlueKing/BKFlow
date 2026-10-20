@@ -191,6 +191,7 @@
   import i18n from '@/config/i18n/index.js';
   import { mapState, mapActions } from 'vuex';
   import tools from '@/utils/tools.js';
+  import { getCanvasRoute } from '@/utils/canvasRoute.js';
   import atomFilter from '@/utils/atomFilter.js';
   import RenderForm from '@/components/common/RenderForm/RenderForm.vue';
   import JsonschemaInputParams from '@/views/template/TemplateEdit/NodeConfig/JsonschemaInputParams.vue';
@@ -805,14 +806,10 @@
         const templateData = await this.loadTemplateData(data);
         this.templateName = templateData.name;
       },
-      onSkipSubTemplate() {
-        const { href } = this.$router.resolve({
-          name: 'templatePanel',
-          params: {
-            templateId: this.componentValue.template_id,
-            type: 'view',
-          },
-        });
+      async onSkipSubTemplate() {
+        // 按空间 canvas_mode 分流
+        const route = await getCanvasRoute(this.componentValue.template_id, this.$store.state.spaceId);
+        const { href } = this.$router.resolve(route);
         window.open(href, '_blank');
       },
       updateOutputs(outputs) {

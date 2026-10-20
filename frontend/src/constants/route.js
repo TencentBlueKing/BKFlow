@@ -6,7 +6,7 @@ export const SPACE_LIST = [
     icon: 'common-icon-flow-menu',
     id: 'template',
     disabled: false,
-    subRoutes: ['templatePanel', 'templateMock'],
+    subRoutes: ['templatePanel', 'templateMock', 'templateDetail'],
   },
   {
     name: i18n.t('任务'),

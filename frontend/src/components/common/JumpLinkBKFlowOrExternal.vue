@@ -27,9 +27,10 @@ export default {
         }),
     },
     methods: {
-        jumpToTagetUrl() {
+        async jumpToTagetUrl() {
             if (!this.isIframe) {
-                window.open(this.getTargetUrl(), '_blank');
+                const url = await this.getTargetUrl();
+                window.open(url, '_blank');
             } else {
               window.parent.postMessage({ eventName: 'jump-to-external-url', data: this.query }, '*');
             }

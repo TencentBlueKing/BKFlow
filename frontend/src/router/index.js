@@ -10,6 +10,7 @@ const Home = () => import('@/components/common/modal/home.vue');
 const EnginePanel = () => import('@/views/enginePanel/index.vue');
 const Template = () => import('@/views/template/index.vue');
 const TemplatePanel = () => import('@/views/template/TemplateEdit/index.vue');
+const TemplateDetail = () => import('@/views/template/TemplateDetail/index.vue');
 const TemplateMock = () => import('@/views/template/TemplateMock/index.vue');
 
 const Task = () => import('@/views/task/index.vue');
@@ -55,6 +56,16 @@ const routes = [
         props: route => ({
           templateId: route.params.templateId,
           type: route.params.type,
+        }),
+        meta: { project: true },
+      },
+      {
+        path: 'detail/:templateId/',
+        component: TemplateDetail,
+        name: 'templateDetail',
+        pathToRegexpOptions: { strict: true },
+        props: route => ({
+          templateId: route.params.templateId,
         }),
         meta: { project: true },
       },
