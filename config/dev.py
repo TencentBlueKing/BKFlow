@@ -89,5 +89,8 @@ except ImportError:
 # 并且把 local_settings.py 加入版本管理忽略文件中
 try:
     from local_settings import *  # noqa
+    # 调用中间件设置函数（如果存在）
+    if 'setup_middleware' in globals():
+        setup_middleware()  # noqa
 except ImportError:
     pass
