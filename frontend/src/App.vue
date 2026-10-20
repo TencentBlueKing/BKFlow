@@ -115,21 +115,21 @@
       });
       bus.$on('showErrMessage', (info) => {
         const msg = typeof info.message === 'string' ? info.message : JSON.stringify(info.message);
-        window.show_msg(msg, 'error', info.title || '', info.traceId, info.errorSource);
+        window.show_msg(msg, 'error', info.title || '', info.traceId, info.errorSource, info.singleLine);
       });
       /**
        * 兼容标准插件配置项里，异步请求用到的全局弹窗提示
        */
-      window.show_msg = (msg, type = 'error', title = '', traceId, errorSource = '') => {
+      window.show_msg = (msg, type = 'error', title = '', traceId, errorSource = '', singleLine = false) => {
         const index = window.msg_list.findIndex(item => item.msg === msg);
         if (index > -1) {
           if (traceId && !window.msg_list[index].traceId) {
-            window.msg_list[index] = { msg, type, title, traceId, errorSource };
+            window.msg_list[index] = { msg, type, title, traceId, errorSource, singleLine };
           } else {
             return;
           }
         } else {
-          window.msg_list.push({ msg, type, title, traceId, errorSource });
+          window.msg_list.push({ msg, type, title, traceId, errorSource, singleLine });
         }
         setTimeout(() => { // 异步执行,可以把前端报错的trace_id同步上
           const info = window.msg_list.find(item => item.msg === msg && item.traceId === traceId);
@@ -209,5 +209,8 @@ body {
     top: 0 !important;
     right: 0 !important;
   }
+}
+.bk-message .icon-close-circle-shape::before {
+  content: "\e134";
 }
 </style>

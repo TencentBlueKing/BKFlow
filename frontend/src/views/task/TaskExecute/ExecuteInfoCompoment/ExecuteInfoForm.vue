@@ -245,6 +245,7 @@
     resolveUniformApiPluginVersion,
     resolveV4OpenPluginVersion,
   } from '@/utils/uniformApi.js';
+  import { formatTaskPluginMetaError } from '@/utils/taskPluginError.js';
   import SpecialPluginInputForm from '@/components/SpecialPluginInputForm/index.vue';
 
   export default {
@@ -703,6 +704,7 @@
         const { plugin, version, classify, name, isThird } = config;
         this.pluginFormRequestId += 1;
         const requestId = this.pluginFormRequestId;
+        const canApply = () => !this.isDestroyed && requestId === this.pluginFormRequestId;
         try {
           // 先取标准节点缓存的数据
           const { [plugin]: pluginGroup } = this.pluginConfigs;
@@ -739,6 +741,8 @@
           if (this.isApiPlugin) {
             const { api_meta: apiMeta } = this.nodeActivity.component || {};
             if (!apiMeta) return;
+            const pluginId = apiMeta.id || apiMeta.plugin_id || '';
+            const businessPluginVersion = apiMeta.plugin_version || '';
             // api插件配置
             const resp = await this.loadUniformApiMeta({
               taskId: this.taskId,
@@ -750,7 +754,18 @@
               source_key: apiMeta.source_key,
               version: resolveUniformApiPluginVersion(this.nodeActivity.component),
               api_name: apiMeta.api_key,
+              structured_error: true,
+              businessErrorFormatter: (response) => {
+                if (!canApply()) return null;
+                return formatTaskPluginMetaError(response, {
+                  pluginCode: pluginId,
+                  pluginName: apiMeta.name || '',
+                  pluginVersion: businessPluginVersion,
+                  t: i18n.t.bind(i18n),
+                });
+              },
             });
+            if (!canApply()) return null;
             if (!resp.result) return;
             // 如果meta API返回了version字段，使用它；否则使用默认值v2.0.0
             const apiVersion = resp.data.version || 'v2.0.0';
