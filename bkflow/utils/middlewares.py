@@ -25,7 +25,7 @@ from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 

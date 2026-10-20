@@ -66,6 +66,7 @@ def test_node_detail_proxy_renders_special_values(value, expected):
     ],
 )
 @pytest.mark.parametrize("value", ["compat-value", "compat-value\ud800"])
+@pytest.mark.django_db
 def test_node_detail_preserves_existing_response_formats(accept, response_format, content_type, value):
     """保留 HTML/API 调试访问，并确保其中展示的代理字符同样可安全渲染。"""
     router = SimpleRouter()
@@ -76,7 +77,13 @@ def test_node_detail_preserves_existing_response_formats(accept, response_format
     if response_format:
         params["format"] = response_format
     request = APIRequestFactory().get(path, params, HTTP_ACCEPT=accept)
-    force_authenticate(request, user=get_user_model()(is_superuser=True, username="admin", is_active=True))
+    request.resolver_match = match
+    force_authenticate(
+        request,
+        user=get_user_model().objects.get_or_create(
+            username="admin", defaults={"is_superuser": True, "is_active": True}
+        )[0],
+    )
     engine_result = {"result": True, "data": node_detail_data(value), "message": ""}
 
     # 仅替换远端 engine 和 HTML 模板读取的环境配置；路由、协商和渲染保持真实。

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,14 +21,14 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.core.data.var import LazyVariable
 from pipeline.core.flow.io import StringItemSchema
 
 logger = logging.getLogger("root")
 
 
-class DataTableValue(object):
+class DataTableValue:
     def __init__(self, data):
         self._value = data
         item_values = {}
@@ -52,7 +51,7 @@ class DataTable(LazyVariable):
     type = "meta"
     tag = "datatable.datatable"
     meta_tag = "datatable.datatable_meta"
-    form = "%svariables/%s.js" % (settings.STATIC_URL, code)
+    form = "{}variables/{}.js".format(settings.STATIC_URL, code)
     schema = StringItemSchema(description=_("表格变量"))
     desc = _(
         '引用表格变量某一列某一行的属性，如 ${KEY.columnA[0]} -> "test1"\n'

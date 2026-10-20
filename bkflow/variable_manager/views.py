@@ -51,7 +51,7 @@ class VariableViewSet(TenantScopeMixin, AdminModelViewSet):
     permission_classes = [AdminPermission | SpaceSuperuserPermission]
     serializer_class = VariableManagerSerializer
     filter_backends = [DjangoFilterBackend]
-    filter_class = VariableFilterSet
+    filterset_class = VariableFilterSet
 
 
 @method_decorator(login_exempt, name="dispatch")

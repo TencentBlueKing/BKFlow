@@ -20,13 +20,13 @@ to the current version of the project delivered to anyone in the future.
 import copy
 import datetime
 
+import pytz
 from bamboo_engine.context import Context
 from bamboo_engine.eri import ContextValue, ContextValueType
 from bamboo_engine.template import Template
 from django.apps import apps
 from django.conf import settings
 from django.db import transaction
-from django.utils import timezone
 from pipeline.core.flow import AbstractIntervalGenerator, StaticIntervalGenerator
 from pipeline.core.flow.activity import Service
 from pipeline.core.flow.io import ArrayItemSchema, IntItemSchema, ObjectItemSchema
@@ -393,7 +393,7 @@ class LoopBaseService(BKFlowBaseService):
         )
         from bkflow.task.utils import extract_extra_info
 
-        time_zone = timezone.pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai"
+        time_zone = pytz.timezone(settings.TIME_ZONE) or "Asia/Shanghai"
         time_stamp = datetime.datetime.now(tz=time_zone).strftime("%Y%m%d%H%M%S")
         create_task_data = {
             "name": f"{template_name}_子流程_{time_stamp}",

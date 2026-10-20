@@ -1,7 +1,7 @@
 """Interface 内的流程引用归属校验，不依赖用户可修改的流程树租户字段。"""
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 

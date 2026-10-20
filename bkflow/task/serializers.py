@@ -21,7 +21,7 @@ import copy
 import logging
 
 import jsonschema
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.engine.utils import calculate_elapsed_time
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
@@ -306,10 +306,9 @@ class UpdatePeriodicTaskSerializer(serializers.Serializer):
                     if key not in old_config:
                         raise serializers.ValidationError(f"Invalid config key: {key}")
                     old_config[key] = value
-                validated_data["config"] = old_config
+                field_value = old_config
             elif field_name == "is_enabled":
                 instance.set_enabled(field_value)
-                validated_data.pop(field_name)
                 continue
             setattr(instance, field_name, field_value)
         instance.save()

@@ -16,10 +16,10 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 from blueapps.account.decorators import login_exempt
 from django.conf import settings
-from django.conf.urls import url
-from django.urls import include, path, register_converter
+from django.urls import include, path, re_path, register_converter
 from django.views.decorators.csrf import csrf_exempt
 from pipeline.contrib.engine_admin import views as engine_admin_views
 from pipeline.contrib.engine_admin.urls import EngineConverter
@@ -30,27 +30,27 @@ urlpatterns = []
 
 if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     urlpatterns += [
-        url(r"^", include("bkflow.interface.urls")),
-        url(r"^api/template/", include("bkflow.template.urls")),
-        url(r"^api/decision_table/", include("bkflow.decision_table.urls")),
-        url(r"^api/space/", include("bkflow.space.urls")),
-        url(r"^api/plugin/", include("bkflow.plugin.urls")),
-        url(r"^api/bk_plugin/", include("bkflow.bk_plugin.urls")),
-        url(r"^api/admin/", include("bkflow.admin.urls")),
-        url(r"^api/permission/", include("bkflow.permission.urls")),
-        url(r"^api/plugin_query/", include("bkflow.pipeline_plugins.query.urls")),
-        url(r"^api/plugin_service/", include("plugin_service.urls")),
-        url(r"^api/api_plugin_demo/", include("bkflow.api_plugin_demo.urls")),
-        url(r"^api/statistics/", include("bkflow.statistics.urls")),
+        re_path(r"^", include("bkflow.interface.urls")),
+        re_path(r"^api/template/", include("bkflow.template.urls")),
+        re_path(r"^api/decision_table/", include("bkflow.decision_table.urls")),
+        re_path(r"^api/space/", include("bkflow.space.urls")),
+        re_path(r"^api/plugin/", include("bkflow.plugin.urls")),
+        re_path(r"^api/bk_plugin/", include("bkflow.bk_plugin.urls")),
+        re_path(r"^api/admin/", include("bkflow.admin.urls")),
+        re_path(r"^api/permission/", include("bkflow.permission.urls")),
+        re_path(r"^api/plugin_query/", include("bkflow.pipeline_plugins.query.urls")),
+        re_path(r"^api/plugin_service/", include("plugin_service.urls")),
+        re_path(r"^api/api_plugin_demo/", include("bkflow.api_plugin_demo.urls")),
+        re_path(r"^api/statistics/", include("bkflow.statistics.urls")),
         *(
-            [url(r"^bkvision/", include("django_bkvision.urls"))]
+            [re_path(r"^bkvision/", include("bkflow.statistics.bkvision_urls"))]
             if "django_bkvision" in settings.INSTALLED_APPS
             else []
         ),
-        url(r"^api/label/", include("bkflow.label.urls")),
-        url(r"^notice/", include("bk_notice_sdk.urls")),
-        url(r"^version_log/", include("version_log.urls", namespace="version_log")),
-        url(r"^api/variable/", include("bkflow.variable_manager.urls")),
+        re_path(r"^api/label/", include("bkflow.label.urls")),
+        re_path(r"^notice/", include("bk_notice_sdk.urls")),
+        re_path(r"^version_log/", include("version_log.urls", namespace="version_log")),
+        re_path(r"^api/variable/", include("bkflow.variable_manager.urls")),
     ]
 elif settings.BKFLOW_MODULE.type == BKFLOWModuleType.engine:
     engine_admin_actions = [
@@ -73,5 +73,5 @@ elif settings.BKFLOW_MODULE.type == BKFLOWModuleType.engine:
         for action in engine_admin_actions
     ]
     urlpatterns += [
-        url(r"^task/", include("bkflow.task.urls")),
+        re_path(r"^task/", include("bkflow.task.urls")),
     ] + engine_admin_urlpatterns

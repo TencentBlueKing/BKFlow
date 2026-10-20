@@ -20,7 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_filters import FilterSet
 from drf_yasg.utils import swagger_auto_schema
 from pipeline.component_framework.models import ComponentModel
