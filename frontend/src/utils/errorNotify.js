@@ -3,10 +3,33 @@ import i18n from '@/config/i18n/index.js';
 import bus from '@/utils/bus.js';
 export default class ErrorNotify {
   constructor(errorInfo, vueInstance) {
-    const { msg, type, traceId, errorSource, title } = errorInfo;
+    const {
+      msg,
+      type,
+      traceId,
+      errorSource,
+      title,
+      singleLine,
+    } = errorInfo;
     this.type = type;
     // 标题
     const msgTitle = title || this.getTitleAndContent(msg, true, errorSource);
+    const onClose = () => {
+      const index = window.msg_list.findIndex(item => item.msg === msg);
+      if (index > -1) {
+        window.msg_list.splice(index, 1);
+      }
+    };
+    if (singleLine) {
+      const errorMsgInstance = vueInstance.$bkMessage({
+        message: msgTitle,
+        theme: type,
+        icon: 'icon-close-circle-shape',
+        onClose,
+      });
+      vueInstance.errorMsgList.push(errorMsgInstance);
+      return;
+    }
 
     // 详情
     let details = {};
@@ -40,10 +63,7 @@ export default class ErrorNotify {
       ellipsisCopy: true,
       extCls: 'interface-exception-notify-message',
       onClose: () => {
-        const index = window.msg_list.findIndex(item => item.msg === msg);
-        if (index > -1) {
-          window.msg_list.splice(index, 1);
-        }
+        onClose();
         bus.$emit('onCloseErrorNotify', details);
       },
     });
