@@ -22,7 +22,6 @@ import time
 from enum import Enum
 from typing import Dict, Optional, Type
 
-import jsonschema
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from pydantic import BaseModel, constr
@@ -30,6 +29,7 @@ from pytimeparse import parse
 
 from bkflow.exceptions import ValidationError
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
+from bkflow.utils import jsonschema_compat as jsonschema
 from bkflow.utils.apigw import check_url_from_apigw
 
 valid_api_key = constr(regex=r"^[A-Za-z0-9_]+$")

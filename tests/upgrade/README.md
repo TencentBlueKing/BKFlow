@@ -113,3 +113,31 @@ newrun engine "$PROBE" periodic_verify "$OUT/periodic-current.json"
 结果保存为 `*.result.json`。运行结束后正常关闭本次启动的进程，保留版本清单、迁移计划、
 任务结果和日志；不要清理其他本地服务。正式包验证结果见
 [2026-10-20 验证记录](../../docs/plans/2026-10-20-python311-lts-upgrade.md)。
+
+## Webhook 依赖升级与回滚
+
+`webhook_rehearsal.py` 使用接口模块的本地数据库，调用 BKFlow 配置入口与包的事件信号，
+通过真实 RabbitMQ、worker、HTTP 接收端检查配置加密、鉴权、事件载荷、投递历史和失败重试。
+它拒绝非上述隔离环境；接收端固定为 `127.0.0.1:19998`，所有鉴权值均为脚本内的本地测试数据。
+
+```bash
+HOOK_PROBE="$NEW_ROOT/tests/upgrade/webhook_rehearsal.py"
+# 独立终端运行接收端，并保留 JSONL 接收记录。
+"$NEW_PYTHON" "$HOOK_PROBE" serve "$OUT/webhook-http.jsonl"
+
+# 暂无 webhook worker 时，由旧版产生三条消息。
+oldrun interface "$HOOK_PROBE" seed "$OUT/webhook-forward.json"
+# 独立终端启动新版 worker。
+newrun interface -m celery -A config worker -I webhook.handlers -P threads -c 2 \
+  -Q lts_webhook_upgrade -n webhook-new@localhost \
+  --without-gossip --without-mingle --without-heartbeat -l INFO
+# 另一个终端校验 200 / 503 后重试成功，并使用新版本更新旧配置。
+newrun interface "$HOOK_PROBE" verify "$OUT/webhook-forward.json"
+oldrun interface "$HOOK_PROBE" read_updated "$OUT/webhook-forward.json"
+```
+
+正常关闭 worker 后交换 oldrun/newrun，以新的结果文件重复，验证反向回滚。
+等待重试的交接单独用 `seed_retry` 创建通知：启动发送方版本的 worker，执行 `failed` 等待第一条
+503 历史，正常退出并确认 ETA 消息归还；启动另一版本，执行 `verify`，最终必须出现 `[503, 200]`。
+再执行原版本的 `read_updated`，核对对方更新的加密配置可读。两个方向均重复。
+每次使用新的结果文件名，避免历史记录干扰，不清空其他队列。

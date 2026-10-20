@@ -18,7 +18,6 @@ to the current version of the project delivered to anyone in the future.
 """
 
 import datetime
-import time
 from unittest.mock import patch
 
 import pytz
@@ -41,6 +40,12 @@ class SleepTimerComponentTest(TestCase, ComponentTestMixin):
         # 默认关闭trace开关
         self.trace_patcher = patch("django.conf.settings.ENABLE_OTEL_TRACE", False)
         self.trace_patcher.start()
+        # 固定被测插件的时钟，避免全套测试执行超过十分钟后夹具过期。
+        self.clock_patcher = patch(
+            "bkflow.pipeline_plugins.components.collections.sleep_time.legacy.datetime", wraps=datetime
+        )
+        self.clock_patcher.start().datetime.now.return_value = TEST_NOW
+        self.addCleanup(self.clock_patcher.stop)
         super().setUp()
 
     def tearDown(self):
@@ -51,16 +56,15 @@ class SleepTimerComponentTest(TestCase, ComponentTestMixin):
         return SleepTimerComponent
 
     def cases(self):
-        return [INVALID_SECONDS_TEST_CASE, VALID_DATETIME_TEST_CASE]
+        return [INVALID_SECONDS_TEST_CASE, VALID_DATETIME_TEST_CASE, EXPIRED_DATETIME_TEST_CASE]
 
 
 BUSINESS_TIMEZONE = pytz.timezone(settings.TIME_ZONE)
+TEST_NOW = BUSINESS_TIMEZONE.localize(datetime.datetime(2024, 1, 1))
 
-INVALID_SECONDS_INPUT = {"bk_timing": time.time() + 600, "force_check": True}
+INVALID_SECONDS_INPUT = {"bk_timing": 1704067800.5, "force_check": True}
 VALID_DATETIME_INPUT = {
-    "bk_timing": (datetime.datetime.now(tz=BUSINESS_TIMEZONE) + datetime.timedelta(seconds=600)).strftime(
-        "%Y-%m-%d %H:%M:%S"
-    ),
+    "bk_timing": (TEST_NOW + datetime.timedelta(seconds=600)).strftime("%Y-%m-%d %H:%M:%S"),
     "force_check": True,
 }
 VALID_SECONDS_INPUT = {"bk_timing": 10, "force_check": True}
@@ -102,4 +106,15 @@ VALID_DATETIME_TEST_CASE = ComponentTestCase(
         },
         callback_data={},
     ),
+)
+
+EXPIRED_DATETIME_TEST_CASE = ComponentTestCase(
+    name="expired datetime input test case",
+    inputs={"bk_timing": "2023-12-31 23:50:00", "force_check": True},
+    parent_data={},
+    execute_assertion=ExecuteAssertion(
+        success=False,
+        outputs={"business_tz": BUSINESS_TIMEZONE, "ex_data": "定时时间需晚于当前时间"},
+    ),
+    schedule_assertion=None,
 )

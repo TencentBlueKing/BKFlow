@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,10 +18,10 @@ to the current version of the project delivered to anyone in the future.
 """
 import logging
 
-import jsonschema
 from django.db.models import QuerySet
 
 from bkflow.exceptions import ValidationError
+from bkflow.utils import jsonschema_compat as jsonschema
 
 logger = logging.getLogger("root")
 
@@ -67,7 +66,7 @@ class SpacePluginConfigParser:
         config_plugin_codes = scope_config["plugin_codes"]
         if mode == "allow_list":
             return set(plugin_codes) & set(config_plugin_codes)
-        elif mode == 'allow_all':
+        elif mode == "allow_all":
             return set(plugin_codes)
         else:
             return set(plugin_codes) - set(config_plugin_codes)
@@ -78,7 +77,7 @@ class SpacePluginConfigParser:
         config_plugin_codes = scope_config["plugin_codes"]
         if mode == "allow_list":
             return plugin_qs.filter(code__in=config_plugin_codes)
-        elif mode == 'allow_all':
+        elif mode == "allow_all":
             return plugin_qs
         else:
             return plugin_qs.exclude(code__in=config_plugin_codes)
