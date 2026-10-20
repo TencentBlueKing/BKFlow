@@ -92,6 +92,7 @@ const store = new Vuex.Store({
       i18n: {},
     },
     isIframe: false,
+    canvasModeMap: {}, // 空间画布类型缓存
   },
   // 公共 getters
   getters: {
@@ -152,6 +153,12 @@ const store = new Vuex.Store({
     },
     setIframe(state, val) {
       state.isIframe = val;
+    },
+    setCanvasMode(state, { spaceId, value }) {
+      Vue.set(state.canvasModeMap, String(spaceId), value);
+    },
+    removeCanvasMode(state, spaceId) {
+      Vue.delete(state.canvasModeMap, String(spaceId));
     },
   },
   actions: {
@@ -346,6 +353,28 @@ const store = new Vuex.Store({
     // 是否为【我的插件】管理员
     getBkPluginPermission() {
       return axios.get('api/bk_plugin/is_manager/').then(response => response.data.data);
+    },
+    /**
+     * 读取空间画布类型（canvas_mode 空间配置）
+     */
+    async loadCanvasMode({ state, commit }, spaceId) {
+      const key = String(spaceId);
+      if (state.canvasModeMap[key]) {
+        return state.canvasModeMap[key];
+      }
+      let value = 'horizontal';
+      try {
+        const resp = await axios.get(`/api/space/config/${spaceId}/check_space_config/`, {
+          params: { name: 'canvas_mode' },
+        }).then(response => response.data);
+        if (resp?.data?.value) {
+          value = resp.data.value;
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+      commit('setCanvasMode', { spaceId, value });
+      return value;
     },
   },
 });

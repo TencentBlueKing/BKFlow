@@ -222,6 +222,8 @@
             message: this.$t('修改成功！'),
             theme: 'success',
           });
+          // 画布类型变更后直接写入 store 缓存，保证查看流程入口分流立即生效
+          this.syncCanvasModeCache(payload);
           this.loadConfigs();
         } catch (error) {
           console.warn(error);
@@ -234,6 +236,17 @@
         this.pendingResetRow = row;
         this.resetDialogVisible = true;
       },
+      // 画布类型（canvas_mode）变更后同步 store 缓存：保存时直接写入新值；恢复默认时失效重拉
+      syncCanvasModeCache(payload) {
+        if (payload.name !== 'canvas_mode' || !this.spaceId) return;
+        const { value } = payload;
+        if (value !== undefined) {
+          this.$store.commit('setCanvasMode', { spaceId: this.spaceId, value });
+        } else {
+          this.$store.commit('removeCanvasMode', this.spaceId);
+          this.$store.dispatch('loadCanvasMode', this.spaceId);
+        }
+      },
       async confirmReset() {
         if (!this.pendingResetRow) return;
         try {
@@ -245,6 +258,8 @@
             message: this.$t('已恢复默认值'),
             theme: 'success',
           });
+          // 画布类型恢复默认后失效缓存（默认值需重新查询）
+          this.syncCanvasModeCache({ name: this.pendingResetRow.name });
           this.resetDialogVisible = false;
           this.loadConfigs();
         } catch (error) {

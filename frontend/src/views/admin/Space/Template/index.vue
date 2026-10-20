@@ -300,19 +300,12 @@
                     <span>{{
                       props.row.root_template_name
                     }}</span>
-                    <router-link
-                      :to="{
-                        name: 'templatePanel',
-                        params: {
-                          templateId:
-                            props.row
-                              .root_template_id,
-                          type: 'view',
-                        },
-                      }">
+                    <a
+                      href="javascript:;"
+                      @click.stop="onViewRootTemplate(props.row.root_template_id)">
                       <i
                         class="common-icon-box-top-right-corner icon-view-sub" />
-                    </router-link>
+                    </a>
                   </div>
                 </template>
               </bk-table-column>
@@ -337,6 +330,7 @@ import CreateTemplateDialog from './CreateTemplateDialog.vue';
 import LabelCascade from '../common/LabelCascade.vue';
 import LabelCell from './label-cell.vue';
 import i18n from '@/config/i18n/index.js';
+import { jumpToCanvas } from '@/utils/canvasRoute.js';
 
 const TABLE_FIELDS = [
     {
@@ -500,6 +494,10 @@ export default {
         ]),
         ...mapActions('task/', ['createTask']),
         ...mapMutations('template/', ['setSpaceId', 'setTemplateLabel']),
+        // 查看根模板：点击时按空间 canvas_mode 分流
+        async onViewRootTemplate(templateId) {
+            await jumpToCanvas(this.$router, templateId, this.spaceId, this.$route.query);
+        },
         renderReferendLabelHeader(h, value) {
             return h('div', [
                 h('span', i18n.t('流程')),
@@ -852,15 +850,10 @@ export default {
             await this.updateTemplateLabel(data);
             this.getTemplateList();
         },
-        onNameClick(row) {
+        // 按空间 canvas_mode 分流
+        async onNameClick(row) {
             this.setTemplateLabel(row.labels);
-            this.$router.push({
-                name: 'templatePanel',
-                params: {
-                    templateId: row.id,
-                    type: 'view',
-                },
-            });
+            await jumpToCanvas(this.$router, row.id, this.spaceId, this.$route.query);
             this.needUpdate = false;
         },
     },

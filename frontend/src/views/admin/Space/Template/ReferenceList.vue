@@ -30,6 +30,7 @@
 
 <script>
 import { mapState } from 'vuex';
+import { getCanvasRoute } from '@/utils/canvasRoute.js';
 export default {
   name: 'ReferenceList',
   props: {
@@ -87,9 +88,12 @@ export default {
       }
       return '';
     },
-    openReferencePage(row) {
+    async openReferencePage(row) {
       try {
-        const routeData = this.getJumpLink(row);
+        // process 引用按空间 canvas_mode 分流
+        const routeData = this.referenceType === 'process'
+          ? await getCanvasRoute(row.root_template_id, this.$route.query.space_id)
+          : this.getJumpLink(row);
         const resolved = this.$router.resolve(routeData);
         if (resolved && resolved.href) {
           window.open(resolved.href, '_blank');
@@ -99,15 +103,6 @@ export default {
       }
     },
     getJumpLink(row) {
-      if (this.referenceType === 'process') {
-        return {
-          name: 'templatePanel',
-          params: {
-            templateId: row.root_template_id,
-            type: 'view',
-          },
-        };
-      }
       if (this.referenceType === 'decision') {
         return {
           name: 'spaceAdmin',

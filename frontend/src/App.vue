@@ -95,8 +95,10 @@
         handler(val) {
           if (val) {
             this.setSpaceId(Number(val));
+            this.loadCanvasMode(Number(val));
           }
         },
+        immediate: true,
       },
     },
     created() {
@@ -147,6 +149,7 @@
         'getSpacePermission',
         'getGlobalConfig',
         'getBkPluginPermission',
+        'loadCanvasMode',
       ]),
       ...mapMutations([
         'setToken',

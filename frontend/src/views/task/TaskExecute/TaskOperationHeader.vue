@@ -38,16 +38,15 @@
       <span
         v-if="stateStr"
         :class="['task-state', state]">{{ stateStr }}</span>
-      <router-link
+      <a
         v-if="showJumpToFlowIcon"
         v-bk-tooltips="{
           content: $t('查看流程'),
           placements: ['top']
         }"
         class="common-icon-jump-link"
-        :target="isIframe ? '_self' : '_blank'"
-        :to="isIframe ? { path: '#', params: { ...$route.params }, query: { ...$route.query } } : `/template/view/${templateId}/`"
-        @click.native="handleLinkClick" />
+        href="javascript:;"
+        @click="handleLinkClick" />
     </div>
     <div
       slot="expand"
@@ -142,6 +141,7 @@
   import { mapState } from 'vuex';
   import i18n from '@/config/i18n/index.js';
   import JumpLinkBKFlowOrExternal from '@/components/common/JumpLinkBKFlowOrExternal.vue';
+  import { getCanvasRoute } from '@/utils/canvasRoute.js';
 
   export default {
     name: 'TaskOperationHeader',
@@ -309,11 +309,15 @@
           params: { project_id: this.project_id },
         });
       },
-      handleLinkClick(event) {
+      // 查看流程：iframe 内走父窗口消息；否则点击时按空间 canvas_mode 分流
+      async handleLinkClick() {
         if (this.isIframe) {
-          event.preventDefault();
           this.linkToFlow();
+          return;
         }
+        const route = await getCanvasRoute(this.templateId, this.spaceId);
+        const { href } = this.$router.resolve(route);
+        window.open(href, '_blank');
       },
       linkToFlow() {
         if (window.parent) {

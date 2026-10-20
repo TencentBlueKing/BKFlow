@@ -1029,7 +1029,6 @@
       .task-btn {
           margin-left: 10px;
           border-radius: 4px;
-          color: #63656e;
           .send-btn{
             padding: 0 7px !important;
           }
