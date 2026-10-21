@@ -40,13 +40,14 @@ modules:
       - key: GUNICORN_THREAD_NUM
         value: 10
         description: GunicornThread数量
-      - &ENV_APP_INTERNAL_TOKEN
-        key: APP_INTERNAL_TOKEN
-        value: &INTERFACE_INTERNAL_TOKEN df1da1fc5b134858b0743838d7db256b
-        description: 应用模块内部调用token
-      - key: DEFAULT_ENGINE_APP_INTERNAL_TOKEN
-        value: &DEFAULT_ENGINE_INTERNAL_TOKEN a35230d7a282485dba66a867e07d8125
-        description: default-engine模块内部调用token
+      # KMS 敏感变量已移至平台环境变量配置页面（勾选"敏感"）
+      # - &ENV_APP_INTERNAL_TOKEN
+      #   key: APP_INTERNAL_TOKEN
+      #   value: &INTERFACE_INTERNAL_TOKEN df1da1fc5b134858b0743838d7db256b
+      #   description: 应用模块内部调用token
+      # - key: DEFAULT_ENGINE_APP_INTERNAL_TOKEN
+      #   value: &DEFAULT_ENGINE_INTERNAL_TOKEN a35230d7a282485dba66a867e07d8125
+      #   description: default-engine模块内部调用token
       - &ENV_BK_APIGW_NETLOC_PATTERN
         key: BK_APIGW_NETLOC_PATTERN
         value: ^bkapi.{hostname}
@@ -55,10 +56,11 @@ modules:
         key: BKAPP_USE_PLUGIN_SERVICE
         value: 1
         description: 是否使用插件服务
-      - &DEFAULT_CALLBACK_KEY
-        key: BKFLOW_DEFAULT_CALLBACK_KEY
-        value: jbSH1_3PFsM8WRZZpUXJPhlJuvuA44A7Ov0nPhFk5ZY=
-        description: 默认回调KEY
+      # KMS 敏感变量已移至平台环境变量配置页面（勾选"敏感"）
+      # - &DEFAULT_CALLBACK_KEY
+      #   key: BKFLOW_DEFAULT_CALLBACK_KEY
+      #   value: jbSH1_3PFsM8WRZZpUXJPhlJuvuA44A7Ov0nPhFk5ZY=
+      #   description: 默认回调KEY
     processes:
       web:
         command: bin/start_web.sh
@@ -105,15 +107,17 @@ modules:
       - key: GUNICORN_THREAD_NUM
         value: 10
         description: GunicornThread数量
-      - key: INTERFACE_APP_INTERNAL_TOKEN
-        value: *INTERFACE_INTERNAL_TOKEN
-        description: Interface模块内部调用token
+      # KMS 敏感变量已移至平台环境变量配置页面（勾选"敏感"）
+      # - key: INTERFACE_APP_INTERNAL_TOKEN
+      #   value: *INTERFACE_INTERNAL_TOKEN
+      #   description: Interface模块内部调用token
       - <<: *ENV_PIP_VERSION
       - <<: *ENV_BK_APIGW_NETLOC_PATTERN
       - <<: *ENV_BKAPP_USE_PLUGIN_SERVICE
-      - <<: *DEFAULT_CALLBACK_KEY
-      - <<: *ENV_APP_INTERNAL_TOKEN
-        value: *DEFAULT_ENGINE_INTERNAL_TOKEN
+      # KMS 敏感变量已移至平台环境变量配置页面（勾选"敏感"）
+      # - <<: *DEFAULT_CALLBACK_KEY
+      # - <<: *ENV_APP_INTERNAL_TOKEN
+      #   value: *DEFAULT_ENGINE_INTERNAL_TOKEN
     processes: &default_engine_processes
       er-e:
         command: celery -A blueapps.core.celery worker -P threads -Q er_execute_${BKFLOW_MODULE_CODE} -n er_e_worker@%h -c 100 -l info
