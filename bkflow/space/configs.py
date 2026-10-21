@@ -16,19 +16,20 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 import time
 from enum import Enum
 from typing import Dict, Optional, Type
 
-import jsonschema
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pydantic import BaseModel, constr
 from pytimeparse import parse
 
 from bkflow.exceptions import ValidationError
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
+from bkflow.utils import jsonschema_compat as jsonschema
 from bkflow.utils.apigw import check_url_from_apigw
 
 valid_api_key = constr(regex=r"^[A-Za-z0-9_]+$")
@@ -243,7 +244,7 @@ class TokenAutoRenewalConfig(BaseSpaceConfig):
         "label": _("启用自动续期"),
         "true_value": "true",
         "false_value": "false",
-        "help": _("关闭后到期即失效，需重新获取")
+        "help": _("关闭后到期即失效，需重新获取"),
     }
 
     @classmethod
@@ -450,7 +451,10 @@ class UniformApiConfig(BaseSpaceConfig):
         :param credential_name: 用于鉴权的凭证名，默认取空间默认网关凭证
         :param operator: 操作人用户名，用于 apigw 请求头
         """
-        from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient, resolve_meta_url
+        from bkflow.pipeline_plugins.query.uniform_api.utils import (
+            UniformAPIClient,
+            resolve_meta_url,
+        )
         from bkflow.space.models import Credential, SpaceConfig
 
         # 获取待测试的api
@@ -485,10 +489,9 @@ class UniformApiConfig(BaseSpaceConfig):
 
         # 获取测试用的凭证
         if not credential_name:
-            cred_config = SpaceConfig.objects.filter(
-                space_id=space_id, name=ApiGatewayCredentialConfig.name).first()
+            cred_config = SpaceConfig.objects.filter(space_id=space_id, name=ApiGatewayCredentialConfig.name).first()
             if cred_config:
-                credential_name = ApiGatewayCredentialConfig.get_value(cred_config, scope='default')
+                credential_name = ApiGatewayCredentialConfig.get_value(cred_config, scope="default")
 
         if not credential_name:
             raise ValidationError("[uniform_api verify] 空间未配置默认网关凭证，无法测试")
@@ -509,16 +512,15 @@ class UniformApiConfig(BaseSpaceConfig):
         )
         logger.info(
             f"[uniform_api verify] 测试用凭证.credential_name: {credential_name},app_code: {content['bk_app_code']}，"
-            f"app_secret: ******，username：{operator}")
+            f"app_secret: ******，username：{operator}"
+        )
 
         # 整体验证时间预算控制
         start_time = time.time()
 
         def _check_timeout():
             if time.time() - start_time > cls.MAX_VERIFY_TOTAL_TIMEOUT:
-                raise ValidationError(
-                    f"[uniform_api verify] 验证总耗时超过 {cls.MAX_VERIFY_TOTAL_TIMEOUT} 秒，请检查接口响应速度"
-                )
+                raise ValidationError(f"[uniform_api verify] 验证总耗时超过 {cls.MAX_VERIFY_TOTAL_TIMEOUT} 秒，请检查接口响应速度")
 
         # 1. 调用 category_list 接口 → 获取分类列表
         _check_timeout()
@@ -537,11 +539,9 @@ class UniformApiConfig(BaseSpaceConfig):
             cat_result.json_resp.get("data", []),
             client.UNIFORM_API_CATEGORY_LIST_RESPONSE_DATA_SCHEMA,
         )
-        categories_info = cat_result.json_resp.get('data') or []
+        categories_info = cat_result.json_resp.get("data") or []
         if len(categories_info) > cls.MAX_VERIFY_CATEGORIES:
-            logger.warning(
-                f"[uniform_api verify] 分类数量({len(categories_info)})超过上限{cls.MAX_VERIFY_CATEGORIES}，已截断"
-            )
+            logger.warning(f"[uniform_api verify] 分类数量({len(categories_info)})超过上限{cls.MAX_VERIFY_CATEGORIES}，已截断")
             categories_info = categories_info[: cls.MAX_VERIFY_CATEGORIES]
         category_length = len(categories_info)
 
@@ -551,10 +551,8 @@ class UniformApiConfig(BaseSpaceConfig):
             try:
                 categories.append(category.get("id", "all"))
             except Exception as e:
-                logger.error(
-                    f"[uniform_api verify] categories 接口获取数据失败: {str(e)},data: {str(category)}")
-                raise ValidationError(
-                    f"[uniform_api verify] categories 接口获取数据失败: {str(e)}，请检查接口地址或者接口内容是否符合规范.")
+                logger.error(f"[uniform_api verify] categories 接口获取数据失败: {str(e)},data: {str(category)}")
+                raise ValidationError(f"[uniform_api verify] categories 接口获取数据失败: {str(e)}，请检查接口地址或者接口内容是否符合规范.")
 
         # 2. 调用 list 接口 → 获取接口总数和列表（用第一个分类做 category 参数）
         list_request_data = {
@@ -566,9 +564,7 @@ class UniformApiConfig(BaseSpaceConfig):
         api_length = 0
         for index, category in enumerate(categories):
             if index >= cls.MAX_VERIFY_LIST_REQUESTS:
-                logger.warning(
-                    f"[uniform_api verify] list 请求次数达到上限{cls.MAX_VERIFY_LIST_REQUESTS}，已停止继续请求"
-                )
+                logger.warning(f"[uniform_api verify] list 请求次数达到上限{cls.MAX_VERIFY_LIST_REQUESTS}，已停止继续请求")
                 break
             _check_timeout()
             list_request_data["category"] = category
@@ -582,8 +578,7 @@ class UniformApiConfig(BaseSpaceConfig):
             )
 
             if not list_result.result:
-                logger.error(
-                    f"[uniform_api verify] list 接口请求失败: {list_result.message},data: {str(list_request_data)}")
+                logger.error(f"[uniform_api verify] list 接口请求失败: {list_result.message},data: {str(list_request_data)}")
                 raise ValidationError(f"[uniform_api verify] list 接口请求失败: {list_result.message}")
             # 校验 list 响应协议
             client.validate_response_data(
@@ -595,7 +590,7 @@ class UniformApiConfig(BaseSpaceConfig):
 
             # 取某个分类的api
             if not api_list:
-                for api in list_data.get('apis') or []:
+                for api in list_data.get("apis") or []:
                     api_list.append(api)
 
         # 3. 调用 meta 接口 → 取 list 返回的最多 5 个 api 的 meta_url
@@ -620,7 +615,8 @@ class UniformApiConfig(BaseSpaceConfig):
             if not meta_result.result:
                 logger.error(
                     f"[uniform_api verify] meta_url_detail 接口请求失败: {meta_result.message},"
-                    f"meta_url_detail: {meta_url_detail}")
+                    f"meta_url_detail: {meta_url_detail}"
+                )
                 raise ValidationError(f"[uniform_api verify] meta_url_detail 接口请求失败: {meta_result.message}")
             # 校验 meta 响应协议
             client.validate_response_data(
@@ -628,11 +624,13 @@ class UniformApiConfig(BaseSpaceConfig):
                 client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA,
             )
             meta_data = meta_result.json_resp.get("data", {})
-            samples.append({
-                "id": meta_data.get("id", ""),
-                "name": meta_data.get("name", ""),
-                "method": meta_data.get("methods", [""])[0] if meta_data.get("methods") else ""
-            })
+            samples.append(
+                {
+                    "id": meta_data.get("id", ""),
+                    "name": meta_data.get("name", ""),
+                    "method": meta_data.get("methods", [""])[0] if meta_data.get("methods") else "",
+                }
+            )
 
         if api_length and not samples:
             raise ValidationError("[uniform_api verify] 接口列表非空但未能校验任何接口详情")
@@ -803,12 +801,7 @@ class SpacePluginConfig(BaseSpaceConfig):
     desc = _("空间插件配置")
     value_type = SpaceConfigValueType.JSON.value
     example = {"default": {"mode": "{allow_list/deny_list/allow_all}", "plugin_codes": ["plugin_1", "plugin_2"]}}
-    default_value = {
-        "default": {
-            "mode": "allow_all",
-            "plugin_codes": []
-        }
-    }
+    default_value = {"default": {"mode": "allow_all", "plugin_codes": []}}
 
     group = "api_integration"
     help = {

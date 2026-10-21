@@ -16,11 +16,12 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import datetime
 
+import pytz
 from django.conf import settings
-from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 
 class TaskContext:
@@ -39,7 +40,7 @@ class TaskContext:
         self.task_id = taskflow.id
         self.task_name = taskflow.name
         self.is_mock = taskflow.create_method in ("MOCK", "DEBUG")
-        tz = timezone.pytz.timezone(settings.TIME_ZONE)
+        tz = pytz.timezone(settings.TIME_ZONE)
         self.task_start_time = datetime.datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
         self.tenant_id = taskflow.tenant_id
 

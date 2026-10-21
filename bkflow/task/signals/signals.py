@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -19,6 +18,6 @@ to the current version of the project delivered to anyone in the future.
 """
 from django.dispatch import Signal
 
-taskflow_started = Signal(providing_args=["task_id"])
-taskflow_finished = Signal(providing_args=["task_id"])
-taskflow_revoked = Signal(providing_args=["task_id"])
+taskflow_started = Signal()
+taskflow_finished = Signal()
+taskflow_revoked = Signal()

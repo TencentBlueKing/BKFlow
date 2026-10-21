@@ -16,10 +16,11 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
-from django.conf.urls import url
+
+from django.urls import re_path
 
 from .views import get_msg_types
 
 urlpatterns = [
-    url(r"^get_msg_types/$", get_msg_types),
+    re_path(r"^get_msg_types/$", get_msg_types),
 ]

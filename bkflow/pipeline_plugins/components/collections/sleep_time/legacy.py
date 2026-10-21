@@ -21,9 +21,10 @@ import datetime
 import os
 import re
 
+import pytz
 from django.conf import settings
-from django.utils import timezone, translation
-from django.utils.translation import ugettext_lazy as _
+from django.utils import translation
+from django.utils.translation import gettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.core.flow.activity import StaticIntervalGenerator
 from pipeline.core.flow.io import BooleanItemSchema, StringItemSchema
@@ -82,7 +83,7 @@ class SleepTimerService(BKFlowBaseService):
         force_check = data.get_one_of_inputs("force_check", True)
         # todo 需要考虑是否要支持空间的时区配置
         # 项目时区获取
-        tz = timezone.pytz.timezone(settings.TIME_ZONE)
+        tz = pytz.timezone(settings.TIME_ZONE)
         data.outputs.business_tz = tz
 
         now = datetime.datetime.now(tz=tz)

@@ -22,7 +22,7 @@ import random
 import time
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from bkflow.contrib.api.client import BaseComponentClient
 from bkflow.utils.trace import get_current_trace_context

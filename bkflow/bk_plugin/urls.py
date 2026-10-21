@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -22,7 +21,7 @@ from rest_framework.routers import DefaultRouter
 from bkflow.bk_plugin import views
 
 router = DefaultRouter()
-router.register(r"manager", views.BKPluginManagerViewSet)
+router.register(r"manager", views.BKPluginManagerViewSet, basename="bkplugin-manager")
 router.register(r"", views.BKPluginViewSet)
 
 urlpatterns = router.urls

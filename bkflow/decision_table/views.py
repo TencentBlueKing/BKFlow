@@ -16,6 +16,7 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from bkflow_dmn.api import decide_single_table
@@ -90,7 +91,7 @@ class DecisionTableViewSet(
     serializer_class = DecisionTableSerializer
     permission_classes = [DecisionTableUserPermission | AdminPermission | SpaceSuperuserPermission]
     filter_backends = [DjangoFilterBackend]
-    filter_class = DecisionTableFilterSet
+    filterset_class = DecisionTableFilterSet
 
     def _check_before_operation(self):
         decision_table = self.get_object()
@@ -164,4 +165,4 @@ class DecisionTableViewSet(
 
 class DecisionTableAdminViewSet(DecisionTableViewSet):
     permission_classes = [SpaceSuperuserPermission | AdminPermission]
-    filter_class = AdminDecisionTableFilterSet
+    filterset_class = AdminDecisionTableFilterSet

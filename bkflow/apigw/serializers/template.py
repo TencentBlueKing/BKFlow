@@ -20,7 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from django.db.models import Q
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from bkflow.constants import (

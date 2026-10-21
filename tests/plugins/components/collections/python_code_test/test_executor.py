@@ -44,6 +44,20 @@ class PythonCodeExecutorProcessIsolationTest(SimpleTestCase):
         self.service = Mock()
         self.executor = PythonCodeExecutor(service=self.service, timeout=1)
 
+    def test_jsonschema_preserves_legacy_default_draft(self):
+        """存量 Python 节点中的 schema 不因 jsonschema 升级改变校验规则。"""
+        code = (
+            "def main(value):\n"
+            "    schema = {'type': 'number', 'minimum': 0, 'exclusiveMinimum': True}\n"
+            "    jsonschema_module.validate(value, schema)\n"
+            "    return {'value': value}\n"
+        )
+        success, result, _ = self.executor.execute_code(code, input_args={"value": 1})
+        assert success is True
+        assert result == {"value": 1}
+        success, _, _ = self.executor.execute_code(code, input_args={"value": 0})
+        assert success is False
+
     def test_execute_code_keeps_parent_memory_limit_unchanged(self):
         """执行代码后不应修改父进程的地址空间限制。"""
         memory_limit_before = resource.getrlimit(resource.RLIMIT_AS)

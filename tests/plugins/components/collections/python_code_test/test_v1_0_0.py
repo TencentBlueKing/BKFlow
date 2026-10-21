@@ -229,10 +229,7 @@ SYNTAX_ERROR_CASE = ComponentTestCase(
     parent_data={},
     execute_assertion=ExecuteAssertion(
         success=False,
-        outputs={
-            "ex_data": "执行器错误: ('Line 4: SyntaxError: unexpected EOF "
-            "while parsing at statement: \\'\"result\": arg1 +   # 语法错误：不完整的表达式\\'',)"
-        },
+        outputs={"ex_data": "执行器错误: (\"Line 3: SyntaxError: '{' was never closed at statement: 'return {'\",)"},
     ),
     schedule_assertion=None,
     patchers=[],
@@ -252,7 +249,8 @@ RUNTIME_ERROR_CASE = ComponentTestCase(
     inputs={"bk_python_code": RUNTIME_ERROR_CODE, "bk_input_vars": {"arg1": 10}},
     parent_data={},
     execute_assertion=ExecuteAssertion(
-        success=False, outputs={"output": {}, "error": "执行错误: division by zero", "ex_data": "执行错误: division by zero"}
+        success=False,
+        outputs={"output": {}, "error": "执行错误: division by zero", "ex_data": "执行错误: division by zero"},
     ),
     schedule_assertion=None,
     patchers=[],
