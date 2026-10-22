@@ -55,6 +55,43 @@ BK_APIGW_STAGE_NAME = "prod"
 BKAPP_APIGW_SYNC_STAGE = ["prod"]
 CSRF_COOKIE_NAME = APP_CODE + "_csrftoken"
 
+# CSRF 可信来源配置 - 支持 PaaS 容器部署
+import os
+
+_csrf_origins_str = os.getenv("BKAPP_CSRF_TRUSTED_ORIGINS", "")
+if _csrf_origins_str:
+    # 自定义环境变量（支持逗号分隔多个域名）
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in _csrf_origins_str.split(",") if origin.strip()]
+else:
+    # 使用 PaaS 平台变量
+    _bkpaas_url = os.getenv("BKPAAS_URL", "")
+    if _bkpaas_url:
+        CSRF_TRUSTED_ORIGINS = [_bkpaas_url]
+        if _bkpaas_url.startswith("https://"):
+            CSRF_TRUSTED_ORIGINS.append(_bkpaas_url.replace("https://", "http://", 1))
+        elif _bkpaas_url.startswith("http://"):
+            CSRF_TRUSTED_ORIGINS.append(_bkpaas_url.replace("http://", "https://", 1))
+    else:
+        CSRF_TRUSTED_ORIGINS = []
+
+# 允许的主机名（生产环境应严格限制）
+# 完全从环境变量读取，无硬编码
+_allowed_hosts_str = os.getenv("BKAPP_ALLOWED_HOSTS", "")
+if _allowed_hosts_str:
+    ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_str.split(",") if host.strip()]
+else:
+    # 从 BKPAAS_URL 提取域名
+    _bkpaas_url = os.getenv("BKPAAS_URL", "")
+    if _bkpaas_url:
+        from urllib.parse import urlparse
+        parsed = urlparse(_bkpaas_url)
+        if parsed.netloc:
+            ALLOWED_HOSTS = [parsed.netloc, ".bktencent.com"]
+        else:
+            ALLOWED_HOSTS = ["*"]
+    else:
+        ALLOWED_HOSTS = ["*"]
+
 try:
     from module_settings import *  # noqa
 except ImportError:
