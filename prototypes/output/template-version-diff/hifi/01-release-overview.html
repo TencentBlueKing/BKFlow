@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>01 发布确认与差异总览</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 01 · 流程编排人员</div>
+    <h2>发布确认与差异总览</h2>
+    <div class="sub">空间已开启版本管理，流程「订单服务发布」的上一发布版是 v1.3.0。编排人员保存草稿后点「发布」，在同一个弹窗里确认改动并发布。</div>
+    <div class="note"><b class="n">1</b><span>左侧沿用现有发布表单：版本号按现有规则预填、可修改，版本描述限 500 字。</span></div>
+    <div class="note"><b class="n">2</b><span>对比基线默认为上一发布版；下拉只列已发布的版本（见设计稿 02）。</span></div>
+    <div class="note"><b class="n">3</b><span>顶部写明对比的两份数据：基线的发布时间，草稿的保存时间和保存人。统计按类型着色：新增绿、删除红、修改黄、连线变化灰。</span></div>
+    <div class="note"><b class="n">4</b><span>画布按草稿布局展示：新增节点绿框，修改节点黄框，删除的节点以虚线框留在基线位置。变化的连线染色：新增为绿色实线，删除为红色虚线。</span></div>
+    <div class="note"><b class="n">5</b><span>变更清单按类型分组，数量与统计一致。点条目在画布上定位并高亮；点修改节点进入字段对比（见设计稿 03）。</span></div>
+    <div class="note"><b class="n">6</b><span>只影响画布布局的改动（节点位置、连线锚点）不计入统计，收在清单底部（见设计稿 06）。</span></div>
+    <div class="note"><b class="n">7</b><span>「发布」在任何状态下都可用。底栏「JSON 对比」查看原始字段差异（见设计稿 04）。</span></div>
+    <div class="note"><b class="n" style="background:#ff9c01">?</b><span>待确认：与新增、删除节点相连的连线随节点一起染色，不单独计入「连线变化」；两端节点都保留但连接关系变了的连线才计数。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="diff.js"></script>
+<script>
+  renderBg();
+  const stats = '<span class="stat add">新增 2</span><span class="stat del">删除 1</span><span class="stat mod">修改 2</span><span class="stat lnk">连线变化 1</span>';
+  const list = clistHtml([
+    { name: '新增节点', cnt: 2, items: [{ dot: 'add', name: '审批确认', sub: '蓝鲸服务(BK)-审批' }, { dot: 'add', name: '灰度验证', sub: '作业平台(JOB)-快速执行脚本' }] },
+    { name: '删除节点', cnt: 1, items: [{ dot: 'del', name: '旧版通知', sub: '蓝鲸服务(BK)-消息展示' }] },
+    { name: '修改节点', cnt: 2, items: [{ dot: 'mod', name: '灰度发布', sub: '3 个字段', on: true, go: true }, { dot: 'mod', name: '全量发布', sub: '1 个字段', go: true }] },
+    { name: '连线变化', cnt: 1, items: [{ dot: 'lnk', name: '开始 → 灰度发布', sub: '已删除' }] },
+  ], ic('eye', 's14') + '画布调整 2 项，不影响执行<span class="link ml-auto">展开</span>');
+  document.getElementById('dlg').outerHTML = releaseDialog({
+    formMk: '<i class="mk" style="right:-12px;top:32px">1</i><i class="mk" style="right:-12px;top:276px">2</i>',
+    panel: summaryBar('v1.3.0（2026-09-18 10:24 发布）', stats) +
+      '<div class="pnl-bd">' + diffCanvas(CANVAS.overview('gr')) + list + '</div>' +
+      '<i class="mk" style="right:-12px;top:14px">3</i>' +
+      '<i class="mk" style="left:600px;top:420px">4</i>' +
+      '<i class="mk" style="right:290px;top:336px">5</i>' +
+      '<i class="mk" style="right:-12px;bottom:10px">6</i>',
+    pubMk: '<i class="mk" style="left:-10px;top:-10px">7</i>',
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
