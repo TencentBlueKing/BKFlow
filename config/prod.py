@@ -88,9 +88,9 @@ else:
         if parsed.netloc:
             ALLOWED_HOSTS = [parsed.netloc, ".bktencent.com"]
         else:
-            ALLOWED_HOSTS = ["*"]
+            ALLOWED_HOSTS = []
     else:
-        ALLOWED_HOSTS = ["*"]
+        ALLOWED_HOSTS = []
 
 try:
     from module_settings import *  # noqa

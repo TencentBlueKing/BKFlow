@@ -81,7 +81,7 @@ else:
         if _bkpaas_url.startswith("https://"):
             CSRF_TRUSTED_ORIGINS.append(_bkpaas_url.replace("https://", "http://", 1))
         elif _bkpaas_url.startswith("http://"):
-            CSRF_TRUSTED_ORIGINS.append(_bkpaas_url.replace("http://", "https://", "1"))
+            CSRF_TRUSTED_ORIGINS.append(_bkpaas_url.replace("http://", "https://", 1))
     else:
         CSRF_TRUSTED_ORIGINS = []
 
@@ -97,11 +97,11 @@ else:
         from urllib.parse import urlparse
         parsed = urlparse(_bkpaas_url)
         if parsed.netloc:
-            ALLOWED_HOSTS = [parsed.netloc, ".bktencent.com", "*"]
+            ALLOWED_HOSTS = [parsed.netloc, ".bktencent.com"]
         else:
-            ALLOWED_HOSTS = ["*"]
+            ALLOWED_HOSTS = []
     else:
-        ALLOWED_HOSTS = ["*"]
+        ALLOWED_HOSTS = []
 
 try:
     from module_settings import *  # noqa
