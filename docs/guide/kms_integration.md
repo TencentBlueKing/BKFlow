@@ -4,6 +4,8 @@
 
 根据蓝鲸 PaaS 平台 KMS 规范，本项目已集成 KMS 敏感变量解密功能。
 
+**重要提示**：本文档描述的是生产环境中 KMS 的集成方式，不包含本地测试或模拟功能。
+
 ## 一、平台提供什么
 
 开启 KMS 后，每个进程都会获得：
@@ -84,68 +86,56 @@ db_password = os.getenv('DATABASE_PASSWORD')
 
 ```python
 import os
-from django.core.wsgi import get_wsgi_application
-from bkflow.contrib.kms import decrypt_kms_secrets
+from blueapps.core.wsgi import get_wsgi_application
 
-# 在初始化 Django 之前解密
-decrypt_kms_secrets()
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings')
+# KMS 敏感变量解密
+if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
+    from bkflow.contrib.kms import decrypt_kms_secrets
+    decrypt_kms_secrets()
+
 application = get_wsgi_application()
 ```
 
-#### Celery Worker 入口
+#### Celery Worker 入口 (config/__init__.py)
 
 ```python
-from celery import Celery
-from bkflow.contrib.kms import decrypt_kms_secrets
+import os
 
-# 在创建 Celery 应用之前解密
-decrypt_kms_secrets()
+# KMS 敏感变量解密
+if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
+    from bkflow.contrib.kms import decrypt_kms_secrets
+    decrypt_kms_secrets()
 
-app = Celery('bkflow')
-app.config_from_object('django.conf:settings', namespace='CELERY')
+from blueapps.core.celery import celery_app
+
+__all__ = ["celery_app"]
 ```
 
 #### 自定义脚本
-
-```python
-from bkflow.contrib.kms import decrypt_kms_secrets
-import sys
-
-try:
-    decrypt_kms_secrets()
-except Exception as e:
-    print(f"Failed to decrypt KMS: {e}")
-    sys.exit(1)
-
-# 业务逻辑
-```
-
-#### manage.py
 
 ```python
 import os
 import sys
 from bkflow.contrib.kms import decrypt_kms_secrets
 
-# 在执行任何命令之前解密
-decrypt_kms_secrets()
+# 在脚本开始时解密
+if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
+    try:
+        decrypt_kms_secrets()
+    except Exception as e:
+        print(f"Failed to decrypt KMS: {e}")
+        sys.exit(1)
 
-if __name__ == '__main__':
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings')
-    # ...
+# 业务逻辑
 ```
 
-### 4.3 推荐方式：在 bkflow/__init__.py 中自动加载
+### 4.3 关键注意事项
 
-```python
-# bkflow/__init__.py
-from bkflow.contrib.kms import decrypt_kms_secrets
-
-# 模块导入时自动解密
-decrypt_kms_secrets()
-```
+1. **必须在入口文件调用**：每个进程入口（wsgi.py、manage.py、config/__init__.py）都需要独立调用解密
+2. **检查 KMS 开关**：通过 `BKPAAS_KMS_ENABLED` 环境变量判断是否启用
+3. **在配置加载前调用**：确保在 Django 初始化或读取配置之前完成解密
 
 这样所有导入 bkflow 的入口都会自动解密。
 
@@ -239,16 +229,10 @@ decrypt_kms_secrets()
 - 只记录变量名，不记录变量值
 - 成功时记录解密的变量数量和名称
 
-### is_kms_enabled()
-
-```python
-from bkflow.contrib.kms import is_kms_enabled
-
-if is_kms_enabled():
-    print("KMS is enabled")
-```
-
-**返回**：`True` 如果 `BKPAAS_KMS_ENABLED=true`
+**实现细节**：
+- 使用 `bk_kms.decrypt()` 进行解密
+- 解密不依赖网络，完全在容器本地完成
+- 该函数不检查 `BKPAAS_KMS_ENABLED`，调用前需自行判断
 
 ## 九、安全注意事项
 
@@ -301,11 +285,15 @@ pip install 'bk-kms-sdk[gm]'
 BKFlow/
 ├── bkflow/
 │   └── contrib/
-│       ├── kms.py              # KMS 解密模块（新增）
-│       └── kms_example.py      # 使用示例（新增）
-├── requirements.txt            # 添加 bk-kms-sdk[gm]（已修改）
+│       └── kms.py              # KMS 解密模块
+├── wsgi.py                     # Web 入口（已集成 KMS）
+├── manage.py                   # Django 命令入口（已集成 KMS）
+├── config/
+│   └── __init__.py             # Celery 入口（已集成 KMS）
+├── requirements.txt            # 包含 bk-kms-sdk[gm]==1.0.0
 └── docs/
-    └── KMS_PAAS_INTEGRATION.md # 本文档（新增）
+    └── guide/
+        └── kms_integration.md  # 本文档
 ```
 
 ## 十二、原理（选读）
