@@ -30,11 +30,15 @@ def page_not_found(request, exception):
     if request.path.startswith(settings.STATIC_URL):
         return HttpResponseNotFound()
 
-    user = LoginRequiredMiddleware().authenticate(request)
+    # Django 4.2 兼容：使用 dummy get_response 实例化中间件
+    # handler404 不经过 process_view，需要手动调用 authenticate 实现票据自动登录
+    def dummy_get_response(request):
+        return None
 
-    # 未登录重定向到首页，跳到登录页面
+    user = LoginRequiredMiddleware(dummy_get_response).authenticate(request)
     if not user:
         refer_url = quote(request.build_absolute_uri())
         return HttpResponseRedirect(settings.SITE_URL + "?{}={}".format(settings.PAGE_NOT_FOUND_URL_KEY, refer_url))
     request.user = user
+
     return render(request, "base_vue.html", {})
