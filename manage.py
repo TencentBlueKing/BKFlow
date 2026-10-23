@@ -23,17 +23,10 @@ import sys
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
 
-    # ========== 本地测试：模拟 KMS 解密 ==========
+    # KMS 敏感变量解密
     if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
-        # 生产环境：使用真实的 KMS 解密
         from bkflow.contrib.kms import decrypt_kms_secrets
         decrypt_kms_secrets()
-    elif os.environ.get('LOCAL_KMS_TEST', '') == 'true':
-        # 本地测试：使用模拟解密
-        print("\n🧪 [本地测试模式] 使用模拟 KMS 解密\n")
-        from bkflow.contrib.kms_mock import mock_decrypt_kms_secrets
-        mock_decrypt_kms_secrets()
-    # ==============================================
 
     from django.core.management import execute_from_command_line
 
