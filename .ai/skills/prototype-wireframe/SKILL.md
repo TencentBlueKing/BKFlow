@@ -102,13 +102,17 @@ prototypes/output/<feature-name>/
 ├── screens/           # wiremd 线框源文件（唯一真源，可 diff / 迭代 / 导 Figma）
 │   ├── 01-<name>.md
 │   └── ...
-└── shots/             # 各屏全页截图（README 内嵌）
+├── shots/             # 各屏全页截图（README 内嵌）
+│   ├── 01-<name>.png
+│   └── ...
+└── designs/           # （可选，由 prototype-design-mockup 产出）蓝鲸风格设计稿
     ├── 01-<name>.png
     └── ...
 ```
 
 - `screens/*.md` 是**唯一真源**：改一行重渲染即可，天然可版本化 diff、可 AI 迭代、可导出 Figma。
 - `shots/*.png` 是展示用截图。
+- `designs/*.png` 是线框确认后的蓝鲸高保真简易稿（含交互标注），见 `prototype-design-mockup`。
 - HTML 不保存进仓库。
 
 ## 强制规则（MUST）
@@ -136,9 +140,14 @@ prototypes/output/<feature-name>/
 | 把 HTML 产物提交进仓库 | HTML 现渲染，仓库只留 `screens/*.md` + 截图 |
 | 产出原型就完事 | 必须在 TAPD 提设计需求闭环 |
 
+## 下一步：蓝鲸设计稿
+
+线框与交互对齐后，若需要高保真简易设计稿（现网截图基准 + 红色交互标注），继续走 `prototype-design-mockup` skill，产物落在同目录 `designs/*.png`。出稿前须查该 skill 的 `visual-baseline-index.md` 选 `output/playwright/bkflow-engine-admin/` 参考图。
+
 ## 参考
 
 - 工具链、wiremd 语法速查、已知坑、渲染 / 截图 / Figma 命令、提设计需求模板：`.ai/docs/guides/prototyping-workflow.md`
 - 通用 UI 设计原则：`.ai/skills/prototype-wireframe/reference/design-principles.md`
+- 线框确认后出蓝鲸设计稿：`.ai/skills/prototype-design-mockup/SKILL.md`
 - TAPD 单据创建：`.ai/skills/tapd-workitem-sync/SKILL.md`
 - 已跑通的完整样例：`prototypes/output/space-config-redesign/`（随空间配置改版特性分支入库）

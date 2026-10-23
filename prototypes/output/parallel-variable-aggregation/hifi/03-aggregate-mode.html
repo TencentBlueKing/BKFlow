@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>03 设置聚合方式</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="slider"></div>
+    <div class="mask" style="z-index:35;background:rgba(0,0,0,.45)"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 03 · 流程编排人员</div>
+    <h2>设置聚合方式</h2>
+    <div class="sub">在设计稿 01 选择「聚合到 ${result}」后点「下一步」，进入同一弹窗的第 2 步。</div>
+    <div class="note"><b class="n">1</b><span>KEY 沿用 ${result}，只读；类型显示「聚合变量」，避免被误认为新建了变量。名称可以改，默认取已有变量的名称。</span></div>
+    <div class="note"><b class="n">2</b><span>聚合方式二选一，默认「收集为列表」。保存后可以在「全局变量」里修改。</span></div>
+    <div class="note"><b class="n">3</b><span>示例随所选方式切换。列表里每一项是 {"branch": 分支标识, "value": 该分支的输出}；字典以分支标识为键。来源节点不写进值里。</span></div>
+    <div class="note"><b class="n">4</b><span>分支标识按并行网关的出线顺序生成，由系统填写，不需要手填。通过这张表查看每个标识对应的分支和节点；增删分支后编号如何变化见设计稿 07。</span></div>
+    <div class="note"><b class="n">5</b><span>有下游引用时按钮为「下一步：确认引用影响」；没有引用时按钮为「完成」，直接关闭弹窗。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>某个分支失败或被跳过时没有输出，聚合结果里不会出现对应的项（见设计稿 09）。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="agg.js"></script>
+<script>
+  const f = FLOWS.two('b');
+  renderEditor(document.querySelector('[data-editor]'), { tpl: '多区域资源巡检', saveEnabled: true, nodes: f.nodes, edges: f.edges });
+  document.getElementById('slider').outerHTML = nodeConfig({
+    name: '华北区资源检查', region: '华北',
+    outputs: [
+      { name: '检查结果', key: 'result', hook: 'on' },
+      { name: '巡检日志', key: 'check_log' },
+      { name: '执行结果', key: '_result' },
+    ],
+  });
+  const code =
+    '<span class="c">// 收集为列表：按分支顺序排列</span>\n' +
+    '[\n' +
+    '  {<span class="k">"branch"</span>: <span class="s">"branch_1"</span>, <span class="k">"value"</span>: <span class="c">华南区资源检查的 result</span>},\n' +
+    '  {<span class="k">"branch"</span>: <span class="s">"branch_2"</span>, <span class="k">"value"</span>: <span class="c">华北区资源检查的 result</span>}\n' +
+    ']';
+  document.getElementById('dlg').outerHTML = varDialog({
+    top: 96,
+    body:
+      stepsHtml(['done', 'on', '']) +
+      '<div class="rel row gap16" style="align-items:flex-start">' +
+      '<div class="fv" style="flex:1"><label class="req">变量名称</label><div class="input"><span class="dark">检查结果</span></div></div>' +
+      '<div class="fv" style="flex:1"><label>变量 KEY</label><div class="input readonly"><span class="dark mono">${result}</span><span class="tag sm primary">聚合变量</span><i data-ic="lock" class="s14 ml-auto"></i></div></div>' +
+      '<i class="mk" style="right:-12px;top:30px">1</i></div>' +
+      '<div class="fv rel" style="margin-bottom:10px"><label class="req">聚合方式</label>' +
+      '<div class="row gap24" style="height:24px"><span class="radio on">收集为列表（默认）</span><span class="radio">合并为字典</span></div>' +
+      '<i class="mk" style="left:262px;top:30px">2</i></div>' +
+      '<div class="rel" style="margin-bottom:6px"><div class="code">' + code + '</div><i class="mk" style="right:-12px;top:-8px">3</i></div>' +
+      '<div class="help" style="margin:0 0 18px">合并为字典时：{"branch_1": 华南区资源检查的 result, "branch_2": 华北区资源检查的 result}</div>' +
+      '<div class="sec-label">聚合来源</div>' +
+      '<div class="rel"><div class="tb-wrap"><table class="tb compact"><colgroup><col style="width:110px"><col><col style="width:90px"><col style="width:96px"></colgroup>' +
+      '<thead><tr><th>分支标识</th><th>来源分支与节点</th><th>输出</th><th></th></tr></thead><tbody>' +
+      '<tr><td class="mono dark">branch_1</td><td>分支 1 · <span class="dark">华南区资源检查</span></td><td>result</td><td><span class="tag sm">第 1 个来源</span></td></tr>' +
+      '<tr><td class="mono dark">branch_2</td><td>分支 2 · <span class="dark">华北区资源检查</span></td><td>result</td><td><span class="tag sm primary">当前节点</span></td></tr>' +
+      '</tbody></table></div><i class="mk" style="right:-12px;top:-10px">4</i></div>' +
+      '<div class="help">之后在这个并行网关下新增分支并勾选同名输出时，会自动并入并按顺序编号。</div>',
+    foot: '<button class="btn">上一步</button><span class="rel"><button class="btn primary">下一步：确认引用影响</button><i class="mk" style="left:-10px;top:-10px">5</i></span><button class="btn">取消</button>',
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>

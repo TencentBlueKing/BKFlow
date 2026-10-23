@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>06 新增分支自动并入</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <i class="mk" style="left:600px;top:406px">1</i>
+    <div id="slider"></div>
+    <div class="toast success"><i data-ic="success" class="s14"></i>已自动并入聚合变量 ${result}<i class="mk" style="right:-12px;top:-10px">3</i></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 06 · 流程编排人员</div>
+    <h2>新增分支自动并入</h2>
+    <div class="sub">${result} 已是聚合变量（来源为分支 1、分支 2）。编排人员在并行网关下新增分支 3「华东区资源检查」，并勾选输出 result。</div>
+    <div class="note"><b class="n">1</b><span>新分支接在同一个并行网关下，属于同一聚合作用域。</span></div>
+    <div class="note"><b class="n">2</b><span>不再弹出向导，直接作为第 3 个来源并入。KEY 列显示 ${result} 和「聚合」标记；点编辑图标打开该变量的配置。</span></div>
+    <div class="note"><b class="n">3</b><span>成功提示「已自动并入聚合变量 ${result}」。取消勾选即从来源中移除。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>并入后列表只是多一项，值的类型不变，不需要再次确认下游引用。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="agg.js"></script>
+<script>
+  const f = FLOWS.three('c');
+  renderEditor(document.querySelector('[data-editor]'), { tpl: '多区域资源巡检', saveEnabled: true, nodes: f.nodes, edges: f.edges });
+  document.getElementById('slider').outerHTML = nodeConfig({
+    name: '华东区资源检查', region: '华东',
+    tableMk: '<i class="mk" style="left:204px;top:36px">2</i>',
+    outputs: [
+      { name: '检查结果', key: 'result', hook: 'on', varKey: '${result}', varTag: '<span class="tag sm primary" style="margin-left:auto;margin-right:6px">聚合</span>' },
+      { name: '巡检日志', key: 'check_log' },
+      { name: '执行结果', key: '_result' },
+    ],
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
