@@ -30,11 +30,10 @@ def page_not_found(request, exception):
     if request.path.startswith(settings.STATIC_URL):
         return HttpResponseNotFound()
 
-    user = LoginRequiredMiddleware().authenticate(request)
-
-    # 未登录重定向到首页，跳到登录页面
-    if not user:
+    # Django 4.2 兼容：直接检查 request.user 而不是重新实例化中间件
+    # 在 Django 4.2 中，MiddlewareMixin 需要 get_response 参数，不能直接实例化
+    if not request.user.is_authenticated:
         refer_url = quote(request.build_absolute_uri())
         return HttpResponseRedirect(settings.SITE_URL + "?{}={}".format(settings.PAGE_NOT_FOUND_URL_KEY, refer_url))
-    request.user = user
+
     return render(request, "base_vue.html", {})
