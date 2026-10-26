@@ -834,7 +834,11 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
     @action(methods=["POST"], detail=True, url_path="auto_save_template")
     def auto_save_template(self, request, *args, **kwargs):
         template = self.get_object()
+        if SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) != "true":
+            return Response(exception=True, data={"detail": "当前空间未开启版本管理，无法自动保存模板"})
         pipeline_tree = request.data.get("pipeline_tree")
+        if not pipeline_tree:
+            return Response(exception=True, data={"detail": "pipeline_tree 参数不能为空"})
         username = request.user.username
         TemplateSnapshot.create_unpublished_snapshot(
             pipeline_tree=pipeline_tree, username=username, auto_save=True, template_id=template.id

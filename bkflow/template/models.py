@@ -230,8 +230,10 @@ class Template(CommonModel):
         return SpaceConfig.get_config(space_id=self.space_id, config_name=FlowVersioning.name) == target
 
     def has_published_version(self):
-        """是否存在已发布的正式版本（非草稿、未删除的快照）"""
-        return TemplateSnapshot.objects.filter(template_id=self.id, draft=False, is_deleted=False).exists()
+        """是否存在已发布的正式版本（非草稿、非自动保存和未删除的快照）"""
+        return TemplateSnapshot.objects.filter(
+            template_id=self.id, draft=False, auto_save=False, is_deleted=False
+        ).exists()
 
     @property
     def subprocess_info(self):
@@ -351,24 +353,26 @@ class Template(CommonModel):
             raise ValidationError("版本号不能为空")
         try:
             template_snapshot = TemplateSnapshot.objects.filter(template_id=self.id, draft=True).order_by("-id").first()
-            if data.get("is_validate", True):
-                ValidatorHandler.validate(template_snapshot.data, validate_type=ValidateType.TEMPLATE)
-            template_snapshot.draft = False
-            template_snapshot.version = version
-            template_snapshot.desc = data.get("desc")
-            template_snapshot.operator = data["username"]
-            template_snapshot.save()
-
-        except TemplateSnapshot.DoesNotExist:
-            if data.get("force", False):
-                template_snapshot = TemplateSnapshot.create_snapshot(
-                    self.pipeline_tree, data["username"], version, data.get("desc")
-                )
-                template_snapshot.template_id = self.id
-                template_snapshot.save()
+            if template_snapshot is None:
+                # 没有草稿快照时，仅在强制发布(force)下从当前版本创建快照兜底发布
+                if data.get("force", False):
+                    template_snapshot = TemplateSnapshot.create_snapshot(
+                        self.pipeline_tree, data["username"], version, data.get("desc")
+                    )
+                    template_snapshot.template_id = self.id
+                    template_snapshot.save()
+                else:
+                    logger.warning(f"未找到模板（ID: {self.id}）的草稿快照（draft=True）")
+                    raise ValidationError(f"该模板{self.id}没有草稿版本")
             else:
-                logger.warning(f"未找到模板（ID: {self.id}）的草稿快照（draft=True）")
-                raise ValidationError(f"该模板{self.id}没有草稿版本")
+                if data.get("is_validate", True):
+                    ValidatorHandler.validate(template_snapshot.data, validate_type=ValidateType.TEMPLATE)
+                template_snapshot.draft = False
+                template_snapshot.version = version
+                template_snapshot.desc = data.get("desc")
+                template_snapshot.operator = data["username"]
+                template_snapshot.save()
+
         except Exception as e:
             logger.error(f"发布模板草稿时发生错误（template_id={self.id}）: {e}", exc_info=True)
             raise ValidationError(f"发布模板失败: {e}")
