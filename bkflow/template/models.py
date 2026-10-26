@@ -96,7 +96,9 @@ class TemplateManager(models.Manager):
         with transaction.atomic():
             # 开启事务 确保都创建成功
             if is_draft and SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
-                copyed_snapshot = TemplateSnapshot.create_draft_snapshot(copyed_pipeline_tree, operator)
+                copyed_snapshot = TemplateSnapshot.create_unpublished_snapshot(
+                    copyed_pipeline_tree, operator, draft=True
+                )
             else:
                 copyed_snapshot = TemplateSnapshot.create_snapshot(copyed_pipeline_tree, operator, "1.0.0")
             template.snapshot_id = copyed_snapshot.id
@@ -178,11 +180,15 @@ class Template(CommonModel):
     def build_callback_data(self, operate_type):
         return {"type": "template", "data": {"id": self.id, "operate_type": operate_type}}
 
-    def update_snapshot(self, pipeline_tree):
+    def update_snapshot(self, pipeline_tree, snapshot_id=None, desc=None):
         if self.snapshot.has_change(pipeline_tree):
+            snapshot_id = self.snapshot.id if snapshot_id is None else snapshot_id
             try:
-                TemplateSnapshot.objects.filter(id=self.snapshot_id).update(
-                    data=pipeline_tree, md5sum=compute_pipeline_md5(pipeline_tree), create_time=datetime.datetime.now()
+                TemplateSnapshot.objects.filter(id=snapshot_id).update(
+                    data=pipeline_tree,
+                    md5sum=compute_pipeline_md5(pipeline_tree),
+                    create_time=datetime.datetime.now(),
+                    desc=desc,
                 )
             except Exception as e:
                 logger.error("[Template->update_snapshot] update snapshot error, error = {}".format(e))
@@ -344,7 +350,7 @@ class Template(CommonModel):
         if not version:
             raise ValidationError("版本号不能为空")
         try:
-            template_snapshot = TemplateSnapshot.objects.get(template_id=self.id, draft=True)
+            template_snapshot = TemplateSnapshot.objects.filter(template_id=self.id, draft=True).order_by("-id").first()
             if data.get("is_validate", True):
                 ValidatorHandler.validate(template_snapshot.data, validate_type=ValidateType.TEMPLATE)
             template_snapshot.draft = False
@@ -378,6 +384,7 @@ class TemplateSnapshot(CommonSnapshot):
     version = models.CharField(_("版本号"), max_length=32, null=True, blank=True, db_index=True)
     desc = models.CharField(_("描述"), max_length=255, null=True, blank=True)
     draft = models.BooleanField(_("是否草稿"), default=False)
+    auto_save = models.BooleanField(_("是否自动保存"), default=False)
     creator = models.CharField(_("创建人"), max_length=64, null=True, blank=True)
     operator = models.CharField(_("操作人"), max_length=64, null=True, blank=True)
     update_time = models.DateTimeField(_("更新时间"), auto_now=True)
@@ -402,17 +409,21 @@ class TemplateSnapshot(CommonSnapshot):
         return cls.objects.create(**data)
 
     @classmethod
-    def create_draft_snapshot(cls, pipeline_tree, username, version=None):
+    def create_unpublished_snapshot(cls, pipeline_tree, username, desc=None, draft=False, auto_save=False, **kwargs):
         data = {
             "data": pipeline_tree,
             "md5sum": compute_pipeline_md5(pipeline_tree),
             "creator": username,
             "operator": username,
+            "desc": desc,
         }
-        if version:
-            data["version"] = version
+        if draft != auto_save:
+            data["draft"] = draft
+            data["auto_save"] = auto_save
         else:
-            data["draft"] = True
+            raise ValidationError("draft和auto_save不能一致")
+        if kwargs:
+            data.update(**kwargs)
         return cls.objects.create(**data)
 
 

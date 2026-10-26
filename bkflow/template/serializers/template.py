@@ -114,6 +114,7 @@ class TemplateSerializer(serializers.ModelSerializer):
     labels = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
     webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
     enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
+    draft_desc = serializers.CharField(help_text="草稿版本描述", required=False, allow_blank=True, allow_null=True)
 
     def validate_space_id(self, space_id):
         if not Space.objects.filter(id=space_id).exists():
@@ -207,7 +208,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             scope_id=validated_data.get("scope_value") or self.initial_data.get("scope_value"),
         )
         if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
-            snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+            snapshot = TemplateSnapshot.create_unpublished_snapshot(pipeline_tree, username, draft=True)
         else:
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
         validated_data["snapshot_id"] = snapshot.id
@@ -270,7 +271,16 @@ class TemplateSerializer(serializers.ModelSerializer):
             scope_id=validated_data.get("scope_value", instance.scope_value),
         )
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
-            instance.update_draft_snapshot(pipeline_tree, username)
+            draft_desc = validated_data.get("draft_desc")
+            snapshot_obj = TemplateSnapshot.objects.filter(template_id=instance.id, draft=True)
+            if snapshot_obj.count() >= settings.MAX_TEMPLATE_DRAFT_COUNT:
+                # 如果快照数据已达到最大值，则覆盖更新最新的那个草稿记录
+                snapshot_id = snapshot_obj.order_by("-id").first().id
+                instance.update_snapshot(pipeline_tree, snapshot_id=snapshot_id, desc=draft_desc)
+            else:
+                TemplateSnapshot.create_unpublished_snapshot(
+                    pipeline_tree, username, draft=True, template_id=instance.id, desc=draft_desc
+                )
         else:
             if instance.snapshot_version is None:
                 current_version = "1.0.0"
@@ -473,9 +483,9 @@ class TemplateSnapshotSerializer(serializers.ModelSerializer):
             "template_id",
             "desc",
             "draft",
+            "auto_save",
             "creator",
             "operator",
-            "md5sum",
         ]
 
 
