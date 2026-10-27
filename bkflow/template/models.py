@@ -181,15 +181,20 @@ class Template(CommonModel):
         return {"type": "template", "data": {"id": self.id, "operate_type": operate_type}}
 
     def update_snapshot(self, pipeline_tree, snapshot_id=None, desc=None):
-        if self.snapshot.has_change(pipeline_tree):
-            snapshot_id = self.snapshot.id if snapshot_id is None else snapshot_id
+        # 以目标快照（草稿覆盖场景下为被覆盖的草稿，而非模板当前正式快照）作为比较基准，
+        # 避免草稿内容改回已发布内容时 has_change 误判为 False 而跳过更新。
+        target_snapshot = TemplateSnapshot.objects.get(id=snapshot_id) if snapshot_id is not None else self.snapshot
+        if target_snapshot.has_change(pipeline_tree):
+            update_fields = {
+                "data": pipeline_tree,
+                "md5sum": compute_pipeline_md5(pipeline_tree),
+                "create_time": datetime.datetime.now(),
+            }
+            # desc 仅在明确传入时更新，避免把既有描述清空为 None
+            if desc is not None:
+                update_fields["desc"] = desc
             try:
-                TemplateSnapshot.objects.filter(id=snapshot_id).update(
-                    data=pipeline_tree,
-                    md5sum=compute_pipeline_md5(pipeline_tree),
-                    create_time=datetime.datetime.now(),
-                    desc=desc,
-                )
+                TemplateSnapshot.objects.filter(id=target_snapshot.id).update(**update_fields)
             except Exception as e:
                 logger.error("[Template->update_snapshot] update snapshot error, error = {}".format(e))
 

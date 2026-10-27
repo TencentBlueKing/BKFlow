@@ -448,8 +448,13 @@ class TemplateVersionViewSet(
         if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) != "true":
             return Response(exception=True, data={"detail": "版本管理功能未开启，无法删除快照"})
 
-        if template_obj.snapshot_id == instance.id or instance.version:
-            return Response(exception=True, data={"detail": "该版本是正式版本或流程正在使用的快照，无法删除"})
+        # 流程正在使用的快照禁止删除
+        if template_obj.snapshot_id == instance.id:
+            return Response(exception=True, data={"detail": "该版本是流程正在使用的快照，无法删除"})
+
+        # 正式版本（已发布、存在版本号）禁止删除，仅允许删除草稿或自动保存的快照
+        if instance.version:
+            return Response(exception=True, data={"detail": "正式版本快照无法删除"})
 
         instance.delete()
         return Response({"detail": "快照已成功删除"})

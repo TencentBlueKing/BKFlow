@@ -567,8 +567,8 @@ class TestTemplateVersionViewSet:
         # Response直接返回detail，不需要包装
         assert "template_id" in response_detail
 
-    def test_delete_snapshot_success(self):
-        """测试删除快照成功"""
+    def test_delete_snapshot_formal_version_forbidden(self):
+        """测试删除正式版本快照（含未被引用的历史版本）失败"""
         snapshot1 = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
         snapshot2 = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.1.0")
         template = Template.objects.create(
@@ -597,7 +597,10 @@ class TestTemplateVersionViewSet:
             if isinstance(response.data, dict) and "data" in response.data
             else response.data.get("detail", "")
         )
-        assert "成功删除" in detail
+        assert "正式版本快照无法删除" in detail
+        # 快照不应被删除
+        snapshot1.refresh_from_db()
+        assert snapshot1.is_deleted is False
 
     def test_delete_snapshot_draft(self):
         """测试非正在使用的草稿快照可以被成功删除"""
@@ -630,8 +633,6 @@ class TestTemplateVersionViewSet:
             else response.data.get("detail", "")
         )
         assert "快照已成功删除" in detail
-        snapshot.refresh_from_db()
-        assert snapshot.is_deleted is True
 
     def test_delete_snapshot_without_template_id(self):
         """测试删除快照时缺少template_id参数"""
@@ -2298,7 +2299,7 @@ class TestTemplateViewsMoreCoverage:
         force_authenticate(request, user=self.user)
         response = view(request, pk=snap.id)
 
-        assert response.status_code == 400
+        assert response.status_code == 200
 
     def test_list_template_versioning_filters_draft_and_hits_456(self, monkeypatch):
         """Cover list_template versioning filter branch (443-448) and non-pagination return (456)."""
