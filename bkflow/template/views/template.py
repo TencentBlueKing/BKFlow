@@ -478,7 +478,7 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
     serializer_class = TemplateSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = TemplateFilterSet
-    EDIT_ABOVE_ACTIONS = ["update"]
+    EDIT_ABOVE_ACTIONS = ["update", "auto_save_template"]
     MOCK_ABOVE_ACTIONS = ["create_mock_task"]
     pagination_class = BKFLOWNoMaxLimitPagination
     permission_classes = [
@@ -742,7 +742,9 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
         if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) != "true":
             return Response(exception=True, data={"message": "当前空间未开启版本管理, 无法获取草稿"})
 
-        draft_snapshot = TemplateSnapshot.objects.filter(template_id=template_obj.id).order_by("-id").first()
+        draft_snapshot = (
+            TemplateSnapshot.objects.filter(template_id=template_obj.id, auto_save=False).order_by("-id").first()
+        )
         data = TemplateSnapshotSerializer(draft_snapshot).data
         if draft_snapshot.version:
             data["source_version"] = draft_snapshot.version
@@ -786,6 +788,8 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
                 data = {"username": request.user.username, "is_validate": True, **ser.validated_data}
                 snapshot = instance.release_template(data)
                 instance.snapshot_id = snapshot.id
+                snapshot.template_id = instance.id
+                snapshot.save(update_fields=["template_id"])
                 instance.save()
         except ValidationError as e:
             return Response(exception=True, data={"detail": str(e)})

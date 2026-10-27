@@ -600,12 +600,15 @@ class TestTemplateVersionViewSet:
         assert "成功删除" in detail
 
     def test_delete_snapshot_draft(self):
-        """测试删除草稿快照失败"""
+        """测试非正在使用的草稿快照可以被成功删除"""
+        # 草稿快照作为待删除对象
         snapshot = TemplateSnapshot.create_unpublished_snapshot(self.pipeline_tree, "test_user", draft=True)
+        # 单独的正式快照作为流程正在使用的快照，确保草稿不是正在使用的快照
+        published_snapshot = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
         template = Template.objects.create(
             name="Test Template",
             space_id=self.space.id,
-            snapshot_id=snapshot.id,
+            snapshot_id=published_snapshot.id,
             creator="test_user",
             updated_by="test_user",
         )
@@ -626,7 +629,9 @@ class TestTemplateVersionViewSet:
             if isinstance(response.data, dict) and "data" in response.data
             else response.data.get("detail", "")
         )
-        assert "草稿" in detail
+        assert "快照已成功删除" in detail
+        snapshot.refresh_from_db()
+        assert snapshot.is_deleted is True
 
     def test_delete_snapshot_without_template_id(self):
         """测试删除快照时缺少template_id参数"""

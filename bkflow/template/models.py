@@ -367,11 +367,13 @@ class Template(CommonModel):
             else:
                 if data.get("is_validate", True):
                     ValidatorHandler.validate(template_snapshot.data, validate_type=ValidateType.TEMPLATE)
-                template_snapshot.draft = False
-                template_snapshot.version = version
-                template_snapshot.desc = data.get("desc")
-                template_snapshot.operator = data["username"]
-                template_snapshot.save()
+
+                template_snapshot = TemplateSnapshot.create_snapshot(
+                    template_snapshot.data,
+                    data["username"],
+                    version,
+                    data.get("desc"),
+                )
 
         except Exception as e:
             logger.error(f"发布模板草稿时发生错误（template_id={self.id}）: {e}", exc_info=True)

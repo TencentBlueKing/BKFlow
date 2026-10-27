@@ -132,7 +132,10 @@ def update_template(request, space_id, template_id):
                             "is_validate": False,
                         }
                     )
-                    template.snapshot_id = snapshot.id
+                    snapshot.template_id = template.id
+                    snapshot.save(update_fields=["template_id"])
+
+                    validated_data_dict["snapshot_id"] = snapshot.id
 
                     # 添加发布记录
                     TemplateOperationRecord.objects.create(
