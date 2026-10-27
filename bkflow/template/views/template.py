@@ -459,8 +459,8 @@ class TemplateVersionViewSet(
         instance.delete()
         return Response({"detail": "快照已成功删除"})
 
-    @action(methods=["POST"], detail=False, url_path="clear_draft")
-    def clear_draft(self, request, *args, **kwargs):
+    @action(methods=["POST"], detail=False, url_path="clear_draft_snapshot")
+    def clear_draft_snapshot(self, request, *args, **kwargs):
         """清空模板的草稿快照（draft=True 且未软删、非流程正在使用的快照）"""
         template_id = request.data.get("template_id")
         if not template_id:
