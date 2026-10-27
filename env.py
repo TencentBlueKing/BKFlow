@@ -341,3 +341,7 @@ BK_PLUGIN_SYNC_TENANTS = list(
         tenant.strip() for tenant in os.getenv("BK_PLUGIN_SYNC_TENANTS", "system").split(",") if tenant.strip()
     )
 ) or ["system"]
+
+MAX_TEMPLATE_DRAFT_COUNT = int(os.getenv("MAX_TEMPLATE_DRAFT_COUNT", 20))
+AUTO_SAVE_SNAPSHOT_RETENTION_DAYS = int(os.getenv("AUTO_SAVE_SNAPSHOT_RETENTION_DAYS", 1))
+AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL = tuple(os.getenv("AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL", "30 0 * * *").split())

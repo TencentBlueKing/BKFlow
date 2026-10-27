@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import json
 
 from blueapps.account.decorators import login_exempt
+from django.conf import settings
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
@@ -97,13 +98,17 @@ def update_template(request, space_id, template_id):
 
         if pipeline_tree:
             if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
-                try:
-                    TemplateSnapshot.objects.get(template_id=template_id, draft=True)
-                    template_version = None
-                except TemplateSnapshot.DoesNotExist:
-                    template_version = template.version
-                # 更新草稿数据
-                template.update_draft_snapshot(pipeline_tree, validated_data_dict["updated_by"], template_version)
+
+                draft_desc = validated_data_dict.get("draft_desc")
+                snapshot_obj = TemplateSnapshot.objects.filter(template_id=template.id, draft=True)
+                if snapshot_obj.count() >= settings.MAX_TEMPLATE_DRAFT_COUNT:
+                    # 如果快照数据已达到最大值，则覆盖更新最新的那个草稿记录
+                    snapshot_id = snapshot_obj.order_by("-id").first().id
+                    template.update_snapshot(pipeline_tree, snapshot_id=snapshot_id, desc=draft_desc)
+                else:
+                    TemplateSnapshot.create_unpublished_snapshot(
+                        pipeline_tree, request.user.username, draft=True, template_id=template.id, desc=draft_desc
+                    )
 
                 if auto_release:
                     if version:
@@ -127,7 +132,10 @@ def update_template(request, space_id, template_id):
                             "is_validate": False,
                         }
                     )
-                    template.snapshot_id = snapshot.id
+                    snapshot.template_id = template.id
+                    snapshot.save(update_fields=["template_id"])
+
+                    validated_data_dict["snapshot_id"] = snapshot.id
 
                     # 添加发布记录
                     TemplateOperationRecord.objects.create(

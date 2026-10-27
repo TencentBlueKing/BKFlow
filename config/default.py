@@ -568,3 +568,8 @@ def setup_django42_allowed_hosts():
         return [host.strip() for host in _allowed_hosts_str.split(",") if host.strip()]
 
     return None
+
+
+MAX_TEMPLATE_DRAFT_COUNT = env.MAX_TEMPLATE_DRAFT_COUNT
+AUTO_SAVE_SNAPSHOT_RETENTION_DAYS = env.AUTO_SAVE_SNAPSHOT_RETENTION_DAYS
+AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL = env.AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL
