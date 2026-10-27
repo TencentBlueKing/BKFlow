@@ -420,7 +420,7 @@ class TemplateVersionViewSet(
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        space_id = request.query_params.get("space_id")
+        space_id = Template.objects.get(id=instance.template_id).space_id
         data = TemplateSnapshotSerializer(instance).data
         flow_version_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
         pipeline_tree = replace_subprocess_version(instance.data, flow_version_config)

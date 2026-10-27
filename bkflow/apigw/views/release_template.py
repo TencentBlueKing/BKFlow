@@ -78,6 +78,8 @@ def release_template(request, space_id, template_id):
         with transaction.atomic():
             data = {"username": request.user.username, "is_validate": True, **ser.validated_data}
             snapshot = instance.release_template(data)
+            snapshot.template_id = instance.id
+            snapshot.save(update_fields=["template_id"])
             instance.snapshot_id = snapshot.id
             instance.save()
     except ValidationError as e:
