@@ -272,7 +272,7 @@ class TemplateSerializer(serializers.ModelSerializer):
         )
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
             draft_desc = validated_data.get("draft_desc")
-            snapshot_obj = TemplateSnapshot.objects.filter(template_id=instance.id, draft=True)
+            snapshot_obj = TemplateSnapshot.objects.filter(template_id=instance.id, draft=True, is_deleted=False)
             if snapshot_obj.count() >= settings.MAX_TEMPLATE_DRAFT_COUNT:
                 # 如果快照数据已达到最大值，则覆盖更新最新的那个草稿记录
                 snapshot_id = snapshot_obj.order_by("-id").first().id

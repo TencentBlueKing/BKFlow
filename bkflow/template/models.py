@@ -386,7 +386,7 @@ class TemplateSnapshot(CommonSnapshot):
     默认模板快照
     """
 
-    template_id = models.BigIntegerField(help_text=_("模板ID"), null=True)
+    template_id = models.BigIntegerField(help_text=_("模板ID"), null=True, db_index=True)
     version = models.CharField(_("版本号"), max_length=32, null=True, blank=True, db_index=True)
     desc = models.CharField(_("描述"), max_length=255, null=True, blank=True)
     draft = models.BooleanField(_("是否草稿"), default=False)

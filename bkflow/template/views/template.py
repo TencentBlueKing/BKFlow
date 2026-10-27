@@ -443,34 +443,39 @@ class TemplateVersionViewSet(
         try:
             template_obj = Template.objects.get(id=instance.template_id)
         except Template.DoesNotExist:
-            return Response({"detail": "快照所属流程不存在"}, status=400)
+            return Response(exception=True, data={"detail": "模板不存在"})
 
         if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) != "true":
-            return Response(exception=True, data={"detail": "版本管理功能未开启，无法删除版本快照"})
-        if template_obj.snapshot_id == instance.id:
-            return Response({"detail": "该版本是流程正在使用的快照，无法删除"})
+            return Response(exception=True, data={"detail": "版本管理功能未开启，无法删除快照"})
 
-        # 草稿或自动保存的版本：可以直接删除，无需引用检查
-        if instance.draft or instance.auto_save:
-            pass
-        elif not instance.is_deleted:
-            referencing_templates = TemplateReference.objects.filter(
-                subprocess_template_id=instance.template_id,
-                version=instance.version,
-            )
-            if referencing_templates.exists():
-                root_template_ids = referencing_templates.values_list("root_template_id", flat=True).distinct()
-                referencing_templates = Template.objects.filter(id__in=root_template_ids, is_deleted=False)
-                if referencing_templates.exists():
-                    referencing_ids = list(referencing_templates.values_list("id", flat=True))
-                    referencing_ids_str = [str(id_) for id_ in referencing_ids]
-                    return Response(
-                        {"detail": f"版本【{instance.version}】被流程 {', '.join(list(referencing_ids_str))} 引用，无法删除"}
-                    )
+        if template_obj.snapshot_id == instance.id or instance.version:
+            return Response(exception=True, data={"detail": "该版本是正式版本或流程正在使用的快照，无法删除"})
 
-        instance.is_deleted = True
-        instance.save()
+        instance.delete()
         return Response({"detail": "快照已成功删除"})
+
+    @action(methods=["POST"], detail=False, url_path="clear_draft")
+    def clear_draft(self, request, *args, **kwargs):
+        """清空模板的草稿快照（draft=True 且未软删、非流程正在使用的快照）"""
+        template_id = request.data.get("template_id")
+        if not template_id:
+            return Response(exception=True, data={"detail": "template_id 参数不能为空"})
+        try:
+            template = Template.objects.get(id=template_id)
+        except Template.DoesNotExist:
+            return Response(exception=True, data={"detail": "模板不存在"})
+
+        if SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) != "true":
+            return Response(exception=True, data={"detail": "版本管理功能未开启，无法清空草稿"})
+
+        # 软删该模板下所有草稿快照，排除流程正在使用的快照
+        deleted_count = (
+            TemplateSnapshot.objects.filter(template_id=template.id, draft=True)
+            .exclude(id=template.snapshot_id)
+            .delete()
+        )
+
+        return Response({"detail": "草稿已清空", "deleted_count": deleted_count})
 
 
 class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
@@ -624,9 +629,12 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
             version = serializer.validated_data.get("version")
             try:
                 if is_draft:
-                    pipeline_tree = TemplateSnapshot.objects.get(
-                        template_id=template.id, is_deleted=False, draft=True
-                    ).data
+                    draft_snapshot = (
+                        TemplateSnapshot.objects.filter(template_id=template.id, is_deleted=False, draft=True)
+                        .order_by("-id")
+                        .first()
+                    )
+                    pipeline_tree = draft_snapshot.data
                 else:
                     pipeline_tree = template.get_pipeline_tree_by_version(version)
             except Exception as e:
