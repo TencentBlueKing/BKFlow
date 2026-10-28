@@ -189,6 +189,7 @@ class ValidatorCode(Enum):
 if settings.RUN_VER == "ieod":
     from .ieod_constants import *  # noqa: F403, F401
 
+
 class DraftOperation:
     DELETE_OLDEST = "delete_oldest"  # 超过上限则删除最旧的一条，保留最新并保存新草稿
     CLEAR_KEEP_LATEST = "clear_keep_latest"
