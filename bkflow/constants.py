@@ -16,11 +16,12 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+
 import re
 from enum import Enum
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 MAX_LEN_OF_TASK_NAME = 128
 MAX_LEN_OF_TEMPLATE_NAME = 128
@@ -187,3 +188,7 @@ class ValidatorCode(Enum):
 
 if settings.RUN_VER == "ieod":
     from .ieod_constants import *  # noqa: F403, F401
+
+class DraftOperation:
+    DELETE_OLDEST = "delete_oldest"  # 超过上限则删除最旧的一条，保留最新并保存新草稿
+    CLEAR_KEEP_LATEST = "clear_keep_latest"

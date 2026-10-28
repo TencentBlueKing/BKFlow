@@ -20,7 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from django.db.models import Q
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from bkflow.constants import (
@@ -185,6 +185,7 @@ class UpdateTemplateSerializer(serializers.Serializer):
     webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
     enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
     triggers = TriggerSerializer(many=True, required=False, allow_null=True)
+    draft_operation = serializers.CharField(help_text="草稿操作", required=False)
 
     def validate_triggers(self, triggers):
         space_id = self.context["space_id"]

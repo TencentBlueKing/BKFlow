@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -20,7 +19,7 @@ to the current version of the project delivered to anyone in the future.
 import json
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.core.data.var import LazyVariable
 from pipeline.core.flow.io import ObjectItemSchema
 
@@ -30,7 +29,7 @@ class JsonVariable(LazyVariable):
     name = _("JSON 变量")
     type = "general"
     tag = "json_variable.json_variable"
-    form = "%svariables/%s.js" % (settings.STATIC_URL, code)
+    form = "{}variables/{}.js".format(settings.STATIC_URL, code)
     schema = ObjectItemSchema(description=_("内部结构不固定"), property_schemas={})
 
     def get_value(self):

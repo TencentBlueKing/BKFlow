@@ -23,7 +23,7 @@ from enum import Enum
 from django.conf import settings
 from django.db import models, transaction
 from django.utils.timezone import localtime
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 import env

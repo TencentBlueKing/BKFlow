@@ -14,10 +14,11 @@ specific language governing permissions and limitations under the License.
 We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
+
 import logging
 
 from django.db import transaction
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from bkflow.constants import ValidateType
@@ -57,7 +58,9 @@ class TemplateSerializers(serializers.ModelSerializer):
     def create(self, validated_data):
         pipeline_tree = validated_data.pop("pipeline_tree", None)
         if SpaceConfig.get_config(space_id=validated_data["space_id"], config_name=FlowVersioning.name) == "true":
-            snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, validated_data["creator"])
+            snapshot = TemplateSnapshot.create_unpublished_snapshot(
+                pipeline_tree, validated_data["creator"], draft=True
+            )
         else:
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, validated_data["creator"], "1.0.0")
         validated_data["snapshot_id"] = snapshot.id

@@ -20,8 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import copy
 import logging
 
-import jsonschema
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.engine.utils import calculate_elapsed_time
 from pipeline.exceptions import PipelineException
 from rest_framework import serializers
@@ -36,6 +35,7 @@ from bkflow.task.models import (
     TaskOperationRecord,
 )
 from bkflow.task.operations import TaskNodeOperation, TaskOperation
+from bkflow.utils import jsonschema_compat as jsonschema
 from bkflow.utils.handlers import mask_sensitive_data_for_display
 from bkflow.utils.strings import standardize_pipeline_node_name
 from bkflow.utils.tenant import TenantIDField
@@ -176,6 +176,7 @@ class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
     pipeline_tree = serializers.SerializerMethodField()
     outputs = serializers.SerializerMethodField()
     elapsed_time = serializers.SerializerMethodField()
+    template_version = serializers.SerializerMethodField()
 
     def get_pipeline_tree(self, obj):
         return obj.pipeline_tree
@@ -186,6 +187,9 @@ class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
 
     def get_elapsed_time(self, obj):
         return calculate_elapsed_time(obj.start_time, obj.finish_time)
+
+    def get_template_version(self, obj):
+        return obj.extra_info.get("template_version", "")
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
@@ -306,10 +310,11 @@ class UpdatePeriodicTaskSerializer(serializers.Serializer):
                     if key not in old_config:
                         raise serializers.ValidationError(f"Invalid config key: {key}")
                     old_config[key] = value
+                field_value = old_config
+                # 更新已有键不会改变字典大小，响应仍须包含合并后的完整配置。
                 validated_data["config"] = old_config
             elif field_name == "is_enabled":
                 instance.set_enabled(field_value)
-                validated_data.pop(field_name)
                 continue
             setattr(instance, field_name, field_value)
         instance.save()

@@ -18,7 +18,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from django.test import override_settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.exceptions import ComponentNotExistException
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied
 

@@ -1,7 +1,7 @@
 """Interface 插件服务使用空间真实归属，单租户不增加查询或请求字段。"""
 
 from django.conf import settings
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import PermissionDenied
 
 

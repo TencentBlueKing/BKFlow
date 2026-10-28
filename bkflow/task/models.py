@@ -21,11 +21,12 @@ import json
 import logging
 from collections import defaultdict
 
+import pytz
 from bamboo_engine import states
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from django_celery_beat.models import CrontabSchedule as DjangoCeleryBeatCrontabSchedule
 from django_celery_beat.models import PeriodicTask as DjangoCeleryBeatPeriodicTask
 from pipeline.contrib.periodic_task.djcelery.models import *  # noqa
@@ -566,7 +567,7 @@ class PeriodicTaskManager(models.Manager):
                 day_of_week=cron.get("day_of_week", "*"),
                 day_of_month=cron.get("day_of_month", "*"),
                 month_of_year=cron.get("month_of_year", "*"),
-                timezone=timezone.pytz.timezone(cron.get("timezone") or settings.TIME_ZONE),
+                timezone=pytz.timezone(cron.get("timezone") or settings.TIME_ZONE),
             )
             _ = schedule.schedule  # noqa
             celery_task = DjangoCeleryBeatPeriodicTask.objects.create(
@@ -630,7 +631,7 @@ class PeriodicTask(models.Model):
             day_of_week=cron.get("day_of_week", "*"),
             day_of_month=cron.get("day_of_month", "*"),
             month_of_year=cron.get("month_of_year", "*"),
-            timezone=timezone.pytz.timezone(cron.get("timezone") or str(self.celery_task.crontab.timezone)),
+            timezone=pytz.timezone(cron.get("timezone") or str(self.celery_task.crontab.timezone)),
         )
         _ = schedule.schedule  # noqa
         self.cron = schedule.__str__()

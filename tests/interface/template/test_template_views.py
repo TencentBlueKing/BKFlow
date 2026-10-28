@@ -567,8 +567,8 @@ class TestTemplateVersionViewSet:
         # Response直接返回detail，不需要包装
         assert "template_id" in response_detail
 
-    def test_delete_snapshot_success(self):
-        """测试删除快照成功"""
+    def test_delete_snapshot_formal_version_forbidden(self):
+        """测试删除正式版本快照（含未被引用的历史版本）失败"""
         snapshot1 = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
         snapshot2 = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.1.0")
         template = Template.objects.create(
@@ -597,15 +597,21 @@ class TestTemplateVersionViewSet:
             if isinstance(response.data, dict) and "data" in response.data
             else response.data.get("detail", "")
         )
-        assert "成功删除" in detail
+        assert "正式版本快照无法删除" in detail
+        # 快照不应被删除
+        snapshot1.refresh_from_db()
+        assert snapshot1.is_deleted is False
 
     def test_delete_snapshot_draft(self):
-        """测试删除草稿快照失败"""
-        snapshot = TemplateSnapshot.create_draft_snapshot(self.pipeline_tree, "test_user")
+        """测试非正在使用的草稿快照可以被成功删除"""
+        # 草稿快照作为待删除对象
+        snapshot = TemplateSnapshot.create_unpublished_snapshot(self.pipeline_tree, "test_user", draft=True)
+        # 单独的正式快照作为流程正在使用的快照，确保草稿不是正在使用的快照
+        published_snapshot = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
         template = Template.objects.create(
             name="Test Template",
             space_id=self.space.id,
-            snapshot_id=snapshot.id,
+            snapshot_id=published_snapshot.id,
             creator="test_user",
             updated_by="test_user",
         )
@@ -626,7 +632,7 @@ class TestTemplateVersionViewSet:
             if isinstance(response.data, dict) and "data" in response.data
             else response.data.get("detail", "")
         )
-        assert "草稿" in detail
+        assert "快照已成功删除" in detail
 
     def test_delete_snapshot_without_template_id(self):
         """测试删除快照时缺少template_id参数"""
@@ -1138,7 +1144,7 @@ class TestTemplateViewSet:
 
     def test_release_template(self):
         """测试发布模板"""
-        draft_snapshot = TemplateSnapshot.create_draft_snapshot(self.pipeline_tree, "test_user")
+        draft_snapshot = TemplateSnapshot.create_unpublished_snapshot(self.pipeline_tree, "test_user", draft=True)
         template = Template.objects.create(
             name="Test Template",
             space_id=self.space.id,
@@ -1867,7 +1873,7 @@ class TestExceptionBranches:
 
     def test_release_template_invalid_version(self):
         """测试发布模板时版本号不符合规范"""
-        draft_snapshot = TemplateSnapshot.create_draft_snapshot(self.pipeline_tree, "test_user")
+        draft_snapshot = TemplateSnapshot.create_unpublished_snapshot(self.pipeline_tree, "test_user", draft=True)
         template = Template.objects.create(
             name="Test Template",
             space_id=self.space.id,
@@ -2293,14 +2299,14 @@ class TestTemplateViewsMoreCoverage:
         force_authenticate(request, user=self.user)
         response = view(request, pk=snap.id)
 
-        assert response.status_code == 400
+        assert response.status_code == 200
 
     def test_list_template_versioning_filters_draft_and_hits_456(self, monkeypatch):
         """Cover list_template versioning filter branch (443-448) and non-pagination return (456)."""
         monkeypatch.setattr(TemplateViewSet, "pagination_class", None)
 
         # draft snapshot template should be filtered out
-        draft_snapshot = TemplateSnapshot.create_draft_snapshot(self.pipeline_tree, "test_user")
+        draft_snapshot = TemplateSnapshot.create_unpublished_snapshot(self.pipeline_tree, "test_user", draft=True)
         t_draft = Template.objects.create(
             name="Draft",
             space_id=self.space.id,
@@ -2474,7 +2480,7 @@ class TestTemplateViewsMoreCoverage:
     @mock.patch("bkflow.template.views.template.preview_template_tree", return_value={"ok": True})
     def test_preview_task_tree_draft_success_covers_569_604(self, _mock_preview):
         """Cover preview_task_tree is_draft branch and success path (569, 579-604)."""
-        draft = TemplateSnapshot.create_draft_snapshot(self.pipeline_tree, "test_user")
+        draft = TemplateSnapshot.create_unpublished_snapshot(self.pipeline_tree, "test_user", draft=True)
         draft.template_id = self.template.id
         draft.save(update_fields=["template_id"])
 

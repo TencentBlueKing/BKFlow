@@ -65,6 +65,13 @@ BK_APIGW_STAGE_NAME = "stage"
 BKAPP_APIGW_SYNC_STAGE = ["stage"]
 CSRF_COOKIE_NAME = APP_CODE + "_csrftoken"
 
+# Django 4.2 兼容性配置
+CSRF_TRUSTED_ORIGINS = default.setup_django42_csrf_origins()
+_additional_hosts = default.setup_django42_allowed_hosts()
+if _additional_hosts:
+    # 合并而非覆盖，保持跨模块调用兼容性
+    ALLOWED_HOSTS = sorted(set(ALLOWED_HOSTS) | set(_additional_hosts))
+
 try:
     from module_settings import *  # noqa
 except ImportError:

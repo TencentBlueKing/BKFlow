@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,6 +22,8 @@ import os
 
 import pymysql
 
+from bkflow.utils.mysql57_compat import configure_mysql57_compat
+
 pymysql.install_as_MySQLdb()
 
 """
@@ -44,8 +45,11 @@ DJANGO_CONF_MODULE = "config.{env}".format(env=ENVIRONMENT)
 try:
     _module = __import__(DJANGO_CONF_MODULE, globals(), locals(), ["*"])
 except ImportError as err:
-    raise ImportError("Could not import config '%s' (Is it on sys.path?): %s" % (DJANGO_CONF_MODULE, err))
+    raise ImportError("Could not import config '{}' (Is it on sys.path?): {}".format(DJANGO_CONF_MODULE, err))
 
 for _setting in dir(_module):
     if _setting == _setting.upper():
         locals()[_setting] = getattr(_module, _setting)
+
+# 在平台、模块和本地配置加载完毕后统一处理，覆盖 interface 和独立 engine 的连接。
+DATABASES = configure_mysql57_compat(_module.DATABASES)

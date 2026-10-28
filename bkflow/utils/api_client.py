@@ -24,13 +24,13 @@ from operator import getitem
 from typing import Union
 
 import jmespath
-import jsonschema
 import requests
 from django.conf import settings
 from pydantic import BaseModel
 from requests import Response
 
 from bkflow.exceptions import APIRequestError, ValidationError
+from bkflow.utils import jsonschema_compat as jsonschema
 from bkflow.utils.apigw import check_url_from_apigw
 
 logger = logging.getLogger("root")

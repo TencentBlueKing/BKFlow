@@ -17,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-from django.conf.urls import include, url
+from django.urls import include, re_path
 from rest_framework.routers import DefaultRouter
 
 from bkflow.plugin.views.internal import PluginInternalViewSet
@@ -33,6 +33,6 @@ router.register(r"", ComponentModelSetViewSet, basename="component")
 router.register(r"uniform_plugin_query", UniformPluginViewSet, basename="uniform_plugin_query")
 
 urlpatterns = [
-    url(r"^detail/$", PluginDetailView.as_view(), name="plugin_detail"),
-    url(r"^", include(router.urls)),
+    re_path(r"^detail/$", PluginDetailView.as_view(), name="plugin_detail"),
+    re_path(r"^", include(router.urls)),
 ]

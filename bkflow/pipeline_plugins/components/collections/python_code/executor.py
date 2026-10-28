@@ -480,8 +480,21 @@ def _create_safe_globals() -> Dict[str, Any]:
     import string as string_module
     import textwrap as textwrap_module
     import uuid as uuid_module
+    from types import ModuleType
 
-    import jsonschema as jsonschema_module
+    import jsonschema
+
+    # -I 子进程不加载项目路径，保留独立运行，并避免修改第三方模块的全局行为。
+    jsonschema_module = ModuleType("jsonschema")
+    vars(jsonschema_module).update(vars(jsonschema))
+
+    def validate(instance, schema, cls=None, *args, **kwargs):
+        """与旧 jsonschema 一致，未声明版本时使用 Draft 4。"""
+        if cls is None:
+            cls = jsonschema.validators.validator_for(schema, default=jsonschema.Draft4Validator)
+        return jsonschema.validate(instance, schema, cls, *args, **kwargs)
+
+    jsonschema_module.validate = validate
 
     safe_builtins_dict = _create_safe_builtins()
     return {

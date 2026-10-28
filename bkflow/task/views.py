@@ -174,7 +174,7 @@ class TaskInstanceViewSet(
     VALID_TASK_OPERATIONS = ["start", "pause", "resume", "revoke"]
     VALID_NODE_OPERATIONS = ["retry", "skip", "callback", "forced_fail", "skip_exg", "skip_cpg"]
     filter_backends = [DjangoFilterBackend]
-    filter_class = TaskInstanceFilterSet
+    filterset_class = TaskInstanceFilterSet
 
     def task_response_wrapper(self, data):
         if all([key in data for key in ["result", "data", "message"]]):

@@ -17,22 +17,22 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-from django.conf.urls import url
+from django.urls import re_path
 
 from bkflow.api_plugin_demo import v4, views
 
 urlpatterns = [
-    url(r"^category/$", views.category_api, name="category_api"),
-    url(r"^list_meta/$", views.list_meta_api, name="list_meta_api"),
-    url(r"^detail_meta/$", views.detail_meta_api, name="detail_meta_api"),
-    url(r"^execute/get_user_info/$", views.execute_get_user_info, name="execute_get_user_info"),
-    url(r"^execute/create_task/$", views.execute_create_task, name="execute_create_task"),
-    url(r"^execute/process_data/$", views.execute_process_data, name="execute_process_data"),
-    url(r"^execute/api_with_credential/$", views.execute_api_with_credential, name="execute_api_with_credential"),
-    url(r"^v4/category/$", v4.category_api, name="v4_category_api"),
-    url(r"^v4/list_meta/$", v4.list_meta_api, name="v4_list_meta_api"),
-    url(r"^v4/detail_meta/$", v4.detail_meta_api, name="v4_detail_meta_api"),
-    url(r"^v4/execute/$", v4.execute_api, name="v4_execute_api"),
-    url(r"^v4/execute/(?P<open_plugin_run_id>[^/]+)/cancel/$", v4.cancel_api, name="v4_cancel_api"),
-    url(r"^v4/status/$", v4.status_api, name="v4_status_api"),
+    re_path(r"^category/$", views.category_api, name="category_api"),
+    re_path(r"^list_meta/$", views.list_meta_api, name="list_meta_api"),
+    re_path(r"^detail_meta/$", views.detail_meta_api, name="detail_meta_api"),
+    re_path(r"^execute/get_user_info/$", views.execute_get_user_info, name="execute_get_user_info"),
+    re_path(r"^execute/create_task/$", views.execute_create_task, name="execute_create_task"),
+    re_path(r"^execute/process_data/$", views.execute_process_data, name="execute_process_data"),
+    re_path(r"^execute/api_with_credential/$", views.execute_api_with_credential, name="execute_api_with_credential"),
+    re_path(r"^v4/category/$", v4.category_api, name="v4_category_api"),
+    re_path(r"^v4/list_meta/$", v4.list_meta_api, name="v4_list_meta_api"),
+    re_path(r"^v4/detail_meta/$", v4.detail_meta_api, name="v4_detail_meta_api"),
+    re_path(r"^v4/execute/$", v4.execute_api, name="v4_execute_api"),
+    re_path(r"^v4/execute/(?P<open_plugin_run_id>[^/]+)/cancel/$", v4.cancel_api, name="v4_cancel_api"),
+    re_path(r"^v4/status/$", v4.status_api, name="v4_status_api"),
 ]

@@ -20,6 +20,8 @@ to the current version of the project delivered to anyone in the future.
 import base64
 import datetime
 import json
+import os
+from urllib.parse import urlparse
 
 from bamboo_engine.config import Settings as BambooSettings
 from blueapps.conf.default_settings import *  # noqa
@@ -526,3 +528,57 @@ BKPAAS_USER_URL = env.BKPAAS_USER_URL
 BKPAAS_IAM_URL = env.BKPAAS_IAM_URL
 ENABLE_MULTI_TENANT_MODE = env.ENABLE_MULTI_TENANT_MODE
 BK_PLUGIN_SYNC_TENANTS = env.BK_PLUGIN_SYNC_TENANTS
+
+
+# Django 4.2 兼容性配置
+def setup_django42_csrf_origins():
+    """
+    配置 Django 4.2 必需的 CSRF_TRUSTED_ORIGINS
+
+    优先级：
+    1. BKAPP_CSRF_TRUSTED_ORIGINS 环境变量（逗号分隔）
+    2. BK_SAAS_HOSTS 中的应用前端地址（自动提取 scheme://netloc）
+    3. 空列表
+
+    Returns:
+        list: CSRF 可信来源列表
+    """
+    _csrf_origins_str = os.getenv("BKAPP_CSRF_TRUSTED_ORIGINS", "")
+    if _csrf_origins_str:
+        return [origin.strip() for origin in _csrf_origins_str.split(",") if origin.strip()]
+
+    # 从 BK_SAAS_HOSTS 获取应用自身的前端地址
+    _app_host = BK_SAAS_HOSTS.get(APP_CODE, {}).get(BKSAAS_DEFAULT_MODULE_NAME, "")
+    if _app_host:
+        parsed = urlparse(_app_host)
+        if parsed.scheme and parsed.netloc:
+            return [f"{parsed.scheme}://{parsed.netloc}"]
+
+    return []
+
+
+def setup_django42_allowed_hosts():
+    """
+    配置 Django 4.2 的 ALLOWED_HOSTS（可选）
+
+    注意：与现有 ALLOWED_HOSTS 合并而非覆盖，以保持跨模块调用兼容性
+
+    环境变量：
+    - BKAPP_ALLOWED_HOSTS: 逗号分隔的额外主机名列表
+
+    Returns:
+        list or None: 额外的 ALLOWED_HOSTS 列表，None 表示无额外配置
+    """
+    _allowed_hosts_str = os.getenv("BKAPP_ALLOWED_HOSTS", "")
+    if _allowed_hosts_str:
+        return [host.strip() for host in _allowed_hosts_str.split(",") if host.strip()]
+
+    return None
+
+
+MAX_TEMPLATE_DRAFT_COUNT = env.MAX_TEMPLATE_DRAFT_COUNT
+MAX_AUTO_SAVE_SNAPSHOT_COUNT = env.MAX_AUTO_SAVE_SNAPSHOT_COUNT
+AUTO_SAVE_SNAPSHOT_RETENTION_DAYS = env.AUTO_SAVE_SNAPSHOT_RETENTION_DAYS
+AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL = env.AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL
+
+AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED = env.AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED

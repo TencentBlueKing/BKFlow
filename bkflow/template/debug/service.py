@@ -100,11 +100,14 @@ class DebugService:
     def pipeline_tree(self):
         """优先草稿快照，否则取已发布 pipeline_tree"""
         if self._pipeline_tree is None:
-            try:
-                self._pipeline_tree = TemplateSnapshot.objects.get(
-                    template_id=self.template_id, draft=True, is_deleted=False
-                ).data
-            except TemplateSnapshot.DoesNotExist:
+            draft_snapshot = (
+                TemplateSnapshot.objects.filter(template_id=self.template_id, draft=True, is_deleted=False)
+                .order_by("-id")
+                .first()
+            )
+            if draft_snapshot is not None:
+                self._pipeline_tree = draft_snapshot.data
+            else:
                 self._pipeline_tree = Template.objects.get(id=self.template_id).pipeline_tree
         from bkflow.template.tenant import validate_template_references
 

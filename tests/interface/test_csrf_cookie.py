@@ -20,6 +20,8 @@ to the current version of the project delivered to anyone in the future.
 from unittest import mock
 from unittest.mock import MagicMock
 
+from django.conf import settings
+from django.http import HttpResponse
 from django.test import RequestFactory
 
 from bkflow.interface.views import (
@@ -43,26 +45,26 @@ class TestSpaEntriesEnsureCsrfCookie:
     @mock.patch("bkflow.interface.views.SpaceConfig.objects.get_space_ids_of_superuser", return_value=[])
     def test_is_admin_user_marks_csrf_cookie(self, _mock_ids, _mock_filter):
         request = _request("/is_admin_user/")
-        is_admin_or_space_superuser(request)
-        assert request.META.get("CSRF_COOKIE_USED") is True
+        response = is_admin_or_space_superuser(request)
+        assert response.cookies[settings.CSRF_COOKIE_NAME].value == request.META["CSRF_COOKIE"]
 
     @mock.patch("bkflow.interface.views.SpaceConfig.objects.filter")
     def test_is_current_space_admin_marks_csrf_cookie(self, mock_filter):
         mock_filter.return_value.exists.return_value = False
         request = _request("/is_current_space_admin/", get_params={"space_id": "240"})
-        is_admin_or_current_space_superuser(request)
-        assert request.META.get("CSRF_COOKIE_USED") is True
+        response = is_admin_or_current_space_superuser(request)
+        assert response.cookies[settings.CSRF_COOKIE_NAME].value == request.META["CSRF_COOKIE"]
 
-    @mock.patch("bkflow.interface.views.render", return_value=MagicMock())
+    @mock.patch("bkflow.interface.views.render", return_value=HttpResponse())
     def test_home_marks_csrf_cookie(self, _mock_render):
         request = _request("/")
-        home(request)
-        assert request.META.get("CSRF_COOKIE_USED") is True
+        response = home(request)
+        assert response.cookies[settings.CSRF_COOKIE_NAME].value == request.META["CSRF_COOKIE"]
 
-    @mock.patch("bkflow.utils.django_error_hanlder.render", return_value=MagicMock())
+    @mock.patch("bkflow.utils.django_error_hanlder.render", return_value=HttpResponse())
     @mock.patch("bkflow.utils.django_error_hanlder.LoginRequiredMiddleware")
     def test_page_not_found_marks_csrf_cookie(self, mock_middleware_cls, _mock_render):
         mock_middleware_cls.return_value.authenticate.return_value = MagicMock(username="admin")
         request = _request("/bkflow_engine_admin/")
-        page_not_found(request, exception=None)
-        assert request.META.get("CSRF_COOKIE_USED") is True
+        response = page_not_found(request, exception=None)
+        assert response.cookies[settings.CSRF_COOKIE_NAME].value == request.META["CSRF_COOKIE"]

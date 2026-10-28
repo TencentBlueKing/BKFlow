@@ -4,11 +4,11 @@ from bkflow.utils.context import TaskContext
 
 
 class TestTaskContext:
-    @mock.patch("bkflow.utils.context.timezone")
+    @mock.patch("bkflow.utils.context.pytz")
     @mock.patch("bkflow.utils.context.datetime")
     def test_task_context(self, mock_dt, mock_tz):
         """Test TaskContext"""
-        mock_tz.pytz.timezone.return_value = mock.Mock()
+        mock_tz.timezone.return_value = mock.Mock()
         mock_now = mock.Mock()
         mock_now.strftime.return_value = "2023-12-05 10:30:45"
         mock_dt.datetime.now.return_value = mock_now

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -21,11 +20,11 @@ import abc
 import logging
 from typing import List, Optional
 
-import jsonschema
 from pydantic import BaseModel
 
 from bkflow.decision_table.constants import ObjValueTypes
 from bkflow.exceptions import ValidationError
+from bkflow.utils import jsonschema_compat as jsonschema
 
 logger = logging.getLogger(__name__)
 
