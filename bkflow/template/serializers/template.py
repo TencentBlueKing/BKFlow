@@ -28,6 +28,7 @@ from webhook.signals import event_broadcast_signal
 from bkflow.bk_plugin.models import BKPluginAuthorization
 from bkflow.constants import (
     MAX_LEN_OF_TEMPLATE_NAME,
+    DraftOperation,
     TemplateOperationSource,
     TemplateOperationType,
     ValidateType,
@@ -114,6 +115,8 @@ class TemplateSerializer(serializers.ModelSerializer):
     labels = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
     webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
     enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
+    # 草稿记录达到最大数量时如何操作
+    draft_operation = serializers.CharField(help_text="草稿操作", required=False, allow_blank=True, allow_null=True)
 
     def validate_space_id(self, space_id):
         if not Space.objects.filter(id=space_id).exists():
@@ -207,7 +210,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             scope_id=validated_data.get("scope_value") or self.initial_data.get("scope_value"),
         )
         if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
-            snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+            snapshot = TemplateSnapshot.create_unpublished_snapshot(pipeline_tree, username, draft=True)
         else:
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
         validated_data["snapshot_id"] = snapshot.id
@@ -270,7 +273,26 @@ class TemplateSerializer(serializers.ModelSerializer):
             scope_id=validated_data.get("scope_value", instance.scope_value),
         )
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
-            instance.update_draft_snapshot(pipeline_tree, username)
+            draft_desc = f"基于v{instance.version}" if instance.version else None
+            snapshot_obj = TemplateSnapshot.objects.filter(template_id=instance.id, draft=True, is_deleted=False)
+            if snapshot_obj.count() >= settings.MAX_TEMPLATE_DRAFT_COUNT:
+                draft_operation = validated_data.get("draft_operation")
+                if draft_operation == DraftOperation.CLEAR_KEEP_LATEST:
+                    # 清空草稿，再建新草稿
+                    TemplateSnapshot.objects.filter(template_id=instance.id, draft=True).delete()
+                else:
+                    # 默认 delete_oldest：删除最旧的一条草稿，再创建新草稿
+                    oldest_snapshot = snapshot_obj.order_by("id").first()
+                    if oldest_snapshot is not None:
+                        oldest_snapshot.delete()
+                TemplateSnapshot.create_unpublished_snapshot(
+                    pipeline_tree, username, draft=True, template_id=instance.id, desc=draft_desc
+                )
+            else:
+                TemplateSnapshot.create_unpublished_snapshot(
+                    pipeline_tree, username, draft=True, template_id=instance.id, desc=draft_desc
+                )
+
         else:
             if instance.snapshot_version is None:
                 current_version = "1.0.0"
@@ -473,9 +495,9 @@ class TemplateSnapshotSerializer(serializers.ModelSerializer):
             "template_id",
             "desc",
             "draft",
+            "auto_save",
             "creator",
             "operator",
-            "md5sum",
         ]
 
 
