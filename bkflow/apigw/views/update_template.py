@@ -102,8 +102,7 @@ def update_template(request, space_id, template_id):
 
         if pipeline_tree:
             if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
-
-                draft_desc = validated_data_dict.get("draft_desc")
+                draft_desc = f"基于v{template.version}" if template.version else None
                 snapshot_obj = TemplateSnapshot.objects.filter(template_id=template.id, draft=True)
                 if snapshot_obj.count() >= settings.MAX_TEMPLATE_DRAFT_COUNT:
                     draft_operation = validated_data_dict.get("draft_operation")

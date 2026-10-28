@@ -185,7 +185,6 @@ class UpdateTemplateSerializer(serializers.Serializer):
     webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
     enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
     triggers = TriggerSerializer(many=True, required=False, allow_null=True)
-    draft_desc = serializers.CharField(help_text="草稿版本描述", required=False)
     draft_operation = serializers.CharField(help_text="草稿操作", required=False)
 
     def validate_triggers(self, triggers):

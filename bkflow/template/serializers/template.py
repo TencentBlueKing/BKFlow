@@ -115,7 +115,6 @@ class TemplateSerializer(serializers.ModelSerializer):
     labels = serializers.ListField(help_text=_("标签"), child=serializers.IntegerField(), required=False)
     webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
     enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
-    draft_desc = serializers.CharField(help_text="草稿版本描述", required=False, allow_blank=True, allow_null=True)
     # 草稿记录达到最大数量时如何操作
     draft_operation = serializers.CharField(help_text="草稿操作", required=False, allow_blank=True, allow_null=True)
 
@@ -274,7 +273,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             scope_id=validated_data.get("scope_value", instance.scope_value),
         )
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
-            draft_desc = validated_data.get("draft_desc")
+            draft_desc = f"基于v{instance.version}" if instance.version else None
             snapshot_obj = TemplateSnapshot.objects.filter(template_id=instance.id, draft=True, is_deleted=False)
             if snapshot_obj.count() >= settings.MAX_TEMPLATE_DRAFT_COUNT:
                 draft_operation = validated_data.get("draft_operation")

@@ -475,7 +475,7 @@ class TemplateVersionViewSet(
             return Response(exception=True, data={"detail": "版本管理功能未开启，无法清空草稿"})
 
         # 软删该模板下所有草稿快照，排除流程正在使用的快照
-        TemplateSnapshot.objects.filter(template_id=template.id, draft=True).exclude(id=template.snapshot_id).delete()
+        TemplateSnapshot.objects.filter(template_id=template.id, draft=True).delete()
         return Response({"detail": "草稿已清空"})
 
 

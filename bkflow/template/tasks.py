@@ -32,7 +32,7 @@ logger = logging.getLogger("celery")
 @periodic_task(run_every=crontab(*settings.AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL))
 def clean_expired_auto_save_snapshots():
     """清理超过保留天数的自动保存快照"""
-    if not getattr(settings, "AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED", True):
+    if not getattr(settings, "AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED", False):
         logger.info("[clean_expired_auto_save_snapshots] skipped, AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED is False")
         return
 
