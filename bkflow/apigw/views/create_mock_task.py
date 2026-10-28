@@ -55,10 +55,12 @@ def create_mock_task(request, space_id):
         )
 
     # 优先使用草稿版本的 pipeline_tree，如果没有草稿版本则使用最新发布版本
-    try:
-        draft_snapshot = TemplateSnapshot.objects.get(template_id=template.id, draft=True, is_deleted=False)
+    draft_snapshot = (
+        TemplateSnapshot.objects.filter(template_id=template.id, draft=True, is_deleted=False).order_by("-id").first()
+    )
+    if draft_snapshot is not None:
         pipeline_tree = draft_snapshot.data
-    except TemplateSnapshot.DoesNotExist:
+    else:
         # 如果没有草稿版本，使用最新发布版本
         pipeline_tree = template.pipeline_tree
 

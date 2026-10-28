@@ -78,6 +78,7 @@ def create_task_by_app(request, template_id):
     create_task_data.setdefault("extra_info", {}).update(
         {"notify_config": template.notify_config or DEFAULT_NOTIFY_CONFIG}
     )
+    create_task_data["extra_info"]["template_version"] = template.version
 
     # 将credentials放入extra_info的custom_context中，以便通过TaskContext和parent_data.inputs获取
     # custom_context用于统一管理自定义上下文数据

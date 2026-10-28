@@ -7630,3 +7630,114 @@ paths:
         descriptionEn: Batch delete template
         enableWebsocket: false
         pluginConfigs: [ ]
+  /sdk/template/snapshot/{snapshot_id}/:
+    get:
+      operationId: get_snapshot_info
+      description: 获取快照信息
+      parameters:
+        - in: header
+          name: X-Bk-Tenant-Id
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+          description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/template/snapshot/{snapshot_id}/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Get snapshot info
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /sdk/template/snapshot/clear_draft_snapshot/:
+    post:
+      operationId: clear_draft_snapshot
+      description: 清除草稿快照
+      parameters:
+        - in: header
+          name: X-Bk-Tenant-Id
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+          description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/snapshot/clear_draft_snapshot/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Clear draft snapshot
+        enableWebsocket: false
+        pluginConfigs: [ ]
+  /sdk/template/{template_id}/auto_save_template/:
+    post:
+      operationId: auto_save_template
+      description: 自动保存模板
+      parameters:
+        - in: header
+          name: X-Bk-Tenant-Id
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+          description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/template/{template_id}/auto_save_template/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Auto save template
+        enableWebsocket: false
+        pluginConfigs: [ ]

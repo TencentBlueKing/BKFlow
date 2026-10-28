@@ -100,9 +100,9 @@ def create_template(request, space_id):
         username = validate_data.pop("creator", "") or request.user.username
         if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
             if auto_release:
-                snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username, "1.0.0")
+                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
             else:
-                snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+                snapshot = TemplateSnapshot.create_unpublished_snapshot(pipeline_tree, username, draft=True)
         else:
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
         template = Template.objects.create(
