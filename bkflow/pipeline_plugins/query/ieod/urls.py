@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,7 +17,7 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-from django.conf.urls import url
+from django.urls import re_path
 
 from .job.job import (
     get_business,
@@ -28,8 +27,8 @@ from .job.job import (
 )
 
 urlpatterns = [
-    url(r"^get_business_list/$", get_business),
-    url(r"^job_get_public_script_name_list/$", job_get_public_script_name_list),
-    url(r"^job_get_script_name_list/(?P<biz_cc_id>\d+)/$", job_get_script_name_list),
-    url(r"^get_job_account_list/(?P<biz_cc_id>\d+)/$", get_job_account_list),
+    re_path(r"^get_business_list/$", get_business),
+    re_path(r"^job_get_public_script_name_list/$", job_get_public_script_name_list),
+    re_path(r"^job_get_script_name_list/(?P<biz_cc_id>\d+)/$", job_get_script_name_list),
+    re_path(r"^get_job_account_list/(?P<biz_cc_id>\d+)/$", get_job_account_list),
 ]
