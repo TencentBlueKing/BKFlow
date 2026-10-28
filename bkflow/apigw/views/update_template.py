@@ -32,7 +32,11 @@ from bkflow.apigw.serializers.template import (
     UpdateTemplateLabelsSerializer,
     UpdateTemplateSerializer,
 )
-from bkflow.constants import TemplateOperationSource, TemplateOperationType
+from bkflow.constants import (
+    DraftOperation,
+    TemplateOperationSource,
+    TemplateOperationType,
+)
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.label.serializers import LabelSerializer
@@ -102,13 +106,29 @@ def update_template(request, space_id, template_id):
                 draft_desc = validated_data_dict.get("draft_desc")
                 snapshot_obj = TemplateSnapshot.objects.filter(template_id=template.id, draft=True)
                 if snapshot_obj.count() >= settings.MAX_TEMPLATE_DRAFT_COUNT:
-                    # 如果快照数据已达到最大值，则覆盖更新最新的那个草稿记录
-                    snapshot_id = snapshot_obj.order_by("-id").first().id
-                    template.update_snapshot(pipeline_tree, snapshot_id=snapshot_id, desc=draft_desc)
-                else:
-                    TemplateSnapshot.create_unpublished_snapshot(
-                        pipeline_tree, request.user.username, draft=True, template_id=template.id, desc=draft_desc
-                    )
+                    draft_operation = validated_data_dict.get("draft_operation")
+                    if draft_operation == DraftOperation.CLEAR_KEEP_LATEST:
+                        TemplateSnapshot.objects.filter(template_id=template.id, draft=True).exclude(
+                            id=template.snapshot_id
+                        ).delete()
+                        TemplateSnapshot.create_unpublished_snapshot(
+                            pipeline_tree,
+                            validated_data_dict["updated_by"],
+                            draft=True,
+                            template_id=template.id,
+                            desc=draft_desc,
+                        )
+                    else:  # 默认 delete_oldest：删除最旧的一条草稿，再创建新草稿（不覆盖更新）
+                        oldest_snapshot = snapshot_obj.order_by("id").first()
+                        if oldest_snapshot is not None:
+                            oldest_snapshot.delete()
+                        TemplateSnapshot.create_unpublished_snapshot(
+                            pipeline_tree,
+                            validated_data_dict["updated_by"],
+                            draft=True,
+                            template_id=template.id,
+                            desc=draft_desc,
+                        )
 
                 if auto_release:
                     if version:

@@ -28,6 +28,7 @@ from webhook.signals import event_broadcast_signal
 from bkflow.bk_plugin.models import BKPluginAuthorization
 from bkflow.constants import (
     MAX_LEN_OF_TEMPLATE_NAME,
+    DraftOperation,
     TemplateOperationSource,
     TemplateOperationType,
     ValidateType,
@@ -115,6 +116,8 @@ class TemplateSerializer(serializers.ModelSerializer):
     webhook_configs = serializers.JSONField(help_text="webhook配置", required=False)
     enable_webhook = serializers.BooleanField(help_text="是否启用webhook", required=False)
     draft_desc = serializers.CharField(help_text="草稿版本描述", required=False, allow_blank=True, allow_null=True)
+    # 草稿记录达到最大数量时如何操作
+    draft_operation = serializers.CharField(help_text="草稿操作", required=False, allow_blank=True, allow_null=True)
 
     def validate_space_id(self, space_id):
         if not Space.objects.filter(id=space_id).exists():
@@ -274,13 +277,25 @@ class TemplateSerializer(serializers.ModelSerializer):
             draft_desc = validated_data.get("draft_desc")
             snapshot_obj = TemplateSnapshot.objects.filter(template_id=instance.id, draft=True, is_deleted=False)
             if snapshot_obj.count() >= settings.MAX_TEMPLATE_DRAFT_COUNT:
-                # 如果快照数据已达到最大值，则覆盖更新最新的那个草稿记录
-                snapshot_id = snapshot_obj.order_by("-id").first().id
-                instance.update_snapshot(pipeline_tree, snapshot_id=snapshot_id, desc=draft_desc)
+                draft_operation = validated_data.get("draft_operation")
+                if draft_operation == DraftOperation.CLEAR_KEEP_LATEST:
+                    # 清空草稿（保留最新一条），再建新草稿
+                    TemplateSnapshot.objects.filter(template_id=instance.id, draft=True).exclude(
+                        id=instance.snapshot_id
+                    ).delete()
+                else:
+                    # 默认 delete_oldest：删除最旧的一条草稿，再创建新草稿（不覆盖更新）
+                    oldest_snapshot = snapshot_obj.order_by("id").first()
+                    if oldest_snapshot is not None:
+                        oldest_snapshot.delete()
+                TemplateSnapshot.create_unpublished_snapshot(
+                    pipeline_tree, username, draft=True, template_id=instance.id, desc=draft_desc
+                )
             else:
                 TemplateSnapshot.create_unpublished_snapshot(
                     pipeline_tree, username, draft=True, template_id=instance.id, desc=draft_desc
                 )
+
         else:
             if instance.snapshot_version is None:
                 current_version = "1.0.0"

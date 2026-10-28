@@ -24,7 +24,7 @@ import django_filters
 from blueapps.account.decorators import login_exempt
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Subquery
+from django.db.models import Q, Subquery
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import CharFilter, DjangoFilterBackend, FilterSet
@@ -268,6 +268,7 @@ class AdminTemplateViewSet(TenantScopeMixin, AdminModelViewSet):
         except drf_serializers.ValidationError as error:
             detail = error.detail[0] if isinstance(error.detail, list) and error.detail else error.detail
             raise ValidationError(str(detail))
+        create_task_data["extra_info"]["template_version"] = template.version
         create_task_data["tenant_id"] = ensure_space_tenant(request, template.space_id)
         client = TaskComponentClient(space_id=space_id)
         result = client.create_task(create_task_data)
@@ -474,13 +475,8 @@ class TemplateVersionViewSet(
             return Response(exception=True, data={"detail": "版本管理功能未开启，无法清空草稿"})
 
         # 软删该模板下所有草稿快照，排除流程正在使用的快照
-        deleted_count = (
-            TemplateSnapshot.objects.filter(template_id=template.id, draft=True)
-            .exclude(id=template.snapshot_id)
-            .delete()
-        )
-
-        return Response({"detail": "草稿已清空", "deleted_count": deleted_count})
+        TemplateSnapshot.objects.filter(template_id=template.id, draft=True).exclude(id=template.snapshot_id).delete()
+        return Response({"detail": "草稿已清空"})
 
 
 class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
@@ -755,12 +751,16 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
         if SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) != "true":
             return Response(exception=True, data={"message": "当前空间未开启版本管理, 无法获取草稿"})
 
+        # 获取草稿或自动保存的最新一条记录（排除已软删的正式发布版本）
         draft_snapshot = (
-            TemplateSnapshot.objects.filter(template_id=template_obj.id, auto_save=False).order_by("-id").first()
+            TemplateSnapshot.objects.filter(template_id=template_obj.id, is_deleted=False)
+            .filter(Q(draft=True) | Q(auto_save=True))
+            .order_by("-id")
+            .first()
         )
+        if not draft_snapshot:
+            draft_snapshot = TemplateSnapshot.objects.get(template_id=template_obj.id)
         data = TemplateSnapshotSerializer(draft_snapshot).data
-        if draft_snapshot.version:
-            data["source_version"] = draft_snapshot.version
         flow_version_config = (
             SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) == "true"
         )
@@ -857,6 +857,11 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
         if not pipeline_tree:
             return Response(exception=True, data={"detail": "pipeline_tree 参数不能为空"})
         username = request.user.username
+        # 自动保存超出最大数量时，删除最早的自动保存
+        auto_snapshots = TemplateSnapshot.objects.filter(template_id=template.id, auto_save=True)
+        if auto_snapshots.count() > settings.MAX_AUTO_SAVE_SNAPSHOT_COUNT:
+            auto_snapshots.order_by("id").first().delete()
+
         TemplateSnapshot.create_unpublished_snapshot(
             pipeline_tree=pipeline_tree, username=username, auto_save=True, template_id=template.id
         )
