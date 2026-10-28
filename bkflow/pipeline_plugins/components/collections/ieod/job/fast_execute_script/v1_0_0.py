@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -23,7 +22,7 @@ import re
 import traceback
 
 from django.utils import translation
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 from pipeline.component_framework.component import Component
 from pipeline.conf import settings
 from pipeline.core.flow.io import (
@@ -385,7 +384,9 @@ class JobFastExecuteScriptService(BKFlowBaseService, GetJobHistoryResultMixin):
             return False
 
         if not job_instance_id or not status:
-            data.outputs.ex_data = "invalid callback_data, job_instance_id: %s, status: %s" % (job_instance_id, status)
+            data.outputs.ex_data = "invalid callback_data, job_instance_id: {}, status: {}".format(
+                job_instance_id, status
+            )
             self.finish_schedule()
             return False
 
