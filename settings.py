@@ -26,6 +26,11 @@ from bkflow.utils.mysql57_compat import configure_mysql57_compat
 
 pymysql.install_as_MySQLdb()
 
+# 解密 KMS 敏感环境变量（必须在 Django 配置加载之前）
+if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
+    from bkflow.contrib.kms import decrypt_kms_secrets
+    decrypt_kms_secrets()
+
 """
 请不要修改该文件
 如果你需要对settings里的内容做修改，config/default.py 文件中 添加即可
