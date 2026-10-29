@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>02 不聚合：手动创建</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="slider"></div>
+    <div class="mask" style="z-index:35;background:rgba(0,0,0,.45)"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 02 · 流程编排人员</div>
+    <h2>不聚合：手动创建或复用</h2>
+    <div class="sub">同设计稿 01 的场景。编排人员不想聚合，改选「手动创建」，给华北区的输出单独建一个变量。</div>
+    <div class="note"><b class="n">1</b><span>选了非聚合方式后，第 2、3 步置灰且不可点，底栏变为「取消 / 确定」，和现网的单步操作一致。</span></div>
+    <div class="note"><b class="n">2</b><span>三种创建方式：<br>· 聚合到 ${result}：进入第 2 步；<br>· 复用 ${result}（仍为单值）：当前节点也写入 ${result}，不显示输入框；<br>· 手动创建（改个名字）：显示名称和 KEY。</span></div>
+    <div class="note"><b class="n">3</b><span>名称默认取输出名称。KEY 预填「原 KEY + 随机后缀」（与现网冲突时的自动命名一致），可以修改；确定时校验格式和唯一性，不满足时在输入框下方提示。</span></div>
+    <div class="note"><b class="n">4</b><span>确定后关闭弹窗，回到节点配置；输出参数的 KEY 列显示新变量。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>复用只是让两个节点共用一个变量，运行时仍是单值：只接入其中一个来源的输出（现网取第一个来源），不能用来收集多个分支的结果。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="agg.js"></script>
+<script>
+  const f = FLOWS.two('b');
+  renderEditor(document.querySelector('[data-editor]'), { tpl: '多区域资源巡检', saveEnabled: true, nodes: f.nodes, edges: f.edges });
+  document.getElementById('slider').outerHTML = nodeConfig({
+    name: '华北区资源检查', region: '华北',
+    outputs: [
+      { name: '检查结果', key: 'result', hook: 'on' },
+      { name: '巡检日志', key: 'check_log' },
+      { name: '执行结果', key: '_result' },
+    ],
+  });
+  document.getElementById('dlg').outerHTML = varDialog({
+    top: 170,
+    body:
+      '<div class="rel">' + stepsHtml(['on', 'dis', 'dis']) + '<i class="mk" style="left:-22px;top:6px">1</i></div>' +
+      '<div class="alert info" style="margin-bottom:18px"><i data-ic="info" class="s14"></i><span>「华南区资源检查」已把同名输出勾选为全局变量 <span class="var">${result}</span>。两个节点位于同一并行网关的不同分支，可以把两份输出聚合到一个变量。</span></div>' +
+      '<div class="fv"><label class="req">创建方式</label><div class="select"><span class="dark">手动创建（改个名字）</span><i data-ic="down" class="s12"></i></div><i class="mk" style="right:-12px;top:30px">2</i></div>' +
+      '<div class="rel">' +
+      '<div class="fv"><label class="req">变量名称</label><div class="input"><span class="dark">华北区检查结果</span></div></div>' +
+      '<div class="fv" style="margin-bottom:4px"><label class="req">变量 KEY</label><div class="input focus"><span class="dark mono">${result_north}</span></div>' +
+      '<div class="help">KEY 需唯一。确定后当前输出写入这个新变量，与 ${result} 互不影响。</div></div>' +
+      '<i class="mk" style="right:-12px;top:30px">3</i></div>',
+    foot: '<span class="rel"><button class="btn primary">确定</button><i class="mk" style="left:-10px;top:-10px">4</i></span><button class="btn">取消</button>',
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
