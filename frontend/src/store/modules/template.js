@@ -352,6 +352,7 @@ const template = {
         triggers,
         webhook_configs: webhookConfigs,
         enable_webhook: enableWebhook,
+        labels,
       } = data;
 
       const {
@@ -369,6 +370,7 @@ const template = {
       state.category = category;
       state.subprocess_info = subprocessInfo;
       state.default_flow_type = defaultFlowType;
+      state.template_labels = labels;
       state.spaceId = spaceId;
       state.scopeInfo = {
         scope_type,
