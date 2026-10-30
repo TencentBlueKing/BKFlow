@@ -498,6 +498,7 @@ class TemplateSnapshotSerializer(serializers.ModelSerializer):
             "auto_save",
             "creator",
             "operator",
+            "md5sum",
         ]
 
 

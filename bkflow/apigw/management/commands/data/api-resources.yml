@@ -7632,7 +7632,7 @@ paths:
         pluginConfigs: [ ]
   /sdk/template/snapshot/{snapshot_id}/:
     get:
-      operationId: get_snapshot_info
+      operationId: sdk_get_snapshot_info
       description: 获取快照信息
       parameters:
         - in: header
@@ -7669,7 +7669,7 @@ paths:
         pluginConfigs: [ ]
   /sdk/template/snapshot/clear_draft_snapshot/:
     post:
-      operationId: clear_draft_snapshot
+      operationId: sdk_clear_draft_snapshot
       description: 清除草稿快照
       parameters:
         - in: header
@@ -7706,7 +7706,7 @@ paths:
         pluginConfigs: [ ]
   /sdk/template/{template_id}/auto_save_template/:
     post:
-      operationId: auto_save_template
+      operationId: sdk_auto_save_template
       description: 自动保存模板
       parameters:
         - in: header
