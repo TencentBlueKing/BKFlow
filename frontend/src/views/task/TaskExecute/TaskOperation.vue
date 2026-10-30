@@ -15,6 +15,7 @@
       :node-nav="nodeNav"
       :space-id="spaceId"
       :template-id="templateId"
+      :template-version="templateVersion"
       :primitive-tpl-id="primitiveTplId"
       :primitive-tpl-source="primitiveTplSource"
       :template-source="templateSource"
@@ -375,6 +376,10 @@
       },
       templateId: {
         type: [Number, String],
+        default: '',
+      },
+      templateVersion: {
+        type: String,
         default: '',
       },
       triggerMethod: {
