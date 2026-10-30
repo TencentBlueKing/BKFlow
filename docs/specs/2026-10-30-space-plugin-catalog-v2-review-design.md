@@ -259,10 +259,10 @@ python manage.py initialize_plugin_catalog --all-spaces
 
 ## 十一、交付材料与版本
 
-- 开发规格：`docs/specs/2026-10-30-space-plugin-catalog-v2-design.md`。
-- 逐任务实现计划：`docs/plans/2026-10-30-space-plugin-catalog-v2.md`。
-- 本文对应的本地评审稿：`docs/specs/2026-10-30-space-plugin-catalog-v2-review-design.md`。
-- 架构成图、预览及可编辑生成源：`docs/pics/plugin-catalog-v2/`。
-- 文档分支：`ai/space-plugin-catalog-v2-docs`。源码分析基线为 `6098d9d0`；后续实现前按实际开发分支重新核对落点。
+- 开发规格：[spec](https://github.com/TencentBlueKing/bkflow/blob/ai/space-plugin-catalog-v2-docs/docs/specs/2026-10-30-space-plugin-catalog-v2-design.md)。
+- 逐任务实现计划：[plan](https://github.com/TencentBlueKing/bkflow/blob/ai/space-plugin-catalog-v2-docs/docs/plans/2026-10-30-space-plugin-catalog-v2.md)。
+- 本文对应的仓库评审稿：[团队评审稿](https://github.com/TencentBlueKing/bkflow/blob/ai/space-plugin-catalog-v2-docs/docs/specs/2026-10-30-space-plugin-catalog-v2-review-design.md)。
+- 架构成图、预览及可编辑生成源：[架构图材料](https://github.com/TencentBlueKing/bkflow/tree/ai/space-plugin-catalog-v2-docs/docs/pics/plugin-catalog-v2)。
+- 主仓文档分支：[ai/space-plugin-catalog-v2-docs](https://github.com/TencentBlueKing/bkflow/tree/ai/space-plugin-catalog-v2-docs)。源码分析基线为 `6098d9d0`；后续实现前按实际开发分支重新核对落点。
 
 本文保留评审所需的数据、接口、异常和发布边界；具体逐行任务由 spec 和 plan 承接。旧设计中的隐藏、总开关、来源绑定、V2/V3 延后实现等表述不再作为本期依据。
