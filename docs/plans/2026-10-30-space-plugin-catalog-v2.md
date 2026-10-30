@@ -4,15 +4,17 @@
 
 **Goal:** 在所有空间默认提供全类型插件目录、审核、启停、推荐和当前引用，统一管理页、画布及网关行为，并保留存量流程的访问和运行边界。
 
-**Architecture:** 在 Interface 新增 `bkflow.plugin_catalog`，复用现有来源查询、租户鉴权与运行快照，不新建服务。来源有效性与管理员决定分别保存；目录、策略、引用、选择及新增节点检查共享插件身份。存量使用独立命令手动初始化，新空间自动初始化，默认 `migrate` 仅建表。
+**Architecture:** 在 Interface 新增 `bkflow.plugin_catalog`，复用现有来源查询、租户鉴权与运行快照，不新建服务。新增 4 模型并复用/扩展 SpaceConfig、OpenPluginCatalogIndex、SpaceOpenPluginAvailability；来源有效性与管理员决定分别保存；目录、策略、引用、选择及新增节点检查共享插件身份。存量使用独立命令手动初始化，新空间自动初始化，默认 `migrate` 仅建表。
 
 **Tech Stack:** 仓库现有 Python、Django/DRF、MySQL、Celery、Vue 2.7、Vuex、bk-magic-vue；pytest、现有 Node 行为测试；bkaidev 应用态 Chat Completion。不得为此重构公共 HTTP 客户端或引入新的消息系统。
 
 **Spec:** `docs/specs/2026-10-30-space-plugin-catalog-v2-design.md`。产品依据为该设计链接的企微 V2，及用户 2026-10-30 关于低频恢复检查、独立手动初始化命令、scope 例外单独处理的最新确认；新确认覆盖旧 migrate 文案。
 
-团队评审版：[开发改动总览](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=OYB9Sg)、[模型与接口清单](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=LlIaHY)、[后台任务与迁移清单](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=QJpt5P)。本文保留逐任务执行细节；新增清单的字段及 Celery 注册函数拆分是可评审草案，不替代本计划的业务约束。
+团队评审版：[开发改动总览](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=OYB9Sg)、[模型与接口清单](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=LlIaHY)、[后台任务与迁移清单](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=QJpt5P)。本文保留逐任务执行细节；模型复用、接口合并与任务拆分方向已确认，字段兼容、任务恢复等细节按 E01—E08 待确认项处理。
 
 团队实施安排：[开发实施计划（团队阅读版）](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=UhJZjU)，本地稿为 `docs/plans/2026-10-30-space-plugin-catalog-v2-team-plan.md`；按原任务编号说明交付顺序、协作依赖与完成标准，保留暂定项。
+
+配套 [05 调用时序与一致性](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=VW1Hn3) 展示关键调用和失败边界；E01—E08 与本计划末尾一致，未确认项不能按已完成验收处理。
 
 ## Global Constraints
 
@@ -55,7 +57,7 @@
 | 新 `frontend/src/views/admin/PluginCatalog/`、store 模块与行为测试 | 目录编辑、管理、策略、引用 | T12—T14 |
 | 现有两套 NodeMenu、`TemplateEdit/NodeConfig/NodeConfig.vue` | 使用侧查找与存量参数处理 | T15 |
 
-现有文件只增加本功能入口或委托，不重构全部流程生命周期。计划中的新增 Python 包同时包含 `__init__.py`；新迁移为 `bkflow/plugin_catalog/migrations/0001_initial.py`，不改已发布旧迁移。
+现有文件只增加本功能入口或委托，不重构全部流程生命周期。计划中的新增 Python 包同时包含 `__init__.py`；新模块迁移只创建 4 表；plugin 旧表通过后续 schema migration 扩展字段/约束，SpaceConfig 内部配置按 schema 注册需要更新迁移状态；不改已发布旧迁移。
 
 共用类型在 T1 的 `contracts.py` 定义；以下是内部接口，不自动注册为开放网关 API：
 
@@ -75,7 +77,7 @@
 
 其余结果类型由拥有任务定义。面向管理员的 mutation 接受 expected_revision，返回提交后的 revision；来源提交使用 config_revision/generation，初始化使用空间唯一状态；不能强迫这些后台入口使用前端修订号。模块内记录函数 `record_change(ctx, *, object_key, action, before, after, method, reason, request_id)` 返回记录 ID，request_id＋action＋object_key 唯一以支持幂等。不能把技术修订号展示成业务版本。
 
-修订号映射固定为：`DirectoryDocument.revision = SpaceCatalogConfig.directory_revision`；管理命令 expected_revision 对应 `SpaceCatalogConfig.revision`；`PolicyDocument.revision = policy_revision`。来源故障提交与管理命令共用空间锁并更新可选性修订号，但元信息刷新不能改目录/策略修订号。AI intent 同时校验 policy_revision 和 directory_revision。
+修订号映射固定为：DirectoryDocument.revision 对应内部 SpaceConfig 文档的 directory_revision；管理命令 expected_revision 对应 内部 SpaceConfig 文档的 `revision`；`PolicyDocument.revision = policy_revision`。来源故障提交与管理命令共用空间锁并更新可选性修订号，但元信息刷新不能改目录/策略修订号。AI intent 同时校验 policy_revision 和 directory_revision。
 
 ### 首次执行测试前的准备
 
@@ -89,15 +91,15 @@
 
 ### Task 1：统一身份、状态模型与表约束
 
-**Files:** 新建 `bkflow/plugin_catalog/{__init__,apps,contracts,identity,state,models,exceptions}.py`、`migrations/0001_initial.py`；修改 `module_settings.py` 的 Interface 应用清单；测试 `tests/interface/plugin_catalog/{conftest,test_identity,test_models}.py`、`tests/project_settings/test_module_settings.py`。
+**Files:** 新建 `bkflow/plugin_catalog/{__init__,apps,contracts,identity,state,models,exceptions}.py` 及 4 表 schema migration；扩展 `bkflow/plugin/models.py` 和后续迁移、`bkflow/space/configs.py` 的内部配置及读写适配；复用 `BaseOperateRecord`；修改 `module_settings.py` 的 Interface 应用清单；测试 `tests/interface/plugin_catalog/{conftest,test_identity,test_models}.py`、`tests/project_settings/test_module_settings.py`。
 
 **Consumes / Dependencies:** Spec §4；本任务产出所有共用类型与模型。
 
-**Interfaces:** `resolve_identity(kind, code=None, source_key=None, api_id=None) -> PluginIdentity`；`effective_state(management_state, source_valid) -> str`。模型按 spec §4；空间配置新增目录/管理 revision，来源状态保存故障原因；不创建 LegacyScopeVisibility 表。
+**Interfaces:** `resolve_identity(kind, code=None, source_key=None, api_id=None) -> PluginIdentity`；`effective_state(management_state, source_valid) -> str`。模型按 spec §4：新增目录/统一引用/同步状态/变更记录 4 表；复用 SpaceConfig，扩展两张旧插件表。初始化与未解析引用不另建表；不创建 LegacyScopeVisibility。E01/E02 未决字段先列草案，不能猜值实施。
 
 - [ ] 写失败测试：`test_identity_excludes_version` 断言同插件两个版本身份相等；`test_source_is_part_of_api_identity` 断言两来源同 ID 不相等；`test_invalid_preserves_decision` 参数化 enabled/pending/disabled，断言失效不修改管理决定；`test_unique_root_name` 验证根目录同名也被拒绝；`test_interface_only` 验证 Engine 不安装新 app。
 - [ ] 运行 `pytest -o addopts='' tests/interface/plugin_catalog/test_identity.py tests/interface/plugin_catalog/test_models.py -q`，预期因新模块/约束缺失失败，不能将环境连接错误当成 RED。
-- [ ] 实现类型、状态纯函数、表和索引；记录分类方式与原因。根目录唯一性采用非空规范化父级键＋唯一约束；执行已有目录应用层校验之外的数据库兜底。新 migration 仅 schema 操作，无 RunPython 初始化、无 post_migrate 任务。
+- [ ] 实现类型、状态纯函数、4 张新表及 3 个旧模型的复用/扩展；记录分类方式与原因。补充旧数据唯一键、类型隔离、旧 enabled 兼容、内部配置写入隔离测试；BaseOperateRecord 是抽象基类，继承仍计新表。根目录唯一性采用非空规范化父级键＋唯一约束；执行已有目录应用层校验之外的数据库兜底。新 migration 仅 schema 操作，无 RunPython 初始化、无 post_migrate 任务。
 - [ ] 重跑上述命令并运行 `pytest -o addopts='' tests/project_settings/test_module_settings.py -q`，预期全部 PASS；在隔离测试库检查迁移往返和重复应用，不调用外部来源。
 - [ ] 按已核实工单提交本任务，建议标题「建立插件目录身份与状态模型」。
 
@@ -125,7 +127,7 @@
 
 - [ ] 写失败测试：`test_three_policies` 覆盖默认直接启用＋来源分类、全审核、条件命中/未命中；`test_duplicate_source_groups` 拒绝重复来源；`test_policy_change_does_not_reprocess_stock` 保持所有存量状态；`test_disable_clears_recommendation`、`test_invalid_keeps_recommendation_slot`、`test_batch_limit_atomic` 验证 10 名额及整批拒绝；`test_never_enabled_has_no_disable_config` 验证审核不启用不获得停用配置；`test_reenable_uses_retained_directory` 验证删除后回填未分类。
 - [ ] 运行 `pytest -o addopts='' tests/interface/plugin_catalog/test_policy.py tests/interface/plugin_catalog/test_management.py tests/interface/plugin_catalog/test_recommendation.py -q`，预期服务缺失失败。
-- [ ] 实现命令与策略纯判断，事务内锁 SpaceCatalogConfig 后按稳定 ID 锁对象。停用原因最多 200 字，替换不能为自己且必须满足平台准入、原有兼容范围、enabled 和有效条件；T8 接通后共用查询，不另留口径。未填原因保持统一文案。来源恢复不调用 enable，直接保留原 management_state；状态在确认时变化须再次校验。
+- [ ] 实现命令与策略纯判断，事务内锁内部 SpaceConfig 配置行 后按稳定 ID 锁对象。停用原因最多 200 字，替换不能为自己且必须满足平台准入、原有兼容范围、enabled 和有效条件；T8 接通后共用查询，不另留口径。未填原因保持统一文案。来源恢复不调用 enable，直接保留原 management_state；状态在确认时变化须再次校验。
 - [ ] 重跑该组，预期 PASS；增加两管理员同时推荐最后一个名额、同步恢复与主动停用并发测试，断言最终占用不超过 10 且人工决定不丢失。
 - [ ] 提交本任务，建议标题「实现新插件策略与审核推荐命令」。第 6/7 项仅设计数据载荷，不据此关闭交互暂定项。
 
@@ -145,7 +147,7 @@
 
 ### Task 5：来源同步、有限重试与低频恢复检查
 
-**Files:** 新建 `services/sync.py`、`retry.py`、`tasks.py`；按现有配置入口修改 `env.py`、`config/default.py`、`bkflow/plugin/tasks.py` 的调度接入及 `bkflow/plugin/services/open_plugin_catalog.py` 的旧来源快照适配；测试 `tests/interface/plugin_catalog/{test_sync,test_retry}.py`。
+**Files:** 新建 `services/sync.py`、`retry.py`、`tasks.py`；按现有配置入口修改 `env.py`、`config/default.py`、`bkflow/plugin/tasks.py`、`bkflow/bk_plugin/tasks.py` 的三条既有任务接入及 `bkflow/plugin/services/open_plugin_catalog.py` 的旧来源快照适配；测试 `tests/interface/plugin_catalog/{test_sync,test_retry}.py`。
 
 **Consumes / Dependencies:** T3 decide_new_plugin、T4 Provider.collect、T2 record_change；产生 ClassificationIntent 供 T11 消费。
 
@@ -154,7 +156,8 @@
 - [ ] 写失败测试：`test_first_timeout_invalidates_covered_only`、`test_auth_failure_no_fast_retry`；`test_deleted_pending_and_disabled`；`test_retry_budget` 断言等待 10/20/40、最多 3 次、300 秒截止、抖动边界；`test_poll_after_exhaustion_no_new_burst`；`test_recovery_restores_each_decision`；`test_late_failure_discarded`；`test_incomplete_not_deleted`；`test_duplicate_discovery_does_not_reapply_policy`；`test_unready_not_discovered_by_policy`。
 - [ ] 运行 `pytest -o addopts='' tests/interface/plugin_catalog/test_sync.py tests/interface/plugin_catalog/test_retry.py -q`，预期新服务失败。
 - [ ] 实现网络事务外、提交时校验 config_revision/generation；首次入库仅执行一次 T3 准入，产生分类 intent。未 ready 空间不由新周期同步创建准入/目录记录，仍走原读取/旧同步路径，业务初始化由 T7 唯一负责。超时/鉴权失败按请求实际范围失效，失败无新证据不恢复；其他错误只按来源明确协议映射，不把未知错误当删除。同一持续故障中的正常巡检不补发快速重试；成功后结束故障轮次。AI 调度在 T11 接入，不让 AI 失败污染来源状态。
-- [ ] 维护仍被 remote/cache_only/hybrid 和运行快照读取的 V4 `OpenPluginCatalogIndex` 元信息投影，保留精确版本信息；ready 空间不再由旧同步创建/覆盖 `SpaceOpenPluginAvailability.enabled`。T9 按新来源原因区分同步失败与真实版本失效。补 `test_v4_source_projection_fresh_without_management_dual_write` 断言版本更新可读、人工状态不双写。
+- [ ] 直接扩展统一 OpenPluginCatalogIndex，不另维护 V4 投影；所有旧列表/缓存/schema/快照查询加正确类型/来源范围。SpaceOpenPluginAvailability 统一承担管理决定，旧 enabled 按 E01 的最终兼容方式表达；补 `test_reused_index_v4_consumer_isolation`、`test_legacy_toggle_uses_management_service`。
+- [ ] 复用蓝鲸插件租户级采集及成功/失败结果，再按空间授权投影，不能每空间重复抓同一份远端清单；补 `test_bk_sync_failure_reaches_catalog`、`test_bk_snapshot_reused_across_spaces`。三个既有任务为 dispatch_open_plugin_catalog_sync、sync_open_plugin_catalog_source、sync_bk_plugins；保留既有两个周期入口。E04 补投机制未定案前不假设投递成功。
 - [ ] 重跑该组及 `pytest -o addopts='' tests/interface/plugin/test_tasks.py -q`，预期 PASS；用受控时钟和 Celery 替身测试，不真实等待 30 分钟或发网络请求。
 - [ ] 提交本任务，建议标题「实现来源失效与有限恢复调度」。
 
@@ -162,11 +165,11 @@
 
 **Files:** 新建 `services/references.py`；修改 `bkflow/template/models.py`、`bkflow/template/serializers/template.py`、`bkflow/template/views/template.py`；按调用链接入 `bkflow/apigw/views/{create_template,update_template,delete_template,release_template,rollback_template,create_template_with_a2flow}.py`；测试 `tests/interface/plugin_catalog/{test_references,test_reference_lifecycle}.py`。
 
-**Consumes / Dependencies:** T1 PluginIdentity/PluginNode/引用模型；产出 replace_current_references、query_references。
+**Consumes / Dependencies:** T1 PluginIdentity/PluginNode/统一引用模型；已解析/未解析记录同表、查询分离；不复用异步或跨库统计表；产出 replace_current_references、query_references。
 
 **Interfaces:** `collect_direct_plugin_nodes(tree:dict) -> tuple[list[PluginNode],list[dict]]`；`replace_current_references(template_id:int) -> None` 从数据库当前角色重建、参与调用方事务；`query_references(ctx, plugin_key:str, query:str, role:str, offset:int, limit:int) -> dict`；`export_references(ctx, plugin_key, query, role) -> Iterator[dict]`。返回 overview、rows、total、readiness；row 含各角色存在性、snapshot_id/version、节点清单及内容摘要。
 
-- [ ] 写失败测试：`test_published_draft_union` 断言 6 个发布引用＋2 个仅草稿＝8；`test_draft_only_excludes_both`；`test_same_name_nodes_not_merged`；`test_history_excluded`；`test_no_draft_not_unreferenced`；`test_nonversioned_current`；`test_nested_owned_nodes_only`；`test_unknown_api_separate`；`test_csv_all_filtered_rows` 超过一页仍完整。
+- [ ] 写失败测试：`test_published_draft_union` 断言 6 个发布引用＋2 个仅草稿＝8；`test_draft_only_excludes_both`；`test_same_name_nodes_not_merged`；`test_history_excluded`；`test_no_draft_not_unreferenced`；`test_nonversioned_current`；`test_nested_owned_nodes_only`；`test_unresolved_same_table_excluded_from_counts`；`test_csv_all_filtered_rows` 超过一页仍完整。
 - [ ] 运行 `pytest -o addopts='' tests/interface/plugin_catalog/test_references.py tests/interface/plugin_catalog/test_reference_lifecycle.py -q`，预期索引服务缺失失败。
 - [ ] 实现当前角色原子替换，保留历史快照；对保存、发布角色切换、回滚草稿、删除、新建、复制、导入逐个定位最终事务，避免 API 和模型两次重建。没有插件引用与角色不存在分开；概览不随列表搜索缩小。未就绪返回明确错误/状态，不伪造 0；CSV 使用同一筛选无分页，单元格按文本安全导出。
 - [ ] 重跑上述两文件并运行 `pytest -o addopts='' tests/interface/template/test_template_models.py tests/interface/apigw/test_rollback_template.py tests/interface/apigw/test_delete_template.py -q`，预期 PASS。每个入口至少一条集成断言在数据库中核对当前角色。
@@ -182,7 +185,7 @@
 
 - [ ] 写失败测试：`test_default_migrate_has_no_initialization` 断言来源/任务派发零调用、无存量数据回填；`test_dry_run_no_business_writes`；`test_command_requires_explicit_target`；`test_rerun_keeps_manual_decisions`；`test_failure_rolls_back_one_space`；`test_partial_success_resume`；`test_default_range_and_v4_disabled_preserved`；`test_new_space_auto_initializes`；`test_scope_exception_isolated`。
 - [ ] 运行 `pytest -o addopts='' tests/interface/plugin_catalog/test_initialization.py tests/interface/plugin_catalog/test_legacy_scope.py -q`，预期新入口缺失失败。
-- [ ] 实现 T4 全量预采集、旧配置快照、T2 来源目录生成、T6 引用回填；每空间原子提交 readiness，网络不放事务内。命令逐空间执行、失败汇总后非零退出，已 ready 跳过，不提供静默覆盖人工设置的 force。无旧限制空间直接主路径；真实例外复用 SpacePluginConfigParser 保留旧限制并单列结果，不建立普遍 scope 功能。新空间通过创建成功后的可恢复初始化入口自动调用同一服务。
+- [ ] 实现 T4 全量预采集、旧配置快照、T2 来源目录生成、T6 引用回填；每空间原子提交 readiness，网络不放事务内。命令逐空间执行、失败汇总后非零退出，已 ready 跳过，不提供静默覆盖人工设置的 force。无旧限制空间直接主路径；真实例外复用 SpacePluginConfigParser 保留旧限制并单列结果，不建立普遍 scope 功能。新空间通过创建成功后投递的 initialize_space_catalog_task（拟名）调用同一服务；它是新增的薄任务包装。事务提交后投递，失败补投/重复执行入口及错误状态持久化顺序分别见 E04/E02；不默认无限重试。
 - [ ] 重跑上述文件及 `pytest -o addopts='' tests/interface/apigw/test_create_space.py -q`，预期 PASS。隔离库用 command 测试验证 dry-run→执行→人为改目录→重跑三阶段；模拟第二空间失败，确认第一空间及其人工变更不回滚/不重置。
 - [ ] 提交本任务并更新 create_space 的 APIGW 配套文件，建议标题「增加独立存量初始化命令」。不在任何真实环境执行该命令。
 
@@ -192,7 +195,7 @@
 
 **Consumes / Dependencies:** T5 来源状态、T6 引用计数、T7 check_legacy_scope/readiness；产出统一选择与排序。
 
-**Interfaces:** `list_selectable(ctx, *, query:str, directory_id, kind, sort_by:str, direction:str, offset:int, limit:int) -> dict`；`get_plugin_statuses(ctx, plugin_keys:list[str]) -> dict`；`sort_catalog_items(items:list[dict], sort_by:str, direction:str) -> list[dict]` 供管理和使用侧共用；详情沿用现有 schema/detail 接口，不套用 selectable 过滤。排序键 recommendation/name/published_at/reference_count；名称为拼音，时间为最新版本真实发布时间，同值 plugin_key 升序、空值后置；默认 recommendation 组内名称拼音升序。
+**Interfaces:** `list_selectable(ctx, *, query:str, directory_id, kind, sort_by:str, direction:str, offset:int, limit:int) -> dict`；`get_plugin_statuses(ctx, plugin_keys:list[str], reference_context) -> dict`；`sort_catalog_items(items:list[dict], sort_by:str, direction:str) -> list[dict]` 供管理和使用侧共用；reference_context 的授权字段与 token scope 见 E03，未明确前不接收任意插件枚举；详情沿用现有 schema/detail 接口，不套用 selectable 过滤。排序键 recommendation/name/published_at/reference_count；名称为拼音，时间为最新版本真实发布时间，同值 plugin_key 升序、空值后置；默认 recommendation 组内名称拼音升序。
 
 - [ ] 写失败测试：`test_only_enabled_valid`；`test_sort_two_groups_each_direction`；`test_pinyin_and_latest_version_date`；`test_filter_before_pagination`；`test_usage_search_name_code_only`；`test_disabled_detail_and_versions_accessible`；`test_cross_tenant_denied_even_admin`；`test_preinitialization_legacy_read` 保持迁移前读取且无虚假空列表；`test_ready_never_falls_back`。
 - [ ] 运行 `pytest -o addopts='' tests/interface/plugin_catalog/test_selection.py -q`，预期统一查询缺失失败。
@@ -220,9 +223,9 @@
 
 **Consumes / Dependencies:** T2/T3 命令、T6 引用/CSV、T8 选择/状态/排序、T9 Violation；仅做协议与鉴权适配。
 
-**Interfaces:** `/api/plugin_catalog/spaces/{space_id}/` 下的 `plugins/` GET、`statuses/` POST、`directories/` GET/PUT、`directories/preview/` POST、`policy/` GET/PUT、`management/` POST、`recommendation/` POST、`references/` GET、`references/export/` GET、`unresolved-api/` GET。引用/身份用 query/body，不把带冒号的 plugin_key 拼入层级路径。包络复用项目标准，409 表示 revision 冲突。
+**Interfaces:** 基础 10 个 HTTP 操作＋T11 AI 1 个，共 11 个操作/9 条路径。`/api/plugin_catalog/spaces/{space_id}/` 下的 `plugins/` GET、`statuses/` POST、`directories/` GET/PUT、`directories/preview/` POST、`policy/` GET/PUT、`management/` POST（含推荐）、`references/` GET（format=json/csv）、`unresolved-api/` GET。引用/身份用 query/body，不把带冒号的 plugin_key 拼入层级路径。包络复用项目标准，409 表示 revision 冲突。
 
-- [ ] 写失败测试：`test_admin_actions_require_space_and_tenant`；`test_batch_foreign_object_rejected`；`test_management_search_fields_and_tab_counts`；`test_reference_overview_unfiltered`；`test_unresolved_api_not_inventory_count`；`test_legacy_writes_rejected_after_ready`；`test_legacy_v4_actions_delegate`；`test_pending_initialization_not_zero`；`test_replacement_target_revalidated`。
+- [ ] 写失败测试：`test_admin_actions_require_space_and_tenant`；`test_statuses_requires_authorized_reference_context`；`test_private_catalog_config_rejected_by_generic_writes`；`test_management_recommendation_limit`；`test_csv_shares_json_permissions_and_filters`；`test_batch_foreign_object_rejected`；`test_management_search_fields_and_tab_counts`；`test_reference_overview_unfiltered`；`test_unresolved_api_not_inventory_count`；`test_legacy_writes_rejected_after_ready`；`test_legacy_v4_actions_delegate`；`test_pending_initialization_not_zero`；`test_replacement_target_revalidated`。
 - [ ] 运行 `pytest -o addopts='' tests/interface/plugin_catalog/test_api.py -q`，预期路由缺失失败。
 - [ ] 使用 TenantScopeMixin 和既有管理员权限；管理搜索支持名称/描述/修改人模糊与类型/来源/目录组合筛选，Tab 数量随筛选、目录总数包含失效，排序共用 T8。首次来源请求失败以 source_errors 返回，不能呈现为已确认成功的零插件。旧 V4 list/toggle/enable_all/disable_source 统一委托新服务，不能双写旧管理真源；已 ready 后旧 space_plugin_config 写入明确拒绝。状态查询仅供授权存量流程，不向普通可选搜索泄露不可选项。
 - [ ] 重跑该文件及受影响 create/renew space config 测试，预期 PASS。逐 endpoint 对跨租户、跨空间、普通用户权限与 CSV 全匹配范围作验证。
@@ -230,11 +233,11 @@
 
 ### Task 11：bkaidev AI 分类与自动策略接入
 
-**Files:** 新建 `clients/bkaidev_llm.py`、`services/ai_classification.py`、`views/ai.py`；修改新模块 `tasks.py`、`urls.py` 与 `env.py`、`config/default.py` 配置；测试 `tests/interface/plugin_catalog/{test_llm_client,test_ai_classification}.py`。
+**Files:** 新建 `clients/bkaidev_llm.py`、`services/ai_classification.py`、`views/ai.py`；新增 apply_automatic_classification_task（拟名）薄任务，修改新模块 `tasks.py`、`urls.py` 与 `env.py`、`config/default.py` 配置；测试 `tests/interface/plugin_catalog/{test_llm_client,test_ai_classification}.py`。
 
 **Consumes / Dependencies:** T5 ClassificationIntent、T2 目录校验/提交、T3 准入结果；人工结果供 T12 消费。
 
-**Interfaces:** `BkaidevLLMClient.complete(*, model:str, messages:list[dict]) -> str`；`classify(ctx, document:DirectoryDocument, selected_keys:list[str], ai_scope:str, prompt:str, request_id:str) -> ClassificationResult`；`apply_automatic_classification(intent:ClassificationIntent) -> None`；HTTP `POST .../ai/classify/` 返回 patch/empty/error。配置名 `PLUGIN_CATALOG_LLM_BASE_URL`、`PLUGIN_CATALOG_LLM_MODEL`、`PLUGIN_CATALOG_LLM_TIMEOUT`，凭证只取 APP_CODE/SECRET_KEY；环境变量沿用 `BKAPP_` 前缀，连接超时 5 秒、读取超时默认 60 秒可配置。BASE_URL/MODEL 未配置时仅 AI 入口报配置错误，不影响默认来源分类或基础插件管理。
+**Interfaces:** `BkaidevLLMClient.complete(*, model:str, messages:list[dict]) -> str`；`classify(ctx, document:DirectoryDocument, selected_keys:list[str], ai_scope:str, prompt:str, request_id:str) -> ClassificationResult`；`apply_automatic_classification(intent:ClassificationIntent) -> None`；HTTP `POST .../ai/classify/` 是第 11 个新增操作，返回 patch/empty/error；人工调用同步，自动调用由新增任务执行，补投/幂等落点见 E04。配置名 `PLUGIN_CATALOG_LLM_BASE_URL`、`PLUGIN_CATALOG_LLM_MODEL`、`PLUGIN_CATALOG_LLM_TIMEOUT`，凭证只取 APP_CODE/SECRET_KEY；环境变量沿用 `BKAPP_` 前缀，连接超时 5 秒、读取超时默认 60 秒可配置。BASE_URL/MODEL 未配置时仅 AI 入口报配置错误，不影响默认来源分类或基础插件管理。
 
 - [ ] 写失败测试：`test_app_auth_header_not_business_body`；`test_no_secret_in_errors`；`test_non_json_truncated_refused_response`；`test_empty_manual_no_change`；`test_empty_automatic_uncategorized_not_pending`；`test_ai_cannot_change_state_or_recommendation`；`test_incremental_cannot_modify_stock`；`test_free_changes_stock_in_scope_only`；`test_stale_policy_or_directory_revision_rejected`；`test_duplicate_intent_applied_once`。
 - [ ] 运行 `pytest -o addopts='' tests/interface/plugin_catalog/test_llm_client.py tests/interface/plugin_catalog/test_ai_classification.py -q`，预期模块缺失失败。
@@ -302,9 +305,9 @@
 
 **Files:** 新建 `docs/guide/plugin_catalog_operations.md`、`tests/interface/plugin_catalog/test_acceptance.py`；更新本计划证据清单、必要的 `.github/workflows/unittest.yml` 测试入口和 `frontend/package.json` 模块测试汇总。新增管理接口不默认开放 APIGW。
 
-**Consumes / Dependencies:** T1—T15 的模块和接口；逐项归档测试、联调与发布证据。
+**Consumes / Dependencies:** T1—T15 的模块和接口；Spec §15—19 的权限/事务/发布约束与工程待确认项；逐项归档测试、联调与发布证据。
 
-**Interfaces:** 运维手册给出 T7 命令原样参数、状态字段、输出/非零退出含义；发布顺序固定为 schema→dry-run→手动初始化→核对→使用入口接入。测试 fixture 提供隔离空间和可控模拟来源，不依赖生产数据。
+**Interfaces:** 运维手册给出 T7 命令原样参数、状态字段、输出/非零退出含义；发布约束顺序为 schema→兼容代码覆盖旧读写者→dry-run→手动初始化→核对→使用入口接通；滚动细节与队列处置见 E06，不写成已验证手册。测试 fixture 提供隔离空间和可控模拟来源，不依赖生产数据。
 
 - [ ] 写失败验收测试：完整链路「新插件发现→按策略启用/待审核→审核→推荐→来源超时失效仍占名额→低频成功恢复→主动停用释放名额→存量编辑运行/新增拦截→删除目录移未分类→重新启用回填」。断言每步管理状态、来源状态、目录、可选列表与引用分别正确；另测跨租户批量请求全拒绝。
 - [ ] 运行 `pytest -o addopts='' tests/interface/plugin_catalog/test_acceptance.py -q`，预期在尚未接通的入口出现行为失败；环境错误先修环境，不放宽业务断言。
@@ -369,3 +372,30 @@ T6—T10 任何修改 `bkflow/apigw/` 视图的提交，同时核对并更新 `b
 | TAPD 关联与执行方式 | 已核实「插件管理」需求 `--story=139209730`；尚未选择代码执行模式 | 文档可按本轮授权归档；代码实现仍需完成执行交接 |
 
 自查记录：已逐项检查设计覆盖、上下游签名、任务顺序、五项重点风险、默认 migrate 无业务副作用以及第 6/7 项暂定状态。计划评审后再按选定方式执行，不自动创建实现线程或运行真实迁移。
+
+
+## 本轮收敛后的交付与检查
+
+| 交付项 | 实现任务 | 新增必须核对的内容 |
+| --- | --- | --- |
+| 4 新模型＋3 复用/扩展 | T1/T6/T7 | 旧表身份/唯一键、兼容 enabled、统一引用解析状态、内部配置保护；不再生成被合并模型的表 |
+| 11 HTTP 操作 / 9 路径 | T10/T11 | 推荐进入 management；references 统一 JSON/CSV；statuses 单独鉴权；不遗留两套推荐/导出入口 |
+| 2 新增＋3 改造 Celery | T5/T7/T11 | 自动 AI、新空间初始化；目录调度/来源执行/蓝鲸同步三条现有链路；复用 2 个周期入口 |
+| 权限与关键时序 | T8/T9/T10/T11/T15 | 按 Spec §15 与时序图逐链路检查；角色、空间、认证类型不能混用 |
+| 事务与故障补偿 | T2/T3/T5/T6/T7/T11 | 配置锁/对象锁次序、同库流程/引用、晚到结果、提交后派发失败；E04 未定案不得标完成 |
+| 发布兼容 | T16 | 旧 Web/Worker 和队列、新旧读写协议、缓存生效、回退数据对比；按 Spec §18 分阶段验证 |
+
+本轮文档提交只更新方案，不执行以上开发任务。原 16 项任务编号、已确认业务规则和第 6/7 项暂定保持；所有未决项用同一 E 编号追踪。
+
+| 编号 | 待确认 / 待联调内容 | 已确定边界与影响任务 |
+| --- | --- | --- |
+| E01 旧表兼容 | 全类型唯一键、类型字段、旧 enabled 与 management_state 的兼容写入方式；缺少历史的 ever_enabled 回填证据 | 一份管理决定、保留旧关闭语义、不伪造历史；T1/T5/T7/T9/T10 |
+| E02 内部配置 / 初始化 | SpaceConfig 内部键名与 JSON schema；初始化状态/错误写入和变更快照的具体事务顺序 | 一份 ready 真源；业务数据按空间原子；通用配置入口不能覆盖内部键；T1/T7/T10 |
+| E03 存量状态授权 | statuses 的流程/任务上下文字段、授权解析及 token scope 映射 | 不开放管理权限、不接受任意 plugin_keys 枚举；T8/T10/T15 |
+| E04 后台交付恢复 | DB 提交后派发失败、Worker 中断、新空间初始化失败的补投入口；自动 AI 请求去重记录落点 | 不丢已提交结果，不默认无限重试或新增通用任务平台；T5/T7/T11 |
+| E05 缓存 / 请求时限 | 缓存键、失效传播、画布刷新时效；手动 AI 的网关/Web/LLM 超时配合 | 缓存不是状态依据，原 plan 的同步人工 AI 形态保留；T8/T11/T15/T16 |
+| E06 发布兼容 | 部署实例清单、滚动顺序、旧队列排空、可回退版本与演练步骤 | 兼容代码覆盖写入口后再初始化；不覆盖人工决定；T16 |
+| E07 参数 / 容量 | 分页默认值、批量上限、空选中范围、action 枚举、未识别查询参数、实际数据量与性能目标 | 11 个操作/9 路径已定；统计/CSV 口径和整批超限规则不变；T1/T6/T10/T16 |
+| E08 外部联调 | bkaidev 环境/模型/真实返回及应用权限；第三方自行换节点 ID 的实际样本 | 供应商与 BKFlow 自身凭证已定；不重开这些选项；T9/T11/T16 |
+
+以上为工程待确认/联调项，不替代原第 6 项快捷目录保存时机、第 7 项批量启用逐项目录确认的“暂定”；联系字段与替换文案继续为建议。已有退避技术默认值和所有已确认业务规则继续保留。
