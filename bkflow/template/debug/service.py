@@ -1091,64 +1091,59 @@ class DebugService:
         ctx.save(update_fields=["global_vars"])
         return {"global_vars": ctx.global_vars}
 
-    @transaction.atomic
     def node_mock(self, node_id, enable=True, mock_result="success", mock_outputs=None, mock_error="") -> dict:
         """保存 Mock 预设；从 Mock 切回真实执行时，一并重置本节点结果和产出变量。"""
         ctx = self.get_or_create_context()
-        # 与任务启动及结果同步串行，避免检查空闲后又有新运行启动，或取消请求重复清理新结果。
-        ctx = DebugContext.objects.select_for_update().get(pk=ctx.pk)
+        # 回收会调用引擎撤销任务，必须先提交回收结果，不能被后续配置失败回滚。
         if ctx.status != "idle" and not self._reclaim_stale_lock(ctx):
             raise DebugConflictError("调试运行中，禁止配置 mock")
-        self.sync_node_states()
-        try:
-            ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
-        except DebugNodeState.DoesNotExist:
-            raise DebugStateError({"detail": "节点不存在", "node_id": node_id})
-        if self._is_gateway(node_id):
-            message = "条件网关不支持 Mock" if self._is_debuggable_gateway(node_id) else "网关节点不支持 Mock"
-            raise DebugStateError(message)
-        if enable:
-            ns.execution_mode = "mock"
-            ns.mock_result = mock_result
-            if mock_result == "success":
-                ns.mock_outputs = mock_outputs or {}
-                ns.mock_error = ""
-                ns.save()
-                # 配置成功输出即回写全局变量，便于下游立即单步消费；不改 status/outputs
-                self._apply_outputs_to_global_vars(ctx, node_id, ns.mock_outputs)
-            else:
-                ns.mock_error = mock_error or "mock failed"
-                ns.save()
-        elif ns.execution_mode == "mock":
-            # 取消即使本节点结果失效；保留预设和其他节点历史，不回滚到旧的全局调试结果。
-            ns.execution_mode = "real"
-            ns.save(update_fields=["execution_mode"])
-            self.reset_run_results(ctx, node_ids=[node_id])
-            for node in (ctx.debug_snapshot or {}).get("nodes", []):
-                if node["node_id"] == node_id:
-                    # 本节点结果已清空，未执行的结果行不应继续显示上次 Mock 执行标记。
-                    node["execution_mode"] = "real"
-            # 按节点绑定清理全部产出，包括未出现在最新 Mock 预设中的旧值。
-            # 依赖检查以键是否存在为准，必须删除而非置空。
-            for var_key in self._acts_outputs().get(node_id, {}).values():
-                ctx.global_vars.pop(var_key, None)
-            ctx.save(update_fields=["global_vars", "debug_snapshot"])
-        ctx.refresh_from_db()
-        return {"node_id": node_id, "execution_mode": ns.execution_mode, "updated_global_vars": ctx.global_vars}
+        with transaction.atomic():
+            # 与任务启动及结果同步串行，避免检查空闲后又有新运行启动，或取消请求重复清理新结果。
+            ctx = DebugContext.objects.select_for_update().get(pk=ctx.pk)
+            if ctx.status != "idle":
+                raise DebugConflictError("调试运行中，禁止配置 mock")
+            self.sync_node_states()
+            try:
+                ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
+            except DebugNodeState.DoesNotExist:
+                raise DebugStateError({"detail": "节点不存在", "node_id": node_id})
+            if self._is_gateway(node_id):
+                message = "条件网关不支持 Mock" if self._is_debuggable_gateway(node_id) else "网关节点不支持 Mock"
+                raise DebugStateError(message)
+            if enable:
+                ns.execution_mode = "mock"
+                ns.mock_result = mock_result
+                if mock_result == "success":
+                    ns.mock_outputs = mock_outputs or {}
+                    ns.mock_error = ""
+                    ns.save()
+                    # 配置成功输出即回写全局变量，便于下游立即单步消费；不改 status/outputs
+                    self._apply_outputs_to_global_vars(ctx, node_id, ns.mock_outputs)
+                else:
+                    ns.mock_error = mock_error or "mock failed"
+                    ns.save()
+            elif ns.execution_mode == "mock":
+                # 取消即使本节点结果失效；保留预设和其他节点历史，不回滚到旧的全局调试结果。
+                ns.execution_mode = "real"
+                ns.save(update_fields=["execution_mode"])
+                self.reset_run_results(ctx, node_ids=[node_id])
+                for node in (ctx.debug_snapshot or {}).get("nodes", []):
+                    if node["node_id"] == node_id:
+                        # 本节点结果已清空，未执行的结果行不应继续显示上次 Mock 执行标记。
+                        node["execution_mode"] = "real"
+                # 按节点绑定清理全部产出，包括未出现在最新 Mock 预设中的旧值。
+                # 依赖检查以键是否存在为准，必须删除而非置空。
+                for var_key in self._acts_outputs().get(node_id, {}).values():
+                    ctx.global_vars.pop(var_key, None)
+                ctx.save(update_fields=["global_vars", "debug_snapshot"])
+            ctx.refresh_from_db()
+            return {"node_id": node_id, "execution_mode": ns.execution_mode, "updated_global_vars": ctx.global_vars}
 
-    def step_run(
-        self,
-        node_id,
-        operator,
-        mode=None,
-        input_overrides=None,
-        mock_result="success",
-        mock_outputs=None,
-        mock_error="",
-    ) -> dict:
-        """单步执行单个节点：mock 模式直出，real 模式经引擎跑微型任务。"""
-        ctx = self.sync_node_states()
-        if ctx.status != "idle" and not self._reclaim_stale_lock(ctx):
+    @transaction.atomic
+    def _prepare_step_run(self, ctx, node_id, operator, mode, input_overrides):
+        """锁定最新上下文后检查模式和依赖，并在同一事务中取得执行锁。"""
+        ctx = DebugContext.objects.select_for_update().get(pk=ctx.pk)
+        if ctx.status != "idle":
             raise DebugConflictError("模板正在被 {} 调试".format(ctx.locked_by or "其他用户"))
         try:
             ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
@@ -1170,9 +1165,38 @@ class DebugService:
         if self._is_debuggable_gateway(node_id):
             if effective_mode == "mock":
                 raise DebugStateError("条件网关不支持 Mock")
-            return self._step_run_gateway(ctx, ns, operator, input_overrides)
+
+        values = dict(ctx.global_vars or {}) if input_overrides is None else dict(input_overrides)
+        can_step, missing = True, []
+        if self._is_debuggable_gateway(node_id):
+            missing = gateway_missing_vars(self.pipeline_tree, node_id, values)
+            can_step = not missing
+        elif effective_mode != "mock" and input_overrides is None:
+            can_step, missing = self.compute_can_step(ctx, node_id)
+        if not can_step:
+            # 依赖不足时不修改执行状态，也不触达引擎。
+            raise DebugStateError({"detail": "依赖未满足", "missing_vars": missing})
+        self._acquire_lock(ctx, operator)
+        return ctx, ns, effective_mode, values
+
+    def step_run(
+        self,
+        node_id,
+        operator,
+        mode=None,
+        input_overrides=None,
+        mock_result="success",
+        mock_outputs=None,
+        mock_error="",
+    ) -> dict:
+        """单步执行单个节点：mock 模式直出，real 模式经引擎跑微型任务。"""
+        ctx = self.sync_node_states()
+        if ctx.status != "idle" and not self._reclaim_stale_lock(ctx):
+            raise DebugConflictError("模板正在被 {} 调试".format(ctx.locked_by or "其他用户"))
+        ctx, ns, effective_mode, values = self._prepare_step_run(ctx, node_id, operator, mode, input_overrides)
+        if self._is_debuggable_gateway(node_id):
+            return self._step_run_gateway(ctx, ns, operator, values)
         if effective_mode == "mock":
-            self._acquire_lock(ctx, operator)
             try:
                 self._freeze_debug_tree(ctx, operator, node_id, execution_mode="mock")
                 response = self._step_run_mock(ctx, ns, mock_result, mock_outputs, mock_error)
@@ -1180,15 +1204,9 @@ class DebugService:
                 return response
             finally:
                 self._release_lock(ctx, status="idle")
-        return self._step_run_real(ctx, ns, operator, input_overrides)
+        return self._step_run_real(ctx, ns, operator, values)
 
-    def _step_run_gateway(self, ctx, ns, operator, input_overrides):
-        values = dict(ctx.global_vars or {}) if input_overrides is None else dict(input_overrides)
-        missing = gateway_missing_vars(self.pipeline_tree, ns.node_id, values)
-        if missing:
-            raise DebugStateError({"detail": "依赖未满足", "missing_vars": missing})
-
-        self._acquire_lock(ctx, operator)
+    def _step_run_gateway(self, ctx, ns, operator, values):
         started_at = time.monotonic()
         try:
             self._freeze_debug_tree(ctx, operator, ns.node_id, execution_mode="real")
@@ -1283,22 +1301,12 @@ class DebugService:
             "log_ref": None,
         }
 
-    def _step_run_real(self, ctx, ns, operator, input_overrides):
+    def _step_run_real(self, ctx, ns, operator, var_values):
         from bkflow.template.debug.pipeline_builder import (
             build_single_node_pipeline_tree,
         )
 
-        # 依赖门控放在抢锁前：被阻断的调用不应改动状态或触达引擎（I-1）
-        if input_overrides is None:
-            can, missing = self.compute_can_step(ctx, ns.node_id)
-            if not can:
-                raise DebugStateError({"detail": "依赖未满足", "missing_vars": missing})
-            var_values = dict(ctx.global_vars or {})
-        else:
-            var_values = dict(input_overrides)
-
-        # real 单步与全局调试共用 active task 生命周期，结果由 context 轮询同步。
-        self._acquire_lock(ctx, operator)
+        # _prepare_step_run 已提交执行锁；引擎调用不占用数据库事务及行锁。
         client = self._task_client()
         task_id = None
         try:
