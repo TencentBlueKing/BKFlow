@@ -1091,11 +1091,15 @@ class DebugService:
         ctx.save(update_fields=["global_vars"])
         return {"global_vars": ctx.global_vars}
 
+    @transaction.atomic
     def node_mock(self, node_id, enable=True, mock_result="success", mock_outputs=None, mock_error="") -> dict:
-        """节点 mock 纯配置：只改 execution_mode 与 mock_* 预设，不改运行状态（评审 #3）。"""
-        ctx = self.sync_node_states()
+        """保存 Mock 预设；从 Mock 切回真实执行时，一并重置本节点结果和产出变量。"""
+        ctx = self.get_or_create_context()
+        # 与任务启动及结果同步串行，避免检查空闲后又有新运行启动，或取消请求重复清理新结果。
+        ctx = DebugContext.objects.select_for_update().get(pk=ctx.pk)
         if ctx.status != "idle" and not self._reclaim_stale_lock(ctx):
             raise DebugConflictError("调试运行中，禁止配置 mock")
+        self.sync_node_states()
         try:
             ns = DebugNodeState.objects.get(debug_context=ctx, node_id=node_id)
         except DebugNodeState.DoesNotExist:
@@ -1115,11 +1119,20 @@ class DebugService:
             else:
                 ns.mock_error = mock_error or "mock failed"
                 ns.save()
-        else:
-            # M-3：关闭 mock 仅切回 real 并保留 mock_* 预设；此前回写的 global_vars 不回滚（设计如此，
-            # 便于用户来回切换而不丢已消费的上游产出）。
+        elif ns.execution_mode == "mock":
+            # 取消即使本节点结果失效；保留预设和其他节点历史，不回滚到旧的全局调试结果。
             ns.execution_mode = "real"
             ns.save(update_fields=["execution_mode"])
+            self.reset_run_results(ctx, node_ids=[node_id])
+            for node in (ctx.debug_snapshot or {}).get("nodes", []):
+                if node["node_id"] == node_id:
+                    # 本节点结果已清空，未执行的结果行不应继续显示上次 Mock 执行标记。
+                    node["execution_mode"] = "real"
+            # 按节点绑定清理全部产出，包括未出现在最新 Mock 预设中的旧值。
+            # 依赖检查以键是否存在为准，必须删除而非置空。
+            for var_key in self._acts_outputs().get(node_id, {}).values():
+                ctx.global_vars.pop(var_key, None)
+            ctx.save(update_fields=["global_vars", "debug_snapshot"])
         ctx.refresh_from_db()
         return {"node_id": node_id, "execution_mode": ns.execution_mode, "updated_global_vars": ctx.global_vars}
 
