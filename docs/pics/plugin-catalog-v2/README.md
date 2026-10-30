@@ -8,6 +8,7 @@
 - [本地团队评审稿](../../specs/2026-10-30-space-plugin-catalog-v2-review-design.md)。
 - [开发 spec](../../specs/2026-10-30-space-plugin-catalog-v2-design.md)。
 - [16 项实现 plan](../../plans/2026-10-30-space-plugin-catalog-v2.md)。
+- [开发实施计划智能文档（团队阅读版）](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=UhJZjU)，对应[本地阅读稿](../../plans/2026-10-30-space-plugin-catalog-v2-team-plan.md)。
 - [TAPD 插件管理需求](https://tapd.woa.com/70120217/prong/stories/view/139209730)。
 
 ## 图源与成图

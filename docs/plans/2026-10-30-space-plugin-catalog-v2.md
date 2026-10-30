@@ -12,6 +12,8 @@
 
 团队评审版：[开发设计智能文档](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=OYB9Sg)。本文保留逐任务执行细节，在线阅读版保留架构、数据、接口、异常和发布说明。
 
+团队实施安排：[开发实施计划（团队阅读版）](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=UhJZjU)，本地稿为 `docs/plans/2026-10-30-space-plugin-catalog-v2-team-plan.md`；按原任务编号说明交付顺序、协作依赖与完成标准，保留暂定项。
+
 ## Global Constraints
 
 - 身份是 `builtin:{code}`、`bk_plugin:{plugin_code}`、`uniform_api:{source_key}:{api_id}`，不含版本；本期 V2/V3/V4 API 均逐插件管理。
