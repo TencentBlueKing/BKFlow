@@ -10,7 +10,7 @@
 
 **Spec:** `docs/specs/2026-10-30-space-plugin-catalog-v2-design.md`。产品依据为该设计链接的企微 V2，及用户 2026-10-30 关于低频恢复检查、独立手动初始化命令、scope 例外单独处理的最新确认；新确认覆盖旧 migrate 文案。
 
-团队评审版：[开发设计智能文档](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=OYB9Sg)。本文保留逐任务执行细节，在线阅读版保留架构、数据、接口、异常和发布说明。
+团队评审版：[开发改动总览](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=OYB9Sg)、[模型与接口清单](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=LlIaHY)、[后台任务与迁移清单](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=QJpt5P)。本文保留逐任务执行细节；新增清单的字段及 Celery 注册函数拆分是可评审草案，不替代本计划的业务约束。
 
 团队实施安排：[开发实施计划（团队阅读版）](https://doc.weixin.qq.com/smartpage/a1_AIoAtXhKAM4CN9oEFNWhJRAWP7sB0_a?p=UhJZjU)，本地稿为 `docs/plans/2026-10-30-space-plugin-catalog-v2-team-plan.md`；按原任务编号说明交付顺序、协作依赖与完成标准，保留暂定项。
 

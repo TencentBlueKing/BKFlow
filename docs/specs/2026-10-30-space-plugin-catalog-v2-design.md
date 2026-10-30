@@ -56,7 +56,7 @@
 | `bkflow/plugin/services/open_plugin_snapshot.py` | 建任务和启动校验会检查空间 enabled、目录有效性 | 移除管理停用阻断，拆分来源同步异常与真实来源不可用；保留精确版本、租户及授权检查 |
 | `bkflow/template/models.py` | 草稿原地更新，发布将草稿变成正式快照 | 引用索引必须处理角色切换，不能只监听保存草稿 |
 | `frontend/src/views/template/TemplateEdit/NodeConfig/NodeConfig.vue` | 同时承担列表衍生版本、详情加载、替换与换版本 | 详情/版本读取与列表解耦，参数保留提取成可测试函数 |
-| `module_settings.py`、部署架构 | Interface 与 Engine 分开安装应用、数据库独立 | 新目录表只归 Interface；Engine 不直接查询目录 ORM |
+| `module_settings.py`、部署架构 | Interface 与 Engine 分开安装应用；only_calculation 可共享库，all_resource 切换独立库 | 新目录表只归 Interface；Engine 不直接查询目录 ORM |
 
 ### 2.2 Approaches：延续已明确的方向
 
