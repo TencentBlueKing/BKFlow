@@ -44,6 +44,7 @@ Retrieve snapshot details (SDK API)
         "auto_save": false,
         "creator": "xxx",
         "operator": "xxx",
+        "md5sum": "xxx",
         "pipeline_tree": {
             "activities": {
                 "n02ab8bbb0fd34e592ed90ad3f700220": {
@@ -209,7 +210,7 @@ Retrieve snapshot details (SDK API)
 | result  | bool   | Operation result: true for success, false for failure |
 | code    | int    | Response code: 0 for success, any other value for failure     |
 | message | string | Error message                  |
-| data    | dict   | Workflow data after rollback              |
+| data    | dict   | Return data              |
 
 
 #### data Field Descriptions
@@ -226,4 +227,5 @@ Retrieve snapshot details (SDK API)
 | auto_save    | bool   | Whether it is an auto-saved snapshot |
 | creator      | string | Creator    |
 | operator     | string | Latest operator  |
+| md5sum     | string | Process MD5 hash  |
 | pipeline_tree | dict  | Pipeline data |
