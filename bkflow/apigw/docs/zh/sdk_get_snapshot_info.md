@@ -43,6 +43,7 @@
         "auto_save": false,
         "creator": "xxx",
         "operator": "xxx",
+        "md5sum": "xxx",
         "pipeline_tree": {
             "activities": {
                 "n02ab8bbb0fd34e592ed90ad3f700220": {
@@ -213,16 +214,17 @@
 
 #### data 字段说明
 
-| 字段           | 类型     | 描述     |
-|--------------|--------|--------|
-| id           | int    | 快照ID   |
-| create_time  | string | 创建时间   |
-| update_time  | string | 更新时间   |
-| version      | string | 流程发布版本号 |
-| template_id  | int    | 关联流程模板ID |
-| desc         | string | 快照描述   |
-| draft        | bool   | 是否为草稿快照 |
+| 字段           | 类型     | 描述        |
+|--------------|--------|-----------|
+| id           | int    | 快照ID      |
+| create_time  | string | 创建时间      |
+| update_time  | string | 更新时间      |
+| version      | string | 流程发布版本号   |
+| template_id  | int    | 关联流程模板ID  |
+| desc         | string | 快照描述      |
+| draft        | bool   | 是否为草稿快照   |
 | auto_save    | bool   | 是否为自动保存快照 |
-| creator      | string | 创建者    |
-| operator     | string | 最近操作人  |
-| pipeline_tree | dict  | 流程数据 |
+| creator      | string | 创建者       |
+| operator     | string | 最近操作人     |
+| md5sum     | string | 流程md5值    |
+| pipeline_tree | dict  | 流程数据      |
