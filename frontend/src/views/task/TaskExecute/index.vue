@@ -21,6 +21,7 @@
         :instance-name="instanceName"
         :instance-flow="instanceFlow"
         :template-id="templateId"
+        :template-version="templateVersion"
         :primitive-tpl-id="primitiveTplId"
         :primitive-tpl-source="primitiveTplSource"
         :template-source="templateSource"
@@ -68,6 +69,7 @@
         templateSource: '',
         instanceActions: [],
         templateId: '',
+        templateVersion: '',
         primitiveTplId: '', // 任务原始模板id
         primitiveTplSource: '', // 任务原始模板来源
         spaceId: 0,
@@ -125,6 +127,7 @@
             pipeline_tree: pipelineTree,
             name,
             template_id: templateId,
+            template_version: templateVersion,
             template_source: templateSource,
             auth: authActions,
             primitive_template_id: primitiveTemplateId,
@@ -184,6 +187,7 @@
           this.instanceFlow = pipelineTree;
           this.instanceName = name;
           this.templateId = templateId;
+          this.templateVersion = templateVersion || '';
           this.primitiveTplId = primitiveTemplateId;
           this.primitiveTplSource = primitiveTemplateSource;
           this.templateSource = templateSource;

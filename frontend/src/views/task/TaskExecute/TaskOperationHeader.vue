@@ -166,6 +166,10 @@
         type: [Number, String],
         default: '',
       },
+      templateVersion: {
+        type: String,
+        default: '',
+      },
       primitiveTplId: {
         type: [Number, String],
         default: '',
@@ -317,7 +321,11 @@
       },
       linkToFlow() {
         if (window.parent) {
-          window.parent.postMessage({ eventName: 'jump-to-flow' }, '*');
+          window.parent.postMessage({
+            eventName: 'jump-to-flow',
+            templateId: this.templateId,
+            templateVersion: this.templateVersion,
+          }, '*');
         }
       },
       onViewFatherProcessExecute() {
