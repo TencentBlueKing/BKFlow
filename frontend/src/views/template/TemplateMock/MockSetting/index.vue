@@ -96,6 +96,7 @@
     buildV4PluginDetailRequest,
     isPluginFormStale,
     isV4OpenPlugin,
+    loadUniformApiVariableForm,
   } from '@/utils/uniformApi.js';
   import { hasPluginFormFields } from '@/utils/pluginFormLoader.js';
   import { mapState, mapActions } from 'vuex';
@@ -137,6 +138,7 @@
         inputsFormData: {},
         inputsRenderConfig: {},
         subFlowForms: {},
+        subFlowActivities: {}, // 子流程节点数据，用于按 source_info 回查变量来源节点
         taskNodeLoading: false,
         subFlowLoading: false,
         constantsLoading: false,
@@ -270,6 +272,7 @@
             } else {
               const { pipeline } = this.nodeConfig || {};
               this.subFlowForms = pipeline.constants;
+              this.subFlowActivities = pipeline.activities || {};
               // 输出变量
               this.outputs = pipeline.outputs.map((item) => {
                 const output = pipeline.constants[item];
@@ -365,6 +368,7 @@
             ...resp.data.custom_constants,
             ...resp.data.constants_not_referred,
           };
+          this.subFlowActivities = resp.data.pipeline_tree.activities || {};
           if (this.nodeConfig.loop_config?.enable) {
             this.outputs = [];
             return;
@@ -411,14 +415,41 @@
           const { name, atom, tagCode, classify }            = atomFilter.getVariableArgs(variable);
           const version = variable.version || 'legacy';
           const isThird = Boolean(variable.plugin_code);
-          const atomConfig = await this.getAtomConfig({
-            plugin: atom,
-            version,
-            classify,
-            name,
-            isThird,
-          });
-          let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
+          let formItemConfig;
+          if (atom === 'uniform_api') {
+            // api 插件字段由 api meta 动态生成，静态插件表单里不存在，需按源节点 meta 生成表单项
+            formItemConfig = await loadUniformApiVariableForm({
+              variable,
+              atom,
+              version,
+              activities: this.subFlowActivities,
+              constants: this.subFlowForms,
+              loaders: {
+                loadUniformApiMeta: this.loadUniformApiMeta,
+                loadV4OpenPluginForm: this.loadV4OpenPluginForm,
+              },
+              context: {
+                spaceId: this.spaceId,
+                templateId: this.templateId,
+                scopeType: this.scopeInfo.scope_type,
+                scopeValue: this.scopeInfo.scope_value,
+                readOnly: false,
+              },
+              isCurrent: () => !this.isDestroyed,
+            });
+          } else {
+            const atomConfig = await this.getAtomConfig({
+              plugin: atom,
+              version,
+              classify,
+              name,
+              isThird,
+            });
+            formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
+          }
+          if (!formItemConfig) {
+            return;
+          }
           if (variable.is_meta || formItemConfig.meta_transform) {
             formItemConfig = formItemConfig.meta_transform(variable.meta || variable);
             if (!variable.meta) {

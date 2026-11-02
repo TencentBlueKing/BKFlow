@@ -256,6 +256,7 @@
     buildOutputRenderData,
     canApplyPluginDetailResult,
     isV4OpenPlugin,
+    loadUniformApiVariableForm,
     resolveUniformApiPluginVersion,
     resolveV4OpenPluginVersion,
   } from '@/utils/uniformApi.js';
@@ -1666,6 +1667,28 @@
         }
       },
       /**
+       * 加载子流程模板树
+       * 子流程节点的 componentValue 里只有变量信息，没有节点集合(pipeline)，
+       * 需要按子流程模板 id 拉取模板树，用于按变量 source_info 回查来源节点
+       *
+       * @return {Object} 子流程 pipeline_tree，获取失败时返回空对象
+       */
+      async loadSubflowPipelineTree() {
+        const { template_id: templateId } = this.componentValue;
+        const version = this.isEnableVersionManage ? this.nodeActivity?.component?.version : '';
+        if (!templateId) return {};
+        try {
+          const { data } = await this.loadSubflowConfig({
+            templateId,
+            is_all_nodes: true,
+            ...(version ? { version } : {}),
+          });
+          return data.pipeline_tree || {};
+        } catch (e) {
+          console.warn(e);
+        }
+      },
+      /**
        * 加载子流程输入参数表单配置项
        * 遍历每个非隐藏的全局变量，由 source_tag、coustom_type 字段确定需要加载的标准插件
        * 同时根据 source_tag 信息获取全局变量对应标准插件的某一个表单配置项
@@ -1678,6 +1701,10 @@
           .map(key => subflowForms[key])
           .filter(item => item.show_type === 'show')
           .sort((a, b) => a.index - b.index);
+        // api插件(uniform_api)变量需要按 source_info 回查子流程内的源节点
+        const subflowPipeline = variables.some(item => atomFilter.getVariableArgs(item).atom === 'uniform_api')
+          ? await this.loadSubflowPipelineTree()
+          : {};
 
         await Promise.all(variables.map(async (item) => {
           const variable = { ...item };
@@ -1685,8 +1712,36 @@
           const { name, atom, tagCode, classify } = atomFilter.getVariableArgs(variable);
           const version = variable.version || 'legacy';
           const isThird = Boolean(variable.plugin_code);
-          const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
-          let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
+          let formItemConfig;
+          if (atom === 'uniform_api') {
+            // api 插件字段由 api meta 动态生成，静态插件表单里不存在，需按源节点 meta 生成表单项
+            formItemConfig = await loadUniformApiVariableForm({
+              variable,
+              atom,
+              version,
+              activities: subflowPipeline.activities || {},
+              constants: subflowForms,
+              loaders: {
+                loadUniformApiMeta: this.loadUniformApiMeta,
+                loadV4OpenPluginForm: this.loadV4OpenPluginForm,
+              },
+              context: {
+                spaceId: this.spaceId,
+                templateId: this.templateId,
+                taskId: this.taskId,
+                scopeType: this.scopeInfo.scope_type,
+                scopeValue: this.scopeInfo.scope_value,
+                readOnly: true,
+              },
+              isCurrent: () => !this.isDestroyed,
+            });
+          } else {
+            const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
+            formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
+          }
+          if (!formItemConfig) {
+            return;
+          }
           if (variable.is_meta || formItemConfig.meta_transform) {
             formItemConfig = formItemConfig.meta_transform(variable.meta || variable);
             if (!variable.meta) {
@@ -1701,7 +1756,11 @@
           formItemConfig.tag_code = key.substring(2, key.length - 1);
           formItemConfig.attrs.name = variable.name;
           // 自定义输入框变量正则校验添加到插件配置项
-          if (['input', 'textarea'].includes(variable.custom_type) && variable.validation !== '') {
+          if (
+            ['input', 'textarea'].includes(variable.custom_type)
+            && variable.validation !== ''
+            && Array.isArray(formItemConfig.attrs.validation)
+          ) {
             formItemConfig.attrs.validation.push({
               type: 'regex',
               args: variable.validation,
