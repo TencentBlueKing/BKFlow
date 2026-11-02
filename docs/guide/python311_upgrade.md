@@ -33,6 +33,11 @@ Celery 5.3.6 / billiard 4.2.1 / kombu 5.3.7 固定为本次验证组合。bamboo
 
 ## Webhook 与数据库
 
+Django 4.2 原生要求 MySQL 8.0+，继续连接 MySQL 5.7 会在建立连接时抛出
+`NotSupportedError: MySQL 8 or later is required`。本文原有的切换演练使用 MySQL 8.0.46，
+不能据此认定 MySQL 5.7 已兼容。本次补丁默认使用
+[MySQL 5.7 兼容后端](mysql57_compat.md)，保留 MySQL 5.7.20+ 的部署无需新增开关；验证范围见该文档。
+
 采用 `bkflow-django-webhook==2.0.1`，它支持 Django 4.2，且与旧包 1.2.5 使用相同的业务字段。
 不要在此次升级中顺带换到 2.0.2：它新增必填字段 `enable_webhook`，迁移后旧包创建 Webhook 会报
 `1364: Field 'enable_webhook' doesn't have a default value`，本地已复现。
@@ -84,6 +89,7 @@ MySQL `127.0.0.1:13306/bkflow_lts_engine`、Redis `127.0.0.1:16379`、RabbitMQ `
 | Bamboo 4.0 LTS | 使用补齐现有能力的 pipeline 4.0.6 / engine 3.0.7；已测旧任务、消息、子画布、周期调度双向接续 | 原版 4.0.5 不满足本次基线能力 |
 | Celery / Kombu / billiard | 固定 5.3.6 / 5.3.7 / 4.2.1；已测双向消息和重试接续，规避 5.2.3 在 Python 3.11 下的异常日志错误 | 不能替换为未经验证的组合 |
 | Django / DRF / django-filter | 已适配删除接口、路由及筛选配置；周期部分更新同时核对落库和响应 | 生产历史配置仍须符合原有业务契约 |
+| MySQL 最低版本 | Django 4.2 原生要求 MySQL 8.0+；MySQL 5.7.20+ 需要应用兼容后端 | 5.7 上已测数据库操作、完整迁移和针对性回归，尚未重跑完整 worker 切换演练；后续依赖变化须重新核验 |
 | bkflow-django-webhook | 2.0.1 双向真实 HTTP 投递、加密配置和重试接续通过，无新增字段迁移 | 不随此升级换成破坏旧版写入兼容的 2.0.2 |
 | jsonschema | 默认草案变化可使存量 schema 报错，已增加 Draft 4 兼容处理，含隔离 Python 节点 | 自定义代码直接使用其他新库接口不属于完整枚举覆盖 |
 | django-bkvision | 保留 1.2.0，由应用转接其原始视图，实际安装内部包检查路由 | SDK 本身仍有旧 Django 路由接口，必须保留应用适配；公共 CI 不安装内部包 |
@@ -93,7 +99,8 @@ MySQL `127.0.0.1:13306/bkflow_lts_engine`、Redis `127.0.0.1:16379`、RabbitMQ `
 
 本地结果支持上述固定组合的已覆盖场景，无需停机批量转换流程数据。剩余升级验证范围是：
 实际构建的完整依赖（含内部 SDK）、生产旧版本与测试基线的差异，以及依赖 Python 版本或第三方库特殊行为的
-业务自定义 Python 代码。未证明存在兼容错误的外部服务不列为已确认故障。
+业务自定义 Python 代码。上述切换结论要求数据库满足相应版本条件；MySQL 5.7 的额外边界见兼容补丁说明。
+未证明存在兼容错误的外部服务不列为已确认故障。
 
 这次没有操作远程环境，也没有验证真实网关、第三方插件、通知平台或业务方 Webhook 端点。
 本地 RabbitMQ 为 4.3.6，单独开启了旧客户端所需的 `transient_nonexcl_queues` 兼容选项；它不代表目标环境的 broker 配置。

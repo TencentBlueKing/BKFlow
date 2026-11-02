@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -18,10 +17,12 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
-
 import os
 
 import pymysql
+
+import env
+from bkflow.utils.mysql57_compat import configure_mysql57_compat
 
 pymysql.install_as_MySQLdb()
 
@@ -49,8 +50,23 @@ DJANGO_CONF_MODULE = "config.{env}".format(env=ENVIRONMENT)
 try:
     _module = __import__(DJANGO_CONF_MODULE, globals(), locals(), ["*"])
 except ImportError as err:
-    raise ImportError("Could not import config '%s' (Is it on sys.path?): %s" % (DJANGO_CONF_MODULE, err))
+    raise ImportError("Could not import config '{}' (Is it on sys.path?): {}".format(DJANGO_CONF_MODULE, err))
 
 for _setting in dir(_module):
     if _setting == _setting.upper():
         locals()[_setting] = getattr(_module, _setting)
+
+# 在 Django 初始化连接配置前注册统计库，确保默认字段和 MySQL 后端适配覆盖所有连接。
+DATABASES = _module.DATABASES.copy()
+if env.STATISTICS_DB_HOST and env.STATISTICS_DB_NAME:
+    DATABASES["statistics"] = {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env.STATISTICS_DB_NAME,
+        "USER": env.STATISTICS_DB_USER,
+        "PASSWORD": env.STATISTICS_DB_PASSWORD,
+        "HOST": env.STATISTICS_DB_HOST,
+        "PORT": env.STATISTICS_DB_PORT,
+    }
+
+# 在平台、模块和本地配置加载完毕后统一处理，覆盖 interface 和独立 engine 的连接。
+DATABASES = configure_mysql57_compat(DATABASES)

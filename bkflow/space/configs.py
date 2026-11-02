@@ -794,6 +794,7 @@ class ApiGatewayCredentialConfig(BaseSpaceConfig):
         if scope:
             # 获取特定 scope 的配置
             return config.get(scope) or config.get("default")
+        return config
 
 
 class SpacePluginConfig(BaseSpaceConfig):

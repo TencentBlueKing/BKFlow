@@ -9,7 +9,7 @@ API_URL=https://xxx.com
 本地开发还需要将`index-dev.html`文件中的变量占位符，替换为开发环境对应的值。
 
 ### 安装依赖包
-项目的开发环境要求 `Node.js` 版本至少为 18.20.4，安装依赖之前，需要检查 `Node.js`以及对应的 `npm` 版本是否符合。
+项目的开发环境要求 `Node.js` 版本为 22.23.4，安装依赖之前，需要检查 `Node.js`以及对应的 `npm` 版本是否符合。
 ``` shell
 yarn install
 ```

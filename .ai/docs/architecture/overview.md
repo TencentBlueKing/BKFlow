@@ -71,7 +71,7 @@ BKFlow 将核心能力抽象为独立 SDK。
 
 采用多阶段 Dockerfile 构建：
 
-1. **frontend-builder**：Node 18 构建前端（`npm run build`），产物放入 `static/bkflow`
+1. **frontend-builder**：Node 22.23.4 构建前端（`npm run build`），产物放入 `static/bkflow`
 2. **python-builder**：Python 3.12-slim 安装依赖并复制代码
 3. **最终镜像**：合并前后端产物，启动脚本为 `container_start.sh`
 
