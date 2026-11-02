@@ -6,6 +6,10 @@
  * 节点才进入 V4 原生表单链路；V2/V3 节点必须保持原有 component 数据结构。
  * 本文件的纯函数会被模板编辑、任务详情、重试、Mock、批量更新等页面共同复用。
  */
+import renderFormSchema from '@/utils/renderFormSchema.js';
+import { buildApiVariableFormFromExtraInfo } from '@/utils/legacyApiVariableForm.js';
+import { selectPluginFormField } from '@/utils/pluginFormLoader.js';
+
 const getComponentDataValue = (data, key) => {
   const item = data[key];
   if (item && typeof item === 'object' && Object.prototype.hasOwnProperty.call(item, 'value')) {
@@ -662,4 +666,111 @@ export const buildLegacyUniformApiMeta = ({
       name: basicInfo.groupName || '',
     },
   };
+};
+
+/**
+ * 加载 api 插件(uniform_api)变量对应的子流程输入参数表单项。
+ *
+ * uniform_api 是 meta 驱动的动态表单插件，字段定义(如 int_field)只存在于 api meta 中，
+ * 静态插件表单($.atoms.uniform_api)里只有包装器自身字段，用 formFilter 匹配必然失败。
+ * 本函数按变量 source_info 回查子流程内源节点，取其 component 后分三级降级：
+ * 1. V4 开放插件：走 /api/plugin/detail/ 加载原生表单，再取变量对应的字段
+ * 2. V2/V3：拉取 api meta，取出对应字段后用 renderFormSchema 转换
+ * 3. 兜底：用变量自带的 extra_info 还原控件，保证不会整块空白
+ *
+ * @param {Object} params
+ * @param {Object} params.variable 子流程全局变量
+ * @param {String} params.atom 变量来源插件 code
+ * @param {String} params.version 变量版本
+ * @param {Object} params.activities 子流程内节点集合
+ * @param {Object} params.constants 子流程全局变量集合，用于还原插件 getInput 上下文
+ * @param {Function} params.loaders.loadUniformApiMeta
+ * @param {Function} params.loaders.loadV4OpenPluginForm
+ * @param {Object} params.context spaceId/templateId/taskId/scopeType/scopeValue/readOnly
+ * @param {Function} params.isCurrent 过期请求判断
+ * @return {Object|null} 表单项配置
+ */
+export const loadUniformApiVariableForm = async ({
+  variable = {},
+  atom,
+  version,
+  activities = {},
+  constants = {},
+  loaders = {},
+  context = {},
+  isCurrent = () => true,
+} = {}) => {
+  const { loadUniformApiMeta, loadV4OpenPluginForm } = loaders;
+  const {
+    spaceId,
+    templateId,
+    taskId,
+    scopeType = '',
+    scopeValue = '',
+    readOnly = false,
+  } = context;
+  const tag = (variable.source_tag || '').split('.')[1];
+  const component = resolveVariableSourceComponent(variable, { activities, atom, version });
+  // V4 开放插件
+  if (typeof loadV4OpenPluginForm === 'function' && isV4OpenPlugin(component)) {
+    try {
+      const result = await loadV4OpenPluginForm({
+        request: buildV4PluginDetailRequest({
+          component,
+          spaceId,
+          templateId,
+          scopeType,
+          scopeValue,
+        }),
+        readOnly,
+        isCurrent,
+        runtimeContext: {
+          inputs: buildVariablePluginRuntimeInputs({ variable, activities, constants }),
+          outputs: [],
+          state: '',
+        },
+      });
+      if (!isCurrent()) return null;
+      // 只取当前变量对应的字段；V4 原生表单为数组时为旧版 tag 配置，json schema 形态这里无法直接使用
+      if (Array.isArray(result.input)) {
+        return selectPluginFormField(result.input, tag);
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+  // V2/V3 api 插件
+  const { api_meta: apiMeta = {} } = component || {};
+  if (typeof loadUniformApiMeta === 'function' && apiMeta.meta_url) {
+    try {
+      const resp = await loadUniformApiMeta({
+        taskId,
+        templateId,
+        spaceId,
+        meta_url: apiMeta.meta_url,
+        api_name: apiMeta.api_key,
+        scope_type: scopeType,
+        scope_value: scopeValue,
+        meta_url_template: apiMeta.meta_url_template,
+        source_key: apiMeta.source_key,
+        version: resolveUniformApiPluginVersion(component) || component.version || version,
+      });
+      if (!isCurrent()) return null;
+      if (resp && resp.result) {
+        const field = (resp.data.inputs || []).find(item => item.key === tag);
+        if (field) {
+          return renderFormSchema([field], { readOnly })[0];
+        }
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+  // 兜底：用变量自带的 extra_info 还原表单
+  try {
+    return buildApiVariableFormFromExtraInfo(variable)[0];
+  } catch (e) {
+    console.warn(e);
+    return null;
+  }
 };

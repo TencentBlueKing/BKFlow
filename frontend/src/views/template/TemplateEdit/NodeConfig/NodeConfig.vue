@@ -318,6 +318,7 @@
     buildV4PluginDetailRequest,
     canApplyPluginDetailResult,
     isV4OpenPlugin,
+    loadUniformApiVariableForm,
     resolveNewOpenPluginVersion,
     resolveUniformApiIdentity,
     withLoadingState,
@@ -409,6 +410,7 @@
         outputs: [], // 输出参数
         uniformOutputs: [], // api插件输出参数
         subflowForms: {}, // 子流程输入参数
+        subflowActivities: {}, // 子流程节点数据，用于按 source_info 回查变量来源节点
         formsNotReferred: {}, // 未被子流程引用的全局变量
         isSelectorPanelShow: false, // 是否显示选择插件(子流程)面板
         isVariablePanelShow: false, // 是否显示变量编辑面板
@@ -1092,6 +1094,8 @@
             ...resp.data.pipeline_tree.constants,
             ...resp.data.constants_not_referred,
           };
+          // 保存子流程节点数据，api 插件变量需要按 source_info 回查源节点拉取 meta
+          this.subflowActivities = resp.data.pipeline_tree.activities || {};
           this.formsNotReferred = resp.data.constants_not_referred;
           // 子流程模板版本更新时，未带版本信息，需要请求接口后获取最新版本
           if (isInit) {
@@ -1203,8 +1207,32 @@
           const { name, atom, tagCode, classify } = atomFilter.getVariableArgs(variable);
           const version = variable.version || 'legacy';
           const isThird = Boolean(variable.plugin_code);
-          const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
-          let formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
+          let formItemConfig;
+          if (atom === 'uniform_api') {
+            // api 插件字段由 api meta 动态生成，静态插件表单里不存在，需按源节点 meta 生成表单项
+            formItemConfig = await loadUniformApiVariableForm({
+              variable,
+              atom,
+              version,
+              activities: this.subflowActivities,
+              constants: this.subflowForms,
+              loaders: {
+                loadUniformApiMeta: this.loadUniformApiMeta,
+                loadV4OpenPluginForm: this.loadV4OpenPluginForm,
+              },
+              context: {
+                spaceId: this.spaceId,
+                templateId: this.$route.params.templateId,
+                scopeType: this.scopeInfo.scope_type,
+                scopeValue: this.scopeInfo.scope_value,
+                readOnly: this.isViewMode,
+              },
+              isCurrent: () => !this.isDestroyed,
+            });
+          } else {
+            const atomConfig = await this.getAtomConfig({ plugin: atom, version, classify, name, isThird });
+            formItemConfig = tools.deepClone(atomFilter.formFilter(tagCode, atomConfig));
+          }
           if (!formItemConfig) {
             return;
           }
