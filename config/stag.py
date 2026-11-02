@@ -65,6 +65,7 @@ BK_APIGW_STAGE_NAME = "stage"
 BKAPP_APIGW_SYNC_STAGE = ["stage"]
 CSRF_COOKIE_NAME = APP_CODE + "_csrftoken"
 
+
 # Django 4.2 兼容性配置
 CSRF_TRUSTED_ORIGINS = default.setup_django42_csrf_origins()
 _additional_hosts = default.setup_django42_allowed_hosts()
