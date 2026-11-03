@@ -759,7 +759,10 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
             .first()
         )
         if not draft_snapshot:
-            draft_snapshot = TemplateSnapshot.objects.get(template_id=template_obj.id)
+            try:
+                draft_snapshot = TemplateSnapshot.objects.get(id=template_obj.snapshot_id)
+            except TemplateSnapshot.DoesNotExist:
+                return Response(exception=True, data={"message": "快照数据不存在"})
         data = TemplateSnapshotSerializer(draft_snapshot).data
         flow_version_config = (
             SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) == "true"
