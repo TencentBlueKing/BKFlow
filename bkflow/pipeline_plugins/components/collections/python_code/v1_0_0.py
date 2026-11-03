@@ -60,6 +60,7 @@ class PythonCodeService(BKFlowBaseService):
             max_response_size_bytes=MAX_RESPONSE_SIZE_BYTES,
             process_semaphore=PYTHON_CODE_PROCESS_SEMAPHORE,
             queue_timeout=QUEUE_TIMEOUT,
+            allowed_modules=getattr(settings, "PYTHON_CODE_PLUGIN_ALLOWED_MODULES", []),
         )
 
     def inputs_format(self):
@@ -102,6 +103,12 @@ class PythonCodeService(BKFlowBaseService):
 
     def plugin_execute(self, data, parent_data):
         """执行Python代码"""
+        if not getattr(settings, "PYTHON_CODE_PLUGIN_ENABLED", False):
+            error_msg = "Python代码节点未开启，请联系平台管理员在引擎模块配置 PYTHON_CODE_PLUGIN_ENABLED 后重试"
+            self.logger.error(error_msg)
+            data.outputs.ex_data = error_msg
+            return False
+
         python_code = data.get_one_of_inputs("bk_python_code")
         input_vars_config = data.get_one_of_inputs("bk_input_vars") or {}
         output_key = data.get_one_of_inputs("bk_output_key") or ""
@@ -231,9 +238,10 @@ class PythonCodeComponent(Component):
         "在受控环境中安全执行Python代码\n"
         "使用：定义main函数，通过输入变量配置映射工作流变量到main参数\n"
         "限制：禁止导入危险模块(os/sys/subprocess等)和使用eval/exec等危险函数\n\n"
-        "支持内置模块：json_dumps, json_loads, math, statistics, decimal, fractions, datetime"
-        ", collections, itertools, functools, string, textwrap, base64, hashlib, hmac, uuid, copy\n"
-        "支持第三方模块：jsonschema\n\n"
+        "可用模块：由平台通过 PYTHON_CODE_PLUGIN_ALLOWED_MODULES 开放，默认不提供任何模块\n"
+        "可开放模块：json(json_dumps, json_loads), jsonschema(jsonschema_module), math, statistics"
+        ", decimal, fractions, datetime, collections, itertools, functools, string, textwrap, base64"
+        ", hashlib, hmac, uuid, copy\n\n"
         "示例：\n"
         "def main(arg1: str, arg2: str):\n"
         '&nbsp;&nbsp;&nbsp;&nbsp;return {"result": arg1 + arg2}'

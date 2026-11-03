@@ -32,6 +32,9 @@ from unittest.mock import Mock
 
 from django.test import SimpleTestCase
 
+from bkflow.pipeline_plugins.components.collections.python_code.executor import (
+    SUPPORTED_MODULES,
+)
 from bkflow.pipeline_plugins.components.collections.python_code.v1_0_0 import (
     PythonCodeExecutor,
 )
@@ -42,7 +45,7 @@ class PythonCodeExecutorProcessIsolationTest(SimpleTestCase):
 
     def setUp(self):
         self.service = Mock()
-        self.executor = PythonCodeExecutor(service=self.service, timeout=1)
+        self.executor = PythonCodeExecutor(service=self.service, timeout=1, allowed_modules=list(SUPPORTED_MODULES))
 
     def test_jsonschema_preserves_legacy_default_draft(self):
         """存量 Python 节点中的 schema 不因 jsonschema 升级改变校验规则。"""
