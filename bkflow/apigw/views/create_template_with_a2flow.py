@@ -189,9 +189,9 @@ def create_template_with_a2flow(request, space_id):
 
         if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
             if auto_release:
-                snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username, "1.0.0")
+                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
             else:
-                snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+                snapshot = TemplateSnapshot.create_unpublished_snapshot(pipeline_tree, username, draft=True)
         else:
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
 

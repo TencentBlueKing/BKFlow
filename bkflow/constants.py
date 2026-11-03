@@ -183,3 +183,8 @@ class ValidatorCode(Enum):
     GENERAL_OUTPUTS_KEY_PATTERN = "outputs_key_pattern_validator"
     GENERAL_PIPELINE_TREE = "pipeline_tree_validator"
     GENERAL_CONSTANTS = "constants_validator"
+
+
+class DraftOperation:
+    DELETE_OLDEST = "delete_oldest"  # 超过上限则删除最旧的一条，保留最新并保存新草稿
+    CLEAR_KEEP_LATEST = "clear_keep_latest"
