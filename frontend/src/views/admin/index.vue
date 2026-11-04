@@ -1,5 +1,5 @@
 <template>
-  <div class="manager-page">
+  <div :class="['manager-page', { 'no-padding': $route.query.activeTab === 'pluginManage' || $route.name === 'categoryManage' }]">
     <router-view />
     <!--新建空间弹框-->
     <SpaceDialog
@@ -61,7 +61,12 @@
 </script>
 <style lang="scss" scoped>
   .manager-page {
+    height: 100%;
+    box-sizing: border-box;
     padding: 24px;
+    &.no-padding {
+      padding: 0;
+    }
   }
   ::v-deep .scope-column-label {
     display: flex;

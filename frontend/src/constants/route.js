@@ -49,6 +49,12 @@ export const SPACE_LIST = [
     disabled: false,
   },
   {
+    name: i18n.t('插件管理'),
+    icon: 'common-icon-module',
+    id: 'pluginManage',
+    disabled: false,
+  },
+  {
     name: i18n.t('凭证管理'),
     icon: 'common-icon-credential',
     id: 'credential',

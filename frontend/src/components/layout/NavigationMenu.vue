@@ -88,7 +88,8 @@
     methods: {
       setNavigationTitle(route) {
         if (route.meta.admin) {
-          this.currentNav = route.query.activeTab || this.routerList[0].id;
+          const fallbackTab = route.name === 'categoryManage' ? 'pluginManage' : this.routerList[0].id;
+          this.currentNav = route.query.activeTab || fallbackTab;
           return;
         }
         this.routerList.some((item) => {

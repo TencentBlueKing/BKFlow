@@ -15,6 +15,7 @@
   import SpaceConfigList from './SpaceConfig/index.vue';
   import DecisionTable from './DecisionTable/index.vue';
   import CredentialList from './Credential/index.vue';
+  import PluginManage from './PluginManage/index.vue';
   import StatisticsDashboard from '@/components/common/StatisticsDashboard.vue';
   import LabelManage from './labelManage/index.vue';
   import { mapState } from 'vuex';
@@ -27,6 +28,7 @@
       SpaceConfigList,
       DecisionTable,
       CredentialList,
+      PluginManage,
       StatisticsDashboard,
       LabelManage,
     },
@@ -49,6 +51,7 @@
         component = tab === 'decisionTable' ? 'DecisionTable' : component;
         component = tab === 'template' ? 'TemplateList' : component;
         component = tab === 'credential' ? 'CredentialList' : component;
+        component = tab === 'pluginManage' ? 'PluginManage' : component;
         component = tab === 'statistics' ? 'StatisticsDashboard' : component;
         component = tab === 'labelManage' ? 'LabelManage' : component;
         return component;
