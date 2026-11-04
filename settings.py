@@ -21,15 +21,16 @@ import os
 
 import pymysql
 
-import env
 from bkflow.utils.mysql57_compat import configure_mysql57_compat
 
 pymysql.install_as_MySQLdb()
 
-# 解密 KMS 敏感环境变量（必须在 Django 配置加载之前）
+# 解密 KMS 敏感环境变量（必须在 import env 之前）
 if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
     from bkflow.contrib.kms import decrypt_kms_secrets
     decrypt_kms_secrets()
+
+import env  # noqa: E402
 
 """
 请不要修改该文件

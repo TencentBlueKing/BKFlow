@@ -98,20 +98,30 @@ if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
 application = get_wsgi_application()
 ```
 
-#### Celery Worker 入口 (config/__init__.py)
+#### Django 管理命令入口 (manage.py)
 
 ```python
 import os
+import sys
 
-# KMS 敏感变量解密
-if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
-    from bkflow.contrib.kms import decrypt_kms_secrets
-    decrypt_kms_secrets()
+if __name__ == "__main__":
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
 
-from blueapps.core.celery import celery_app
+    # KMS 敏感变量解密
+    if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
+        from bkflow.contrib.kms import decrypt_kms_secrets
+        decrypt_kms_secrets()
 
-__all__ = ["celery_app"]
+    from django.core.management import execute_from_command_line
+    execute_from_command_line(sys.argv)
 ```
+
+#### Celery Worker 入口
+
+Celery worker 通过 `celery -A blueapps.core.celery worker` 启动，会自动加载 Django settings。
+KMS 解密在 `settings.py` 中完成，无需额外配置。
+
+**注意**：`settings.py` 必须在 `import env` 之前完成 KMS 解密（第 28-31 行），这样所有进程（包括 Celery）都能正确获取解密后的敏感变量。
 
 #### 自定义脚本
 
@@ -133,9 +143,9 @@ if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
 
 ### 4.3 关键注意事项
 
-1. **必须在入口文件调用**：每个进程入口（wsgi.py、manage.py、config/__init__.py）都需要独立调用解密
+1. **settings.py 是关键入口**：所有 Django 进程（Web、Celery、管理命令）都会加载 settings.py，必须在其中的 `import env` 之前完成 KMS 解密
 2. **检查 KMS 开关**：通过 `BKPAAS_KMS_ENABLED` 环境变量判断是否启用
-3. **在配置加载前调用**：确保在 Django 初始化或读取配置之前完成解密
+3. **在配置加载前调用**：确保在读取环境变量配置（env.py）之前完成解密
 
 这样所有导入 bkflow 的入口都会自动解密。
 

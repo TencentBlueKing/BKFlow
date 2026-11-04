@@ -16,6 +16,10 @@ We undertake not to change the open source license (MIT license) applicable
 
 to the current version of the project delivered to anyone in the future.
 """
+import json
+import logging
+import os
+from pathlib import Path
 
 """
 KMS 敏感变量解密模块
@@ -30,11 +34,6 @@ KMS 敏感变量解密模块
     decrypt_kms_secrets()
 """
 
-import json
-import logging
-import os
-from pathlib import Path
-
 logger = logging.getLogger(__name__)
 
 
@@ -48,8 +47,13 @@ def decrypt_kms_secrets():
 
     解密后的变量会写回 os.environ，业务代码可以正常读取环境变量。
 
-    注意：调用前应确保 BKPAAS_KMS_ENABLED=true
+    如果 BKPAAS_KMS_ENABLED 不为 'true'，函数会直接返回。
     """
+    # 检查 KMS 是否启用
+    if os.environ.get('BKPAAS_KMS_ENABLED', '') != 'true':
+        logger.debug("KMS is not enabled, skipping decryption")
+        return
+
     logger.info("Starting to decrypt KMS secrets...")
 
     # 导入 bk-kms-sdk
@@ -65,8 +69,8 @@ def decrypt_kms_secrets():
         envelope = envelope_file.read_text(encoding="utf-8").strip()
         private_key = private_key_file.read_text(encoding="utf-8").strip()
 
-        logger.info(f"Read envelope from {envelope_file}")
-        logger.info(f"Read private key from {private_key_file}")
+        logger.info("Envelope loaded from secrets storage")
+        logger.info("Private key file loaded")
 
         # 解密信封
         plaintext = decrypt(envelope=envelope, private_key=private_key)
