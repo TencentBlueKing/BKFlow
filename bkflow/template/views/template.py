@@ -867,7 +867,11 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
             auto_snapshots.order_by("id").first().delete()
 
         TemplateSnapshot.create_unpublished_snapshot(
-            pipeline_tree=pipeline_tree, username=username, auto_save=True, template_id=template.id
+            pipeline_tree=pipeline_tree,
+            username=username,
+            desc=f"基于v{template.version}" if template.version else None,
+            auto_save=True,
+            template_id=template.id,
         )
         return Response(data={"message": "success"})
 
