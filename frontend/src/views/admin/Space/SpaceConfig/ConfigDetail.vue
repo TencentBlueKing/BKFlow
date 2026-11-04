@@ -8,12 +8,8 @@
           <span class="detail-title">
             {{ config.desc }}
           </span>
-          <div
-            :class="[
-              'detail-status',
-              detailStatus === 'error' ? 'is-error' : detailStatus === 'default' ? 'is-default' : 'is-custom',
-            ]">
-            {{ detailStatus === 'error' ? $t('异常') : detailStatus === 'default' ? $t('默认') : $t('已配置') }}
+          <div :class="['detail-status', `is-${detailStatus}`]">
+            {{ detailStatusText }}
           </div>
         </div>
         <!-- 帮助 -->
@@ -33,7 +29,7 @@
         </div>
       </div>
       <div
-        v-if="isCompositeControl"
+        v-if="isCompositeControl && !isDeprecatedConfig"
         class="detail-header-right">
         <bk-radio-group
           v-model="currentMode"
@@ -77,7 +73,7 @@
         </div>
       </div>
     </div>
-    <div v-if="config.name === 'space_plugin_config'">
+    <div v-if="config.name === 'space_plugin_config' && !isDeprecatedConfig">
       <div
         v-if="currentGuide"
         class="detail-guide">
@@ -119,7 +115,7 @@
     <div
       class="detail-form">
       <div
-        v-if="!['uniform_api', 'api_gateway_credential_name'].includes(config.name) && config.ui"
+        v-if="!isDeprecatedConfig && !['uniform_api', 'api_gateway_credential_name'].includes(config.name) && config.ui"
         class="detail-label">
         <div class="label-text">
           {{ config.ui?.label || config.desc }}
@@ -140,12 +136,15 @@
         :example-placeholder="config.example"
         :name="config.name"
         :space-id="spaceId"
+        :config="config"
         :verifying="localVerifying"
         :verify-result="localVerifyResult"
         :doc-link="config.help && config.help.doc_link"
         @verify="onControlVerify" />
     </div>
-    <div class="detail-footer">
+    <div
+      v-if="!isDeprecatedConfig"
+      class="detail-footer">
       <bk-button
         theme="primary"
         :loading="saving"
@@ -317,6 +316,9 @@
       isCompositeControl() {
         return COMPOSITE_CONTROLS.includes(this.currentControl);
       },
+      isDeprecatedConfig() {
+        return this.currentControl === 'plugin_scope';
+      },
       controlOwnsVerify() {
         return SELF_VERIFY_CONTROLS.includes(this.currentControl);
       },
@@ -335,8 +337,18 @@
         return !KNOWN_CONTROLS.includes(this.currentControl);
       },
       detailStatus() {
+        if (this.isDeprecatedConfig) return 'migrated';
         if (this.localSaveError || this.saveError) return 'error';
         return this.config.isDefault ? 'default' : 'configured';
+      },
+      detailStatusText() {
+        const map = {
+          migrated: this.$t('已迁移'),
+          error: this.$t('异常'),
+          default: this.$t('默认'),
+          configured: this.$t('已配置'),
+        };
+        return map[this.detailStatus];
       },
       // 当前值与初始值是否发生变动
       isDirty() {
@@ -574,7 +586,7 @@
         height: 22px;
         line-height: 22px;
         border-radius: 2px;
-        &.is-custom {
+        &.is-configured {
           color: #14a568;
           background: #e4faf0;
         }
@@ -585,6 +597,10 @@
         &.is-error {
           color: #ea3636;
           background: #fde9e9;
+        }
+        &.is-migrated {
+          color: var(--Brand-1, #3069F0);
+          background: var(--Brand-6, #E5EDFF);
         }
       }
     }

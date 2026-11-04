@@ -19,6 +19,7 @@ const EngineAdmin = () => import('@/views/admin/index.vue');
 const SpaceAdmin = () => import('@/views/admin/Space/index.vue');
 const SyStemAdmin = () => import('@/views/admin/System/index.vue');
 const PluginAdmin = () => import('@/views/admin/Plugin/index.vue');
+const CategoryManage = () => import('@/views/admin/Space/PluginManage/CategoryManage/index.vue');
 const DecisionEdit = () => import('@/views/admin/Space/DecisionTable/components/DecisionEdit.vue');
 
 Vue.use(VueRouter);
@@ -118,6 +119,14 @@ const routes = [
         path: 'plugin/',
         name: 'pluginAdmin',
         component: PluginAdmin,
+        pathToRegexpOptions: { strict: true },
+        meta: { admin: true },
+      },
+      {
+        // 目录批量管理独立页（插件管理侧栏「目录批量管理」入口）
+        path: 'categoryManage/',
+        name: 'categoryManage',
+        component: CategoryManage,
         pathToRegexpOptions: { strict: true },
         meta: { admin: true },
       },

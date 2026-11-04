@@ -27,6 +27,9 @@
                   <div class="item-status-inner" />
                 </div>
                 <span class="item-label">{{ item.desc }}</span>
+                <span
+                  v-if="isDeprecatedItem(item)"
+                  class="item-migrated-tag">{{ $t('已迁移') }}</span>
               </div>
             </div>
           </bk-collapse-item>
@@ -206,8 +209,12 @@
       },
       itemStatus(item) {
         if (!item) return 'default';
+        if (this.isDeprecatedItem(item)) return 'migrated';
         if (this.errorConfigs[item.name]) return 'error';
         return item.isDefault ? 'default' : 'configured';
+      },
+      isDeprecatedItem(item) {
+        return !!item && item.name === 'space_plugin_config';
       },
       async handleSave(payload) {
         try {
@@ -332,6 +339,10 @@
           background: #fce6e6;
           .item-status-inner { background: #ea3636; }
         }
+        &.is-migrated {
+          background: #e5edff;
+          .item-status-inner { background: #3069f0; }
+        }
       }
       .item-status-inner {
         width: 5px;
@@ -361,6 +372,22 @@
         &.is-error {
           color: #ea3636;
         }
+        &.is-migrated {
+          color: #3069f0;
+        }
+      }
+      .item-migrated-tag {
+        flex-shrink: 0;
+        margin-left: 8px;
+        padding: 0 6px;
+        border-radius: 8px;
+        background: var(--Brand-6, #E5EDFF);
+        font-family: "PingFang SC";
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 20px;
+        color: var(--Brand-1, #3069F0);
+        white-space: nowrap;
       }
     }
   }
