@@ -148,7 +148,8 @@ export function getRowActions(row, t) {
   const actionMap = {
     visible: [
       { label: t('编辑'), type: 'edit' },
-      { label: t('停用'), type: 'status', status: 'rejected' },
+      // 停用与「忽略」共用 rejected 状态
+      { label: t('停用'), type: 'status', status: 'rejected', message: t('已停用') },
     ],
     review: [
       { label: t('通过'), type: 'status', status: 'visible', message: t('已通过审核') },

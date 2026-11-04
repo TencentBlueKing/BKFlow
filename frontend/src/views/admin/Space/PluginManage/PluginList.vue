@@ -420,7 +420,7 @@
         <!-- 下架说明 -->
         <div class="offline-alert">
           <bk-icon type="exclamation-circle" />
-          <iiv class="alert-content">
+          <div class="alert-content">
             <p class="alert-title">
               {{ $t('停用只禁止新增使用：') }}
             </p>
@@ -428,7 +428,7 @@
               <li>{{ $t('已有流程中的') }} <b>{{ offlineRow.nodeCount || 0 }}</b> {{ $t('个节点照常编辑、执行，画布上标记「已下架」；') }}</li>
               <li>{{ $t('在已有流程里新增该插件的节点将无法保存，新建、复制、导入流程不受限制。') }}</li>
             </ul>
-          </iiv>
+          </div>
         </div>
         <!-- 下架原因 -->
         <div class="form-item">
@@ -1319,7 +1319,7 @@ export default {
           target.status = action.status;
         }
         this.$bkMessage({
-          message: getStatusChangeMessage(action.status, key => this.$t(key)),
+          message: action.message || getStatusChangeMessage(action.status, key => this.$t(key)),
           theme: 'success',
         });
         // 状态变化可能改变推荐名额占用，通知父组件刷新概要
