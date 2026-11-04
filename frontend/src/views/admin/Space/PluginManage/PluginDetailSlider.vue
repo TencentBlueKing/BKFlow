@@ -599,16 +599,6 @@ export default {
                 background: #fdf4e8;
             }
 
-            &.is-hidden {
-                color: #63656e;
-                background: #f0f1f5;
-            }
-
-            &.is-offline {
-                color: #ea3636;
-                background: #ffecec;
-            }
-
             &.is-invalid {
                 color: #979ba5;
                 background: #f0f1f5;

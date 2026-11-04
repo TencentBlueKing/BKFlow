@@ -87,7 +87,7 @@
             width="320"
             ext-cls="review-popconfirm"
             :disabled="!selection.length"
-            :confirm-text="$t('通过')"
+            :confirm-text="$t('启用')"
             :cancel-text="$t('取消')"
             @confirm="handleBatchReviewPass">
             <template slot="content">
@@ -97,13 +97,13 @@
                 </span>
                 <div class="clean-pop-texts">
                   <p class="clean-pop-title">
-                    {{ $t('确定批量通过插件？') }}
+                    {{ $t('确定批量启用插件？') }}
                   </p>
                   <p class="clean-pop-name">
                     {{ $t('插件状态') }}：<span>{{ reviewSelectedNames }}</span>
                   </p>
                   <p class="clean-pop-desc">
-                    {{ $t('通过后，将自动按绑定分类并设为可见') }}
+                    {{ $t('启用后，将自动按绑定分类并设为可见') }}
                   </p>
                 </div>
               </div>
@@ -111,13 +111,13 @@
             <bk-button
               theme="primary"
               :disabled="!selection.length">
-              {{ $t('批量通过') }}
+              {{ $t('批量启用') }}
             </bk-button>
           </bk-popconfirm>
           <bk-button
             :disabled="!selection.length"
             @click="handleBatchStatus('rejected')">
-            {{ $t('批量忽略') }}
+            {{ $t('批量停用') }}
           </bk-button>
           <bk-popover
             v-if="selection.length"
@@ -144,14 +144,6 @@
             disabled
             icon-right="icon-angle-down">
             {{ $t('批量移动') }}
-          </bk-button>
-        </template>
-        <template v-else-if="isOfflineTab">
-          <bk-button
-            theme="primary"
-            :disabled="!selection.length"
-            @click="handleBatchStatus('visible')">
-            {{ $t('批量上架') }}
           </bk-button>
         </template>
         <template v-else-if="isAvailableTab">
@@ -307,7 +299,7 @@
       <bk-table-column
         v-else-if="!isInvalidTab"
         :label="$t('操作')"
-        :width="isReviewTab || isRejectedTab ? 110 : 150"
+        :width="isReviewTab ? 110 : 150"
         fixed="right">
         <template slot-scope="{ row }">
           <div class="operate-column">
@@ -323,13 +315,13 @@
                 text
                 theme="primary"
                 @click="openOfflineDialog(row)">
-                {{ $t('下架') }}
+                {{ $t('停用') }}
               </bk-button>
             </template>
-            <template v-else-if="isReviewTab">
+            <template v-else-if="isReviewTab || isRejectedTab">
               <bk-popconfirm
                 trigger="click"
-                placement="top-end"
+                placement="bottom"
                 width="360"
                 ext-cls="review-pass-popconfirm"
                 :confirm-text="$t('确定')"
@@ -340,69 +332,60 @@
                 <template slot="content">
                   <div class="review-pass-pop">
                     <p class="pop-title">
-                      {{ $t('通过') }}
+                      {{ $t('启用') }}
                     </p>
                     <div class="pop-label">
-                      <span>{{ $t('设为「可用」并移动至目录') }}</span>
+                      <span>{{ $t('启用至目录') }}</span>
                       <span class="required">*</span>
-                      <span
-                        class="ai-recommend-link"
-                        @click="handlePassAiRecommend">
-                        <i class="commonicon-icon common-icon-ai-xiaojing" />
-                        {{ $t('AI 推荐') }}
-                      </span>
                     </div>
-                    <bk-select
-                      v-model="passCategory"
-                      :clearable="false">
-                      <bk-option
-                        id=""
-                        :name="$t('未分类')" />
-                      <bk-option
-                        v-for="item in categories"
-                        :id="item.id"
-                        :key="item.id"
-                        :name="item.name" />
-                    </bk-select>
+                    <bk-popover
+                      ref="passCategoryPopover"
+                      trigger="click"
+                      placement="bottom-start"
+                      theme="light"
+                      ext-cls="pass-category-popover"
+                      :width="315"
+                      :arrow="false"
+                      :transfer="true"
+                      :tippy-options="{ zIndex: 10002 }"
+                      @show="activePassCategoryPop = true"
+                      @hide="activePassCategoryPop = false">
+                      <div :class="['pass-category-select', { 'is-active': activePassCategoryPop }]">
+                        <span>{{ passCategoryLabel || $t('未分类') }}</span>
+                        <i class="bk-icon icon-angle-down" />
+                      </div>
+                      <template slot="content">
+                        <category-select-panel
+                          :category-tree="categoryTree"
+                          :active-id="passCategory"
+                          @select="handlePassCategorySelect" />
+                      </template>
+                    </bk-popover>
                   </div>
                 </template>
                 <bk-button
                   text
                   theme="primary"
                   @click="handlePassClick(row)">
-                  {{ $t('通过') }}
+                  {{ $t('启用') }}
                 </bk-button>
               </bk-popconfirm>
+              <!-- 待审核：不启用；未启用：停用配置 -->
               <bk-button
+                v-if="isReviewTab"
                 text
                 theme="primary"
                 @click="handleRowStatus(row, 'rejected')">
-                {{ $t('忽略') }}
-              </bk-button>
-            </template>
-            <!-- 已下架：上架 / 下架配置 -->
-            <template v-else-if="isOfflineTab">
-              <bk-button
-                text
-                theme="primary"
-                @click="handleRowStatus(row, 'visible')">
-                {{ $t('上架') }}
+                {{ $t('不启用') }}
               </bk-button>
               <bk-button
+                v-else
                 text
                 theme="primary"
                 @click="openOfflineConfigDialog(row)">
-                {{ $t('下架配置') }}
+                {{ $t('停用配置') }}
               </bk-button>
             </template>
-            <!-- 未启用：通过 -->
-            <bk-button
-              v-else
-              text
-              theme="primary"
-              @click="handleRowStatus(row, 'visible', $t('已通过审核'))">
-              {{ $t('通过') }}
-            </bk-button>
           </div>
         </template>
       </bk-table-column>
@@ -428,7 +411,7 @@
       header-position="left">
       <template slot="header">
         <div class="offline-dialog-header">
-          {{ $t('确认下架 「{name}」插件？', { name: offlineRow ? offlineRow.name : '' }) }}
+          {{ $t('确认停用 「{name}」插件？', { name: offlineRow ? offlineRow.name : '' }) }}
         </div>
       </template>
       <div
@@ -439,7 +422,7 @@
           <bk-icon type="exclamation-circle" />
           <div class="alert-content">
             <p class="alert-title">
-              {{ $t('下架只禁止新增使用：') }}
+              {{ $t('停用只禁止新增使用：') }}
             </p>
             <ul>
               <li>{{ $t('已有流程中的') }} <b>{{ offlineRow.nodeCount || 0 }}</b> {{ $t('个节点照常编辑、执行，画布上标记「已下架」；') }}</li>
@@ -450,7 +433,7 @@
         <!-- 下架原因 -->
         <div class="form-item">
           <div class="form-label">
-            {{ $t('下架原因（选填）') }}
+            {{ $t('停用原因（选填）') }}
           </div>
           <bk-input
             v-model="offlineForm.offlineReason"
@@ -463,7 +446,7 @@
         <!-- 替换插件 -->
         <div class="form-item">
           <div class="form-label">
-            {{ $t('替换插件（选填）') }}
+            {{ $t('停用插件（选填）') }}
           </div>
           <bk-cascade
             v-model="replacePluginPath"
@@ -484,7 +467,7 @@
           </bk-cascade>
         </div>
         <p class="dialog-tips">
-          {{ $t('原因与替换插件会显示在画布节点提示与保存拦截提示中。') }}
+          {{ $t('原因与停用插件会显示在画布节点提示与保存拦截提示中。') }}
           <br>
           {{ $t('不填原因时，画布/拦截统一显示「该插件已被空间管理员下架」。') }}
         </p>
@@ -494,7 +477,7 @@
           theme="danger"
           :outline="true"
           @click="handleOfflineConfirm">
-          {{ $t('确认下架') }}
+          {{ $t('确认停用') }}
         </bk-button>
         <bk-button
           theme="default"
@@ -562,7 +545,7 @@
           class="edit-form-area offline-config-form">
           <div class="edit-form-item">
             <div class="edit-form-label">
-              {{ $t('下架原因（选填）') }}
+              {{ $t('停用原因（选填）') }}
             </div>
             <bk-input
               v-model="editForm.offlineReason"
@@ -574,7 +557,7 @@
           </div>
           <div class="edit-form-item">
             <div class="edit-form-label">
-              {{ $t('替换插件（选填）') }}
+              {{ $t('停用插件（选填）') }}
             </div>
             <bk-cascade
               v-model="replacePluginPath"
@@ -594,7 +577,7 @@
             </bk-cascade>
           </div>
           <p class="dialog-tips">
-            {{ $t('原因与替换插件会显示在画布节点提示与保存拦截提示中。') }}
+            {{ $t('原因与停用插件会显示在画布节点提示与保存拦截提示中。') }}
             <br>
             {{ $t('不填原因时，画布/拦截统一显示「该插件已被空间管理员下架」。') }}
           </p>
@@ -695,6 +678,7 @@ import {
   getTypeText,
   getSourceText,
   getCategoryPath,
+  buildCategoryNameMap,
   getRowActions,
   getStatusChangeMessage,
   renderCategoryHeader as renderCategoryHeaderCell,
@@ -780,7 +764,14 @@ export default {
       },
       passRow: null,
       passCategory: '',
-      passTippyOptions: { hideOnClick: false },
+      activePassCategoryPop: false, // 启用至目录下拉展开态（激活触发框边框样式）
+      // hideOnClick:false 保证点击目录下拉时确认气泡不关闭；onCreate 给 tooltip 根元素加类，用于清掉 tippy 自带 padding
+      passTippyOptions: {
+        hideOnClick: false,
+        onCreate: (instance) => {
+          instance.tooltip && instance.tooltip.classList.add('review-pass-tooltip');
+        },
+      },
       submitting: false, // 空间推荐的写操作（排序 / 取消推荐 / 状态变更）进行中
       sortable: null,
       grabPointerY: 0,
@@ -838,20 +829,16 @@ export default {
     isReviewTab() {
       return this.activeTab === 'review';
     },
-    // 当前是否为「未启用」Tab（行内可通过）
+    // 当前是否为「未启用」Tab（行内：启用 / 停用配置）
     isRejectedTab() {
       return this.activeTab === 'rejected';
-    },
-    // 当前是否为「已下架」Tab（工具栏批量上架）
-    isOfflineTab() {
-      return this.activeTab === 'offline';
     },
     // 已失效 / 未启用 Tab 无勾选列
     hasSelection() {
       return !this.isInvalidTab && !this.isRejectedTab;
     },
     hasToolbar() {
-      return !this.isRecommend && (this.isReviewTab || this.isOfflineTab || this.isAvailableTab);
+      return !this.isRecommend && (this.isReviewTab || this.isAvailableTab);
     },
     typeOptions() {
       return getTypeOptions(key => this.$t(key));
@@ -921,7 +908,11 @@ export default {
           { id: 'name', label: this.$t('插件'), width: 250 },
           typeCol,
           sourceCol,
-          incomeCol,
+          { id: 'category', label: this.$t('原目录'), width: 250 },
+          { id: 'refCount', label: this.$t('当前引用流程'), width: 130, sortable: true },
+          { id: 'updatedBy', label: this.$t('最近修改人'), width: 200, filters: this.updatedByFilters, filterMethod: this.filterMethod },
+          { id: 'updateTime', label: this.$t('最近修改时间'), width: 200, sortable: true },
+          // incomeCol,
           statusCol,
         ];
       }
@@ -930,7 +921,7 @@ export default {
           { id: 'name', label: this.$t('插件'), width: 250 },
           typeCol,
           sourceCol,
-          { id: 'category', label: this.$t('原目录'), width: 250 },
+          { id: 'category', label: this.$t('原所属目录'), width: 250 },
           { id: 'refCount', label: this.$t('当前引用流程'), width: 130, sortable: true },
           // { id: 'invalidReason', label: this.$t('失效原因'), width: 250 },
           { id: 'foundTime', label: this.$t('发现时间'), width: 200, sortable: true },
@@ -971,6 +962,10 @@ export default {
     updatedByFilters() {
       return [...new Set(this.rows.map(row => row.updatedBy).filter(Boolean))]
         .map(name => ({ text: name, value: name }));
+    },
+    // 启用至目录：当前选中分类的显示名（空串回落「未分类」占位）
+    passCategoryLabel() {
+      return buildCategoryNameMap(this.categoryTree)[this.passCategory] || '';
     },
     // 待审核确认气泡中的选中插件文案
     reviewSelectedNames() {
@@ -1034,7 +1029,7 @@ export default {
       return this.editMode === 'offline-config';
     },
     editDialogTitle() {
-      return this.isOfflineConfigMode ? this.$t('下架配置') : this.$t('编辑插件');
+      return this.isOfflineConfigMode ? this.$t('停用配置') : this.$t('编辑插件');
     },
     // 只有「可用」插件可新设为推荐；其余状态一律置灰（已推荐的仍需允许关闭以释放名额）
     editRecommendDisabled() {
@@ -1199,6 +1194,24 @@ export default {
       if (!leafCategories.length) return;
       this.passCategory = leafCategories[Math.floor(Math.random() * leafCategories.length)];
     },
+    // 「启用至目录」面板选择：AI 推荐随机取叶子分类，其余直接回写；选中后收起下拉
+    handlePassCategorySelect({ categoryId, isAiRecommend }) {
+      if (isAiRecommend) {
+        this.handlePassAiRecommend();
+      } else {
+        this.passCategory = categoryId;
+      }
+      this.hidePassCategoryPop();
+    },
+    hidePassCategoryPop() {
+      const poppers = document.querySelectorAll('.tippy-popper.pass-category-popover');
+      for (const popper of poppers) {
+        if (popper._tippy) {
+          popper._tippy.hide();
+        }
+      }
+      this.activePassCategoryPop = false;
+    },
     handleReviewPassConfirm(row) {
       this.$emit('status-change', {
         row,
@@ -1236,13 +1249,14 @@ export default {
     handleOfflineCancel() {
       this.offlineDialogVisible = false;
     },
-    // 确认下架：携带下架原因与替换插件一并提交（级联末级即插件 id）
+    // 确认停用：携带停用原因与替换插件一并提交（级联末级即插件 id），停用后插件进入「未启用」
     handleOfflineConfirm() {
       this.$emit('status-change', {
         row: this.offlineRow,
-        status: 'offline',
+        status: 'rejected',
         offlineReason: this.offlineForm.offlineReason,
         replacePluginId: this.replacePluginId,
+        message: this.$t('已停用'),
       });
       this.offlineDialogVisible = false;
     },
@@ -1305,7 +1319,7 @@ export default {
           target.status = action.status;
         }
         this.$bkMessage({
-          message: getStatusChangeMessage(action.status, key => this.$t(key)),
+          message: action.message || getStatusChangeMessage(action.status, key => this.$t(key)),
           theme: 'success',
         });
         // 状态变化可能改变推荐名额占用，通知父组件刷新概要
@@ -1661,16 +1675,10 @@ export default {
     background-color: #FFEDD1;
   }
 
-  &.is-hidden,
   &.is-invalid,
   &.is-rejected {
     color: #8F9FBD;
     background-color: #F0F4FA;
-  }
-
-  &.is-offline {
-    color: #ea3636;
-    background-color: #FFEBEB;
   }
 }
 
@@ -2199,16 +2207,6 @@ S 设置
           color: #ff9c01;
         }
 
-        &.is-hidden {
-          background: #f0f1f5;
-          color: #63656e;
-        }
-
-        &.is-offline {
-          background: #ffebeb;
-          color: #e71818;
-        }
-
         &.is-invalid {
           background: #f0f1f5;
           color: #979ba5;
@@ -2377,7 +2375,6 @@ S 设置
     }
     .popconfirm-operate {
         margin-top: 16px;
-        margin-bottom: 0px;
         button {
             border-radius: 6px !important;
         }
@@ -2388,18 +2385,68 @@ S 设置
 .review-pass-popconfirm {
     &.bk-popconfirm-content,
     .bk-popconfirm-content {
-        padding: 16px;
+        padding: 16px 16px 0 16px;
+        background: #fff;
     }
     .popconfirm-operate {
-        margin-top: 16px;
-        margin-bottom: 0px;
+        overflow: hidden;
+        margin: 16px -26px 0px -26px;
+        padding: 8px 16px;
+        margin-bottom: 0px !important;
+        border-top: 1px solid #E9EDF5;
+        background: #F7F9FC;
         button {
             border-radius: 6px !important;
         }
     }
+    .tippy-tooltip {
+      padding-bottom: 0px;
+      overflow: hidden;
+    }
+}
+
+.tippy-tooltip.review-pass-tooltip {
+    padding: 0;
+    background: #fff;
+    overflow: hidden;
+}
+
+.pass-category-popover .tippy-tooltip {
+    padding: 0;
 }
 
 .review-pass-pop {
+    .pass-category-select {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 32px;
+        padding: 0 10px;
+        border: 1px solid #c4c6cc;
+        border-radius: 2px;
+        font-size: 12px;
+        color: #63656e;
+        cursor: pointer;
+        transition: border-color 0.15s ease;
+
+        .bk-icon {
+            font-size: 14px;
+            color: #979ba5;
+        }
+
+        &:hover {
+            border-color: #979ba5;
+        }
+
+        &.is-active {
+            border-color: #3a84ff;
+
+            .bk-icon {
+                color: #3a84ff;
+            }
+        }
+    }
+
     .pop-title {
         margin: 0 0 12px;
         font-size: 14px;
@@ -2431,6 +2478,9 @@ S 设置
                 font-size: 14px;
             }
         }
+    }
+    .bk-tooltip {
+      width: 100%;
     }
 }
 
@@ -2492,6 +2542,7 @@ S 设置
         padding: 20px 24px 24px;
         .bk-textarea-wrapper {
           border-radius: 6px;
+          overflow: hidden;
         }
     }
     .offline-alert {
@@ -2559,11 +2610,15 @@ S 设置
         display: flex;
         flex-direction: column;
         gap: 6px;
+        .bk-textarea-wrapper,
         textarea,
         .bk-textarea,
         .bk-cascade-name,
         .bk-cascade-input {
             border-radius: 6px;
+        }
+        .bk-textarea-wrapper {
+            overflow: hidden;
         }
 
         .form-label {
@@ -2704,6 +2759,7 @@ S 设置
   .offline-config-form {
     .bk-textarea-wrapper {
       border-radius: 6px;
+      overflow: hidden;
     }
 
     .replace-cascade {

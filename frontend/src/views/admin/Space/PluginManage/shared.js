@@ -29,8 +29,6 @@ export function getStatusMap(t) {
   return {
     visible: { label: t('可用'), icon: 'commonicon-icon common-icon-yuan-dui' },
     review: { label: t('待审核'), icon: 'commonicon-icon common-icon-daishenhe' },
-    hidden: { label: t('已隐藏'), icon: 'icon-eye-slash' },
-    offline: { label: t('已下架'), icon: 'commonicon-icon common-icon-xiajia' },
     invalid: { label: t('已失效'), icon: 'commonicon-icon common-icon-yuan-jinggao' },
     rejected: { label: t('未启用'), icon: 'commonicon-icon common-icon-shixiao' },
   };
@@ -38,8 +36,7 @@ export function getStatusMap(t) {
 
 export function getStatusTabs(counts = {}, t) {
   return [
-    { value: 'visible', label: t('可用'), icon: 'commonicon-icon common-icon-yuan-dui', count: counts.visible || 0, badgeClass: 'is-active' },
-    { value: 'offline', label: t('已下架'), icon: 'commonicon-icon common-icon-xiajia', count: counts.offline || 0, badgeClass: 'is-active' },
+    { value: 'visible', label: t('启用'), icon: 'commonicon-icon common-icon-yuan-dui', count: counts.visible || 0, badgeClass: 'is-active' },
     { value: 'invalid', label: t('已失效'), icon: 'commonicon-icon common-icon-yuan-jinggao', count: counts.invalid || 0, badgeClass: 'is-active' },
     { divider: true },
     { value: 'review', label: t('待审核'), icon: 'commonicon-icon common-icon-daishenhe', count: counts.review || 0, badgeClass: 'is-warn' },
@@ -97,8 +94,6 @@ export function getSourceText(source, t) {
 export function getStatusChangeMessage(status, t) {
   const map = {
     visible: t('上架成功'),
-    hidden: t('隐藏成功'),
-    offline: t('下架成功'),
     review: t('已通过审核'),
     rejected: t('已忽略'),
   };
@@ -148,25 +143,17 @@ export function getCategoryPath(categories, categoryId) {
   return cate ? cate.name : '--';
 }
 
-// 行内操作：按当前状态推导可执行动作（设计稿 figma 2022-19188 / 2076-24315 / 2107-17486 / 2107-19828）
+// 行内操作：按当前状态推导可执行动作
 export function getRowActions(row, t) {
   const actionMap = {
     visible: [
       { label: t('编辑'), type: 'edit' },
-      { label: t('下架'), type: 'status', status: 'offline' },
+      // 停用与「忽略」共用 rejected 状态
+      { label: t('停用'), type: 'status', status: 'rejected', message: t('已停用') },
     ],
     review: [
       { label: t('通过'), type: 'status', status: 'visible', message: t('已通过审核') },
       { label: t('忽略'), type: 'status', status: 'rejected' },
-    ],
-    hidden: [
-      { label: t('编辑'), type: 'edit' },
-      { label: t('显示'), type: 'status', status: 'visible' },
-      { label: t('下架'), type: 'status', status: 'offline' },
-    ],
-    offline: [
-      { label: t('上架'), type: 'status', status: 'visible' },
-      { label: t('下架配置'), type: 'offline-config' },
     ],
     rejected: [
       { label: t('通过'), type: 'status', status: 'visible', message: t('已通过审核') },
