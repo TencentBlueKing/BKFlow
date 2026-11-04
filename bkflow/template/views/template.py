@@ -589,7 +589,8 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
     @swagger_auto_schema(methods=["get"], operation_description="流程操作记录")
     @action(detail=True, methods=["get"], url_path="get_template_operation_record")
     def get_task_operation_record(self, request, *args, **kwargs):
-        instance_id = kwargs["pk"]
+        template = self.get_object()
+        instance_id = template.id
         queryset = TemplateOperationRecord.objects.filter(instance_id=instance_id)
         model_ser = TemplateOperationRecordSerializer(queryset, many=True)
         return Response(
