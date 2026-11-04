@@ -134,6 +134,7 @@ export default {
   max-height: 474px;
   padding: 4px 0;
   overflow-y: auto;
+  background: #fff;
 
   .panel-search {
     padding: 4px 8px;

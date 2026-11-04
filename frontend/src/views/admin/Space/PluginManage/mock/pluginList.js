@@ -29,9 +29,9 @@ function filterByCategory(category) {
   return state.plugins.filter(row => matchPluginCategory(row, category, state.categories));
 }
 
-// 状态计数：已失效不计入「全部」（设计稿 figma 180-3364 备注 a）
+// 状态计数：已失效不计入「全部」
 function countByStatus(list) {
-  const counts = { all: 0, review: 0, visible: 0, hidden: 0, offline: 0, invalid: 0, rejected: 0 };
+  const counts = { all: 0, review: 0, visible: 0, invalid: 0, rejected: 0 };
   list.forEach((row) => {
     if (counts[row.status] !== undefined) {
       counts[row.status] += 1;
@@ -235,7 +235,7 @@ export function mockUpdatePlugin({ pluginId, data }) {
   return delay(row);
 }
 
-// 更新单个插件状态（待审核通过携带 category 落库目标目录；下架时携带并落库下架配置，保证编辑侧滑可回显）
+// 更新单个插件状态（待审核通过携带 category 落库目标目录；停用携带并落库停用配置，保证停用配置侧滑可回显）
 export function mockUpdatePluginStatus({ pluginId, status, category, offlineReason, replacePluginId }) {
   const row = state.plugins.find(item => item.id === pluginId);
   if (row) {
@@ -243,7 +243,8 @@ export function mockUpdatePluginStatus({ pluginId, status, category, offlineReas
     if (category !== undefined) {
       row.category = category;
     }
-    if (status === 'offline') {
+    // 停用（rejected）落库停用配置；审核忽略场景不传，不影响
+    if (status === 'rejected') {
       if (offlineReason !== undefined) {
         row.offlineReason = offlineReason;
       }
@@ -409,8 +410,8 @@ export function mockGetCategoryDeleteImpact({ categoryId }) {
   const scopeIds = [node.id, ...childIds];
   const inScope = state.plugins.filter(item => scopeIds.includes(item.category));
   const pluginCount = inScope.length;
-  // 已下架插件数与直接挂在本分类下的插件数：弹窗要如实告知，避免用户误判影响面
-  const offlineCount = inScope.filter(item => item.status === 'offline').length;
+  // 停用（未启用）插件数与直接挂在本分类下的插件数：弹窗要如实告知，避免用户误判影响面
+  const offlineCount = inScope.filter(item => item.status === 'rejected').length;
   const directPluginCount = inScope.filter(item => item.category === node.id).length;
   // 来源绑定明细：来源名 -> 绑定所在的分类名（本分类或它的某个子分类）
   const bindings = [];
