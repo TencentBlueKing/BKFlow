@@ -64,6 +64,9 @@ class SpaceSuperuserPermission(permissions.BasePermission):
             ]
             if space_id
         }
+        # 明确会检查对象权限的自定义操作，可以从对象取得实际空间。
+        if not candidate_space_ids and view.action in getattr(view, "OBJECT_PERMISSION_ACTIONS", ()):
+            return True
         if len(candidate_space_ids) != 1:
             logger.info(f"校验空间id不唯一: {candidate_space_ids}")
             return False

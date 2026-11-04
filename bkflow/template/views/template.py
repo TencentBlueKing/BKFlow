@@ -461,8 +461,20 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
     serializer_class = TemplateSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = TemplateFilterSet
-    EDIT_ABOVE_ACTIONS = ["update"]
+    EDIT_ABOVE_ACTIONS = ["update", "partial_update", "update_labels", "release_template", "rollback_template"]
     MOCK_ABOVE_ACTIONS = ["create_mock_task"]
+    # 这里只登记会调用 get_object() 并执行对象权限检查的操作。
+    OBJECT_PERMISSION_ACTIONS = {
+        *EDIT_ABOVE_ACTIONS,
+        *MOCK_ABOVE_ACTIONS,
+        "retrieve",
+        "get_task_operation_record",
+        "get_space_related_configs",
+        "preview_task_tree",
+        "get_draft_template",
+        "calculate_version",
+        "credentials",
+    }
     pagination_class = BKFLOWNoMaxLimitPagination
     permission_classes = [
         AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
@@ -566,8 +578,8 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
     @swagger_auto_schema(methods=["get"], operation_description="流程操作记录")
     @action(detail=True, methods=["get"], url_path="get_template_operation_record")
     def get_task_operation_record(self, request, *args, **kwargs):
-        instance_id = kwargs["pk"]
-        queryset = TemplateOperationRecord.objects.filter(instance_id=instance_id)
+        template = self.get_object()
+        queryset = TemplateOperationRecord.objects.filter(instance_id=template.id)
         model_ser = TemplateOperationRecordSerializer(queryset, many=True)
         return Response(
             {

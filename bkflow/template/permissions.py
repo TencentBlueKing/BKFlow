@@ -26,8 +26,12 @@ class TemplatePermission(BaseTokenPermission):
         return "TEMPLATE"
 
     def has_permission(self, request, view):
-        if view.action in view.MOCK_ABOVE_ACTIONS:
-            return False
+        """仅对会检查流程对象的操作启用 Token 分支，授权仍在对象检查时决定。"""
+        return (
+            bool(getattr(request, "token", ""))
+            and view.action in getattr(view, "OBJECT_PERMISSION_ACTIONS", ())
+            and view.action not in view.MOCK_ABOVE_ACTIONS
+        )
 
     def has_object_permission(self, request, view, obj):
         if view.action in view.MOCK_ABOVE_ACTIONS:
@@ -51,8 +55,8 @@ class ScopePermission(BaseTokenPermission):
         return "SCOPE"
 
     def has_permission(self, request, view):
-        if view.action in view.MOCK_ABOVE_ACTIONS:
-            return False
+        """作用域和调试授权均基于实际流程对象。"""
+        return bool(getattr(request, "token", "")) and view.action in getattr(view, "OBJECT_PERMISSION_ACTIONS", ())
 
     def has_object_permission(self, request, view, obj):
         has_mock_permission = self.has_mock_permission(
