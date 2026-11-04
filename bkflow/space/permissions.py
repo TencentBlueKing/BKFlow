@@ -47,6 +47,12 @@ class SpaceSuperuserPermission(permissions.BasePermission):
     def has_permission(self, request, view):
         if settings.BLOCK_ADMIN_PERMISSION:
             return False
+
+        lookup_field = getattr(view, "lookup_field", "pk")
+        lookup_kwarg = getattr(view, "lookup_url_kwarg", None) or lookup_field
+        if view.kwargs.get(lookup_kwarg) is not None:
+            return True
+
         if view.basename == "space":
             superusers = SpaceConfig.objects.filter(name=SuperusersConfig.name).values_list("json_value", flat=True)
             superusers = list(itertools.chain(*superusers))

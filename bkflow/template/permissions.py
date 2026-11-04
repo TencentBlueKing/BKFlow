@@ -53,6 +53,7 @@ class ScopePermission(BaseTokenPermission):
     def has_permission(self, request, view):
         if view.action in view.MOCK_ABOVE_ACTIONS:
             return False
+        return True
 
     def has_object_permission(self, request, view, obj):
         has_mock_permission = self.has_mock_permission(
