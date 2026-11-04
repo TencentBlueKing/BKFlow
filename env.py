@@ -133,6 +133,33 @@ OPEN_PLUGIN_CALLBACK_REF_CLEAN_CRONTAB = os.getenv("BKAPP_OPEN_PLUGIN_CALLBACK_R
 
 CALLBACK_KEY = os.getenv("BKFLOW_DEFAULT_CALLBACK_KEY", "").encode("utf-8")
 
+
+# 启动时校验关键敏感变量
+def _validate_critical_env_vars():
+    """校验关键环境变量是否已配置，防止运行时错误"""
+    critical_vars = {
+        "APP_INTERNAL_TOKEN": APP_INTERNAL_TOKEN,
+        "BKFLOW_DEFAULT_CALLBACK_KEY": os.getenv("BKFLOW_DEFAULT_CALLBACK_KEY", ""),
+    }
+
+    missing_vars = [name for name, value in critical_vars.items() if not value]
+
+    if missing_vars:
+        import sys
+        error_msg = (
+            f"Critical environment variables are missing or empty: {', '.join(missing_vars)}\n"
+            f"These variables are required for internal service communication and callbacks.\n"
+            f"If KMS is enabled, ensure these variables are marked as 'sensitive' in the platform.\n"
+            f"If KMS is not enabled, set them in app_desc.yaml or environment configuration."
+        )
+        print(f"ERROR: {error_msg}", file=sys.stderr)
+        # 不立即退出，让 Django 启动完成后在使用时报错，方便调试
+
+
+# 执行校验
+_validate_critical_env_vars()
+
+
 BK_PAAS_ESB_HOST = os.getenv("BK_COMPONENT_API_URL", "")
 
 PAASV3_APIGW_API_TOKEN = os.getenv("BKAPP_PAASV3_APIGW_API_TOKEN")

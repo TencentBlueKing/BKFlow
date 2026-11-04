@@ -19,6 +19,11 @@ to the current version of the project delivered to anyone in the future.
 
 import os
 
+# KMS 敏感变量解密
+if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
+    from bkflow.contrib.kms import decrypt_kms_secrets
+    decrypt_kms_secrets()
+
 # This will make sure the app is always imported when
 # Django starts so that shared_task will use this app.
 from blueapps.core.celery import celery_app

@@ -34,4 +34,9 @@ https://docs.djangoproject.com/en/1.8/howto/deployment/wsgi/
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
 
+# KMS 敏感变量解密
+if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
+    from bkflow.contrib.kms import decrypt_kms_secrets
+    decrypt_kms_secrets()
+
 application = get_wsgi_application()

@@ -23,6 +23,11 @@ import sys
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
 
+    # KMS 敏感变量解密
+    if os.environ.get('BKPAAS_KMS_ENABLED', '') == 'true':
+        from bkflow.contrib.kms import decrypt_kms_secrets
+        decrypt_kms_secrets()
+
     from django.core.management import execute_from_command_line
 
     execute_from_command_line(sys.argv)
