@@ -170,7 +170,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
 | debug_snapshot.nodes[].node_name | string | 本次调试采用的名称，保存草稿不覆盖。 |
 | debug_snapshot.nodes[].config_changed | bool | 与已保存草稿相比，节点名称或执行配置不同。没有可靠基准时默认 false。 |
 | debug_snapshot.nodes[].node_deleted | bool | 节点已不在当前已保存草稿中；旧结果及日志引用仍保留。 |
-| debug_snapshot.nodes[].execution_mode | string | 结果对应的实际调试模式，real / mock，不随 Mock 预设调整而变化。 |
+| debug_snapshot.nodes[].execution_mode | string | 结果对应的实际调试模式，real / mock。修改 Mock 预设不改变已有结果；取消 Mock 会清空本节点结果并将该字段改为 real。 |
 | debug_snapshot.nodes[].status / waiting_reason | string / string或null | 运行状态及等待原因，含义与现有节点态相同。 |
 | debug_snapshot.nodes[].inputs / outputs | object | 已记录的输入输出。网关的 outputs 包含 selected_flow_ids 和 condition_results。未采集到的输入为 {}。 |
 | debug_snapshot.nodes[].configured_inputs | object / null | 发起调试时冻结的配置输入，按参数名返回原始值，保留 `${变量}`、嵌套结构及空值，不进行变量替换，沿用凭证脱敏规则。未执行节点也会保存；缺少历史配置时为 null，不用当前草稿补齐。 |
@@ -182,6 +182,7 @@ GET /sdk/template/debug/context/?space_id=1&template_id=100
 - 节点按调试时的控制流顺序返回，前驱在后继之前、汇聚在分支之后；并行分支按节点 ID 稳定展开，不代表真实执行先后。循环回边不重复展开；子画布作为一个节点，开始和结束节点不出现在列表中。
 - 编辑名称、增删节点或调整连线不会改写旧列表；单步新增节点按本次流程位置插入，已有历史节点相对顺序不变。下一次全局调试重新建立完整顺序。
 - 显式重置单节点会清空该节点结果；全量重置清空快照。终止调试沿用现有规则：保留已完成结果，活跃节点恢复 not_run。
+- 通过 `node_mock(enable=false)` 从 Mock 切回真实执行时，仅该节点的当前状态和快照结果重置为 `not_run`，清空执行结果并将该结果行的 `execution_mode` 改为 `real`；配置输入保留。同时删除该节点绑定的产出变量，依赖这些缺失变量的下游返回 `can_step=false` 和 `missing_vars`，其他节点历史结果保留。重复关闭不会再次重置。
 - 查询接口不会自动回填存量缺失名称或快照；可通过 `backfill_debug_snapshots` 从可靠历史任务回填。名称比较基准在重新调试后建立。原有配置基准继续有效，不因升级而批量标记变化。
 - 两种差异标记都只针对已保存的草稿。未保存编辑、点击画布联动和提示文案由前端结合当前画布处理。
 

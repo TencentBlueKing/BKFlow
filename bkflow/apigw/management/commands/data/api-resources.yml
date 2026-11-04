@@ -7394,7 +7394,7 @@ paths:
                   description: 节点ID
                 enable:
                   type: boolean
-                  description: 是否开启 mock
+                  description: 是否开启 mock；从 mock 切回 real 时重置本节点结果并删除其绑定的产出变量
                 mock_result:
                   type: string
                   description: mock 结果，success 或 fail
