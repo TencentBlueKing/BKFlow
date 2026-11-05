@@ -1684,7 +1684,6 @@ export default {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    max-width: 1280px;
     padding: 16px;
     background: #fff;
     border-radius: 8px;
