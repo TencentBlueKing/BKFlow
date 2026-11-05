@@ -436,31 +436,33 @@
         <span>{{ $t('请确认删除后的改动，是否符合预期？') }}</span>
         <span>{{ $t('如果不符合预期，请先手动移动 / 智能分类') }}</span>
       </p>
-      <div
-        v-for="cate in deleteCategories"
-        :key="cate.id"
-        class="impact-block">
-        <p
-          v-if="isMultiCategoryDelete"
-          class="impact-cate-name">
-          {{ cate.name }}{{ $t('目录：') }}
-        </p>
-        <bk-table
-          class="impact-table"
-          :data="getCategoryImpactRows(cate)">
-          <bk-table-column
-            :label="$t('子对象')"
-            width="220">
-            <template slot-scope="{ row }">
-              <span class="impact-num">{{ row.count }}</span>
-              <span class="impact-unit"> {{ row.unit }}</span>
-            </template>
-          </bk-table-column>
-          <bk-table-column
-            :label="$t('删除后的改动')"
-            prop="change" />
-        </bk-table>
-      </div>
+      <template v-if="deleteDialogVisible">
+        <div
+          v-for="cate in deleteCategories"
+          :key="cate.id"
+          class="impact-block">
+          <p
+            v-if="isMultiCategoryDelete"
+            class="impact-cate-name">
+            {{ cate.name }}{{ $t('目录：') }}
+          </p>
+          <bk-table
+            class="impact-table"
+            :data="getCategoryImpactRows(cate)">
+            <bk-table-column
+              :label="$t('子对象')"
+              width="220">
+              <template slot-scope="{ row }">
+                <span class="impact-num">{{ row.count }}</span>
+                <span class="impact-unit"> {{ row.unit }}</span>
+              </template>
+            </bk-table-column>
+            <bk-table-column
+              :label="$t('删除后的改动')"
+              prop="change" />
+          </bk-table>
+        </div>
+      </template>
       <template slot="footer">
         <bk-button
           theme="danger"
@@ -1064,7 +1066,7 @@ export default {
     },
     // 松手落地（复用原 drop 语义：禁止落点时复位并提示原因）
     handleDocMouseUp(event) {
-      const active = this.dnd.active;
+      const { active } = this.dnd;
       this.pendingDrag = null;
       if (!active) {
         this.teardownDndListeners();
@@ -1111,7 +1113,7 @@ export default {
     },
     // 拖拽结束后吞掉同一次交互产生的 click（避免松手行被误触勾选/选中）
     suppressNextClick() {
-      const swallow = evt => {
+      const swallow = (evt) => {
         evt.stopPropagation();
         evt.preventDefault();
       };
@@ -1686,6 +1688,7 @@ export default {
     gap: 12px;
     padding: 16px;
     background: #fff;
+    max-width: 1280px;
     border-radius: 8px;
     box-shadow: 0 1px 2px rgba(25, 25, 41, .02);
   }
@@ -2292,6 +2295,7 @@ export default {
     .bk-dialog-content {
         position: relative;
         overflow: hidden;
+        border-radius: 6px;
 
         &::before,
         &::after {
@@ -2321,17 +2325,17 @@ export default {
     }
     .bk-dialog-body {
         max-height: 500px;
-        padding: 0 24px 24px;
+        padding: 0 32px 24px;
         overflow-y: auto;
     }
     .bk-dialog-footer {
         border: none;
+        padding: 0 32px 32px 0px;
         background: transparent;
         .bk-button {
             border-radius: 6px;
         }
     }
-
     .delete-desc {
         display: flex;
         flex-direction: column;
@@ -2343,8 +2347,22 @@ export default {
     }
 
     .impact-table {
+        border: 1px solid #C1CDE5;
         border-radius: 6px;
+        background: #FFF;
+        overflow: hidden;
         clear: both;
+
+        &::before,
+        &::after {
+            display: none;
+        }
+        .bk-table-header-wrapper {
+            border-radius: 6px 6px 0 0;
+        }
+        .bk-table-body-wrapper {
+            border-radius: 0 0 6px 6px;
+        }
 
         .bk-table-empty-block {
             height: 140px;
@@ -2352,13 +2370,13 @@ export default {
         .bk-table-header-wrapper th {
             background: #f5f7fa;
         }
-        thead {
-            color: #111214;
-            font-family: "PingFang SC";
-            font-weight: 500;
-        }
         .bk-table-body-wrapper {
             color: #4E5E7A;
+            font-family: "PingFang SC";
+        }
+        .bk-table-header-label {
+            color: #111214;
+            font-weight: 500;
             font-family: "PingFang SC";
         }
     }
