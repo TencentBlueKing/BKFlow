@@ -146,6 +146,7 @@ def _validate_critical_env_vars():
 
     if missing_vars:
         import sys
+
         error_msg = (
             f"Critical environment variables are missing or empty: {', '.join(missing_vars)}\n"
             f"These variables are required for internal service communication and callbacks.\n"
@@ -368,3 +369,12 @@ BK_PLUGIN_SYNC_TENANTS = list(
         tenant.strip() for tenant in os.getenv("BK_PLUGIN_SYNC_TENANTS", "system").split(",") if tenant.strip()
     )
 ) or ["system"]
+
+# 草稿记录最大数量
+MAX_TEMPLATE_DRAFT_COUNT = int(os.getenv("MAX_TEMPLATE_DRAFT_COUNT", 20))
+# 自动保存最大数量
+MAX_AUTO_SAVE_SNAPSHOT_COUNT = int(os.getenv("MAX_AUTO_SAVE_SNAPSHOT_COUNT", 20))
+AUTO_SAVE_SNAPSHOT_RETENTION_DAYS = int(os.getenv("AUTO_SAVE_SNAPSHOT_RETENTION_DAYS", 1))
+AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL = tuple(os.getenv("AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL", "30 0 * * *").split())
+
+AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED = bool(os.getenv("AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED", False))

@@ -99,6 +99,7 @@ def create_task(request, space_id):
         create_task_data.setdefault("extra_info", {}).setdefault("custom_context", {})[
             "custom_span_attributes"
         ] = custom_span_attributes
+    create_task_data["extra_info"]["template_version"] = template.version
     create_task_data["tenant_id"] = Space.objects.get(id=space_id).tenant_id
 
     client = TaskComponentClient(space_id=space_id)
