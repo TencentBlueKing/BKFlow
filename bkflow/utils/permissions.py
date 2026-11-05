@@ -33,8 +33,10 @@ class AppInternalPermission(permissions.BasePermission):
 
     @staticmethod
     def _app_internal_token_validation(request):
+        # 未经过内部调用中间件的请求没有该属性，应按无凭证处理而不是抛异常。
+        app_internal_token = getattr(request, "app_internal_token", "")
         if (
-            request.app_internal_token and request.app_internal_token == settings.APP_INTERNAL_TOKEN
+            app_internal_token and app_internal_token == settings.APP_INTERNAL_TOKEN
         ) or settings.APP_INTERNAL_VALIDATION_SKIP:
             return True
         return False

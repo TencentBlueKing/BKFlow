@@ -245,6 +245,8 @@ class ApiGwClient(ApigwClientMixin, HttpRequestMixin):
             headers = self.gen_default_apigw_header(app_code=settings.BK_APP_CODE, app_secret=settings.BK_APP_SECRET)
 
         timeout = kwargs.pop("timeout", self.TIMEOUT)
+        # 网关签名头会随重定向发送到新地址，请求统一 API 时不跟随跳转。
+        kwargs["allow_redirects"] = False
         return self.http_request(
             url=url,
             method=method,

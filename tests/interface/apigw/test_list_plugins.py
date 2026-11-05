@@ -92,7 +92,8 @@ class TestListPluginsView(SimpleTestCase):
     def setUp(self):
         self.factory = RequestFactory()
 
-    @override_settings(BK_APIGW_REQUIRE_EXEMPT=True)
+    # 用例不关注空间白名单，固定为空以免默认关闭的插件改变查询链。
+    @override_settings(BK_APIGW_REQUIRE_EXEMPT=True, SPACE_PLUGIN_LIST=[])
     @patch("bkflow.plugin.services.plugin_schema_service.SpacePluginConfigModel")
     @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
     @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")

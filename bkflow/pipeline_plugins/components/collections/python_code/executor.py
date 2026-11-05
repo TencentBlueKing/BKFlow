@@ -34,6 +34,7 @@ import uuid
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from io import StringIO
+from types import ModuleType
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
@@ -49,12 +50,15 @@ except ImportError:
 try:
     from RestrictedPython import compile_restricted, safe_builtins
     from RestrictedPython import safe_globals as rp_safe_globals
+    from RestrictedPython.Guards import guarded_iter_unpack_sequence, safer_getattr
 
     HAS_RESTRICTED_PYTHON = True
 except ImportError:
     compile_restricted = None
+    guarded_iter_unpack_sequence = None
     safe_builtins = None
     rp_safe_globals = None
+    safer_getattr = None
     HAS_RESTRICTED_PYTHON = False
 
 
@@ -91,6 +95,37 @@ SAFE_BUILTINS = {
     "any",
     "all",
     "format",
+}
+
+# 可按部署配置开放的模块；json 和 jsonschema 以兼容名称注入，其余模块使用原名称。
+SUPPORTED_MODULES = (
+    "json",
+    "jsonschema",
+    "math",
+    "statistics",
+    "decimal",
+    "fractions",
+    "datetime",
+    "collections",
+    "itertools",
+    "functools",
+    "string",
+    "textwrap",
+    "base64",
+    "hashlib",
+    "hmac",
+    "uuid",
+    "copy",
+)
+ALL_MODULES_FLAG = "*"
+
+# 这些成员可以读取函数全局变量、对字符串注解求值或绕过 str.format 限制，开放模块时也不提供。
+DENIED_MODULE_ATTRIBUTES = {
+    "collections": {"UserString"},
+    "copy": {"dispatch_table"},
+    "datetime": {"datetime_CAPI"},
+    "functools": {"singledispatch", "singledispatchmethod", "update_wrapper", "wraps"},
+    "string": {"Formatter"},
 }
 
 FORBIDDEN_KEYWORDS = {
@@ -448,13 +483,10 @@ def _create_safe_builtins() -> Dict[str, Any]:
     if "_getiter_" not in restricted_builtins:
         restricted_builtins["_getiter_"] = iter
 
-    try:
-        from RestrictedPython.Guards import guarded_iter_unpack_sequence
-
-        if "_iter_unpack_sequence_" not in restricted_builtins:
-            restricted_builtins["_iter_unpack_sequence_"] = guarded_iter_unpack_sequence
-    except ImportError:
-        pass
+    if guarded_iter_unpack_sequence is not None and "_iter_unpack_sequence_" not in restricted_builtins:
+        restricted_builtins["_iter_unpack_sequence_"] = guarded_iter_unpack_sequence
+    if safer_getattr is not None:
+        restricted_builtins["_getattr_"] = _safe_getattr
 
     return {
         "__name__": "__main__",
@@ -462,63 +494,94 @@ def _create_safe_builtins() -> Dict[str, Any]:
     }
 
 
-def _create_safe_globals() -> Dict[str, Any]:
-    """创建用户代码可使用的全局命名空间。"""
-    import base64 as base64_module
-    import collections as collections_module
-    import copy as copy_module
-    import datetime as datetime_module
-    import decimal as decimal_module
-    import fractions as fractions_module
-    import functools as functools_module
-    import hashlib as hashlib_module
-    import hmac as hmac_module
-    import itertools as itertools_module
-    import json as json_module
-    import math as math_module
-    import statistics as statistics_module
-    import string as string_module
-    import textwrap as textwrap_module
-    import uuid as uuid_module
-    from types import ModuleType
+def _safe_getattr(obj: Any, name: str, *args: Any) -> Any:
+    """在 RestrictedPython 属性守卫上禁止取回模块、解释器或进程能力。"""
+    if isinstance(obj, ModuleType):
+        # 模块只提供显式复制的成员，不回退到默认值，以便用户看到明确的禁用提示。
+        try:
+            raw_value = object.__getattribute__(obj, name)
+        except AttributeError as error:
+            raise AttributeError(f"禁止访问模块属性: {name}") from error
+        if isinstance(raw_value, ModuleType):
+            raise AttributeError(f"禁止访问模块属性: {name}")
+    value = safer_getattr(obj, name, *args)
+    if isinstance(value, ModuleType):
+        raise AttributeError(f"禁止访问模块属性: {name}")
+    return value
 
+
+def _safe_module(name: str, source: ModuleType) -> ModuleType:
+    """复制模块的公开成员，去掉子模块和可读取解释器状态的成员。"""
+    safe_module = ModuleType(name)
+    public_names = getattr(source, "__all__", None)
+    if public_names is None:
+        public_names = [attribute_name for attribute_name in dir(source) if not attribute_name.startswith("_")]
+    denied_names = DENIED_MODULE_ATTRIBUTES.get(name, set())
+    for attribute_name in public_names:
+        if attribute_name in denied_names or not hasattr(source, attribute_name):
+            continue
+        value = getattr(source, attribute_name)
+        if isinstance(value, ModuleType):
+            continue
+        setattr(safe_module, attribute_name, value)
+    return safe_module
+
+
+def _normalize_allowed_modules(allowed_modules: Optional[List[str]]) -> Tuple[List[str], List[str]]:
+    """按支持顺序返回开放模块，并单独返回无法识别的名称。"""
+    requested = {str(item).strip() for item in (allowed_modules or []) if str(item).strip()}
+    if ALL_MODULES_FLAG in requested:
+        return list(SUPPORTED_MODULES), sorted(requested - set(SUPPORTED_MODULES) - {ALL_MODULES_FLAG})
+    return [name for name in SUPPORTED_MODULES if name in requested], sorted(requested - set(SUPPORTED_MODULES))
+
+
+def _create_jsonschema_module() -> ModuleType:
+    """只提供不访问远程引用的校验入口和异常类型。"""
     import jsonschema
+    import referencing
 
-    # -I 子进程不加载项目路径，保留独立运行，并避免修改第三方模块的全局行为。
     jsonschema_module = ModuleType("jsonschema")
-    vars(jsonschema_module).update(vars(jsonschema))
 
     def validate(instance, schema, cls=None, *args, **kwargs):
-        """与旧 jsonschema 一致，未声明版本时使用 Draft 4。"""
+        """与旧 jsonschema 一致，未声明版本时使用 Draft 4；只解析内置元 schema 和当前文档内引用。"""
+        if args:
+            raise TypeError("validate() 只支持 instance、schema、cls 三个位置参数")
+        # 引用解析器由执行器固定，不接受用户传入的 resolver 或内部参数。
+        for key in [key for key in kwargs if key == "resolver" or key.startswith("_")]:
+            kwargs.pop(key)
+        # 空注册表会与内置元 schema 合并，远程或文件 $ref 无法解析时直接失败，不发起请求。
+        kwargs["registry"] = referencing.Registry()
         if cls is None:
             cls = jsonschema.validators.validator_for(schema, default=jsonschema.Draft4Validator)
-        return jsonschema.validate(instance, schema, cls, *args, **kwargs)
+        return jsonschema.validate(instance, schema, cls, **kwargs)
 
     jsonschema_module.validate = validate
+    jsonschema_module.ValidationError = jsonschema.ValidationError
+    jsonschema_module.SchemaError = jsonschema.SchemaError
+    return jsonschema_module
 
+
+def _create_safe_globals(allowed_modules: Optional[List[str]] = None) -> Dict[str, Any]:
+    """创建用户代码可使用的全局命名空间，只导入部署配置开放的模块。"""
+    import importlib
+
+    module_names, _ = _normalize_allowed_modules(allowed_modules)
     safe_builtins_dict = _create_safe_builtins()
-    return {
+    safe_globals = {
         **safe_builtins_dict,
         "__builtins__": safe_builtins_dict["__builtins__"],
-        "json_dumps": json_module.dumps,
-        "json_loads": json_module.loads,
-        "jsonschema_module": jsonschema_module,
-        "math": math_module,
-        "statistics": statistics_module,
-        "decimal": decimal_module,
-        "fractions": fractions_module,
-        "datetime": datetime_module,
-        "collections": collections_module,
-        "itertools": itertools_module,
-        "functools": functools_module,
-        "string": string_module,
-        "textwrap": textwrap_module,
-        "base64": base64_module,
-        "hashlib": hashlib_module,
-        "hmac": hmac_module,
-        "uuid": uuid_module,
-        "copy": copy_module,
     }
+    for module_name in module_names:
+        if module_name == "json":
+            import json as json_module
+
+            safe_globals["json_dumps"] = json_module.dumps
+            safe_globals["json_loads"] = json_module.loads
+        elif module_name == "jsonschema":
+            safe_globals["jsonschema_module"] = _create_jsonschema_module()
+        else:
+            safe_globals[module_name] = _safe_module(module_name, importlib.import_module(module_name))
+    return safe_globals
 
 
 def _set_memory_limit(memory_limit_mb: int) -> Tuple[bool, str]:
@@ -535,6 +598,23 @@ def _set_memory_limit(memory_limit_mb: int) -> Tuple[bool, str]:
         return True, ""
     except (ValueError, OSError) as e:
         return False, f"设置内存限制失败: {str(e)}"
+
+
+def _set_resource_limits() -> List[str]:
+    """在执行子进程内限制可创建进程和可打开文件数量。"""
+    warnings = []
+    if not HAS_RESOURCE:
+        return warnings
+    # macOS 把当前进程计入 RLIMIT_NPROC，限制值至少要保留 worker 自身。
+    for limit_name, limit_value in (("RLIMIT_NPROC", 2), ("RLIMIT_NOFILE", 64)):
+        limit = getattr(resource, limit_name, None)
+        if limit is None:
+            continue
+        try:
+            resource.setrlimit(limit, (limit_value, limit_value))
+        except (ValueError, OSError) as e:
+            warnings.append(f"无法设置{limit_name}: {str(e)}")
+    return warnings
 
 
 def _format_output(stdout_capture: StringIO, stderr_capture: StringIO) -> str:
@@ -558,8 +638,11 @@ def _failure(message: str, error_phase: str, warnings: Optional[List[str]] = Non
     }
 
 
-def _execute_code_in_current_process(request: Dict[str, Any]) -> Dict[str, Any]:
-    """在独立子进程内完成代码校验、编译和执行。"""
+def _execute_code_in_current_process(request: Dict[str, Any], apply_limits: bool = False) -> Dict[str, Any]:
+    """在独立子进程内完成代码校验、编译和执行。
+
+    资源限制无法在当前进程内恢复，只有执行完即退出的 worker 子进程才开启 apply_limits。
+    """
     code = request.get("code")
     input_args = _decode_wire_value(request["input_args"])
     max_code_length = request["max_code_length"]
@@ -572,12 +655,14 @@ def _execute_code_in_current_process(request: Dict[str, Any]) -> Dict[str, Any]:
     if not HAS_RESTRICTED_PYTHON:
         return _failure("RestrictedPython未安装。请运行: pip install RestrictedPython", ERROR_PHASE_EXECUTOR)
 
-    safe_globals = _create_safe_globals()
+    safe_globals = _create_safe_globals(request.get("allowed_modules"))
     safe_locals: Dict[str, Any] = {}
     warnings = []
-    memory_limit_success, memory_limit_error = _set_memory_limit(memory_limit_mb)
-    if not memory_limit_success:
-        warnings.append(f"无法设置内存限制: {memory_limit_error}")
+    if apply_limits:
+        memory_limit_success, memory_limit_error = _set_memory_limit(memory_limit_mb)
+        if not memory_limit_success:
+            warnings.append(f"无法设置内存限制: {memory_limit_error}")
+        warnings.extend(_set_resource_limits())
 
     stdout_capture = StringIO()
     stderr_capture = StringIO()
@@ -661,13 +746,40 @@ def _write_response(response: Dict[str, Any], max_response_size_bytes: int) -> N
     sys.__stdout__.buffer.flush()
 
 
+def _worker_timezone() -> str:
+    """保持 datetime.now() 的本地时区与 er-e 进程一致。"""
+    timezone_name = os.environ.get("TZ", "")
+    if timezone_name:
+        return timezone_name
+    try:
+        from django.conf import settings
+
+        return getattr(settings, "TIME_ZONE", "") or ""
+    except Exception:
+        return ""
+
+
+def _build_worker_env() -> Dict[str, str]:
+    """构造用户代码子进程的最小环境。"""
+    worker_env = {
+        "PATH": os.environ.get("PATH", ""),
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "PYTHONIOENCODING": "utf-8",
+    }
+    timezone_name = _worker_timezone()
+    if timezone_name:
+        worker_env["TZ"] = timezone_name
+    return worker_env
+
+
 def _run_subprocess_worker() -> None:
     """读取父进程请求并执行 Python 代码。"""
     max_response_size_bytes = DEFAULT_MAX_RESPONSE_SIZE_BYTES
     try:
         request = json.loads(sys.stdin.buffer.read().decode("utf-8"))
         max_response_size_bytes = request["max_response_size_bytes"]
-        response = _execute_code_in_current_process(request)
+        response = _execute_code_in_current_process(request, apply_limits=True)
     except Exception as e:
         response = _failure(f"执行器错误: 子进程执行异常: {str(e)}", ERROR_PHASE_EXECUTOR)
     _write_response(response, max_response_size_bytes)
@@ -685,8 +797,10 @@ class PythonCodeExecutor:
         max_response_size_bytes: int = DEFAULT_MAX_RESPONSE_SIZE_BYTES,
         process_semaphore=None,
         queue_timeout: Optional[float] = None,
+        allowed_modules: Optional[List[str]] = None,
     ):
         self.service = service
+        self.allowed_modules, self.unsupported_modules = _normalize_allowed_modules(allowed_modules)
         self.timeout = timeout
         self.max_code_length = max_code_length
         self.memory_limit_mb = memory_limit_mb
@@ -707,6 +821,10 @@ class PythonCodeExecutor:
         is_valid, error_message = _validate_code(code, self.max_code_length)
         if not is_valid:
             return PythonCodeExecutionResult(False, None, error_message, ERROR_PHASE_COMPILE)
+        if self.unsupported_modules:
+            self.service.logger.warning(
+                "PYTHON_CODE_PLUGIN_ALLOWED_MODULES 包含不支持的模块，已忽略: %s", ", ".join(self.unsupported_modules)
+            )
 
         exec_timeout = timeout if timeout is not None else self.timeout
         queue_timeout = self.queue_timeout if self.queue_timeout is not None else exec_timeout
@@ -727,6 +845,7 @@ class PythonCodeExecutor:
                     "memory_limit_mb": self.memory_limit_mb,
                     "max_response_size_bytes": self.max_response_size_bytes,
                     "output_key": _encode_wire_value(output_key),
+                    "allowed_modules": self.allowed_modules,
                 }
                 input_payload = json.dumps(request, ensure_ascii=False, separators=(",", ":")).encode(
                     "utf-8", errors="backslashreplace"
@@ -757,8 +876,13 @@ class PythonCodeExecutor:
                 )
 
             # er-e 使用线程池，不在 preexec_fn 内执行 Python 逻辑；资源限制由新解释器自行设置。
+            # 子进程只继承运行所需的环境变量，不把密钥和数据库配置交给用户代码。
             process = subprocess.Popen(
                 [sys.executable, "-I", os.path.abspath(__file__), "--worker"],
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+                env=_build_worker_env(),
+                close_fds=True,
+                start_new_session=True,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
