@@ -2549,7 +2549,7 @@ S 设置
         }
     }
     .offline-alert {
-      border-radius: 6px;
+      border-radius: 6px !important;
       .bk-icon {
         font-size: 14px !important;
       }
