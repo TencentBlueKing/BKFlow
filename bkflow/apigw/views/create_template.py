@@ -83,6 +83,8 @@ def create_template(request, space_id):
         # 在序列化器中已经判断了存在，所以不需要处理异常
         source_template = Template.objects.get(id=source_template_id)
         pipeline_tree = copy.deepcopy(source_template.pipeline_tree)
+        if not pipeline_tree:
+            raise CreateTemplateException("流程不存在快照数据")
         replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
     elif pipeline_tree:
         replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)

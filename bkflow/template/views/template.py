@@ -644,6 +644,9 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
                 logger.exception(message)
                 return Response(exception=True, data={"detail": str(e)})
 
+            if not pipeline_tree:
+                return Response(exception=True, data={"detail": "该模板暂无流程数据，无法预览"})
+
             flow_version_config = (
                 SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true"
             )

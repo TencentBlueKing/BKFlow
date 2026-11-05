@@ -114,7 +114,8 @@ def get_template_detail_by_app(request, template_id):
                 copy_pipeline_tree = preview_data["pipeline_tree"]
 
     flow_version_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
-    copy_pipeline_tree = replace_subprocess_version(copy_pipeline_tree, flow_version_config)
+    if copy_pipeline_tree:
+        copy_pipeline_tree = replace_subprocess_version(copy_pipeline_tree, flow_version_config)
 
     response["data"]["pipeline_tree"] = copy_pipeline_tree
     return response
