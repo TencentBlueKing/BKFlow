@@ -176,6 +176,7 @@ class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
     pipeline_tree = serializers.SerializerMethodField()
     outputs = serializers.SerializerMethodField()
     elapsed_time = serializers.SerializerMethodField()
+    template_version = serializers.SerializerMethodField()
 
     def get_pipeline_tree(self, obj):
         return obj.pipeline_tree
@@ -186,6 +187,9 @@ class RetrieveTaskInstanceSerializer(TaskInstanceSerializer):
 
     def get_elapsed_time(self, obj):
         return calculate_elapsed_time(obj.start_time, obj.finish_time)
+
+    def get_template_version(self, obj):
+        return obj.extra_info.get("template_version", "")
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
