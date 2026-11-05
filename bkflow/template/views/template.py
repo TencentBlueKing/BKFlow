@@ -415,13 +415,17 @@ class TemplateVersionViewSet(
     filterset_class = TemplateSnapshotFilterSet
     pagination_class = BKFLOWNoMaxLimitPagination
     MOCK_ABOVE_ACTIONS = []
+    EDIT_ABOVE_ACTIONS = ["delete_snapshot"]
     permission_classes = [
         AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
     ]
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        space_id = Template.objects.get(id=instance.template_id).space_id
+        template = Template.objects.filter(id=instance.template_id).first()
+        if template is None:
+            return Response(exception=True, data={"detail": "模板不存在"})
+        space_id = template.space_id
         data = TemplateSnapshotSerializer(instance).data
         flow_version_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
         pipeline_tree = replace_subprocess_version(instance.data, flow_version_config)
