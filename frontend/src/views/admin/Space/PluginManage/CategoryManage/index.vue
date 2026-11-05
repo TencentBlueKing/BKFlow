@@ -2266,9 +2266,25 @@ export default {
 .create-dialog {
     .bk-dialog-content {
         border-radius: 6px;
+        overflow: hidden;
+    }
+    .bk-dialog-footer {
+      .bk-button {
+        border-radius: 6px;
+      }
     }
     .bk-dialog-header {
-        padding: 30px 24px 20px;
+        padding: 0px 24px 20px;
+    }
+    .bk-select,
+    .bk-form-input {
+        border-radius: 6px;
+        border: 1px solid #C1CDE5;
+        background: #FFF;
+    }
+    .bk-select.is-focus,
+    .bk-form-input:focus {
+        border-color: #3a84ff;
     }
 }
 

@@ -2537,7 +2537,10 @@ S 设置
     .bk-dialog-header {
         padding: 0 24px;
     }
-
+    .bk-dialog-content {
+      border-radius: 6px;
+      overflow: hidden;
+    }
     .bk-dialog-body {
         padding: 20px 24px 24px;
         .bk-textarea-wrapper {
@@ -2562,10 +2565,20 @@ S 设置
         padding: 8px 24px;
         background: #fafbfd;
         border-top: 1px solid #eaebf0;
-
+        .bk-button {
+          border-radius: 6px;
+        }
         .bk-button + .bk-button {
             margin-left: 8px;
         }
+    }
+    .bk-select{
+      border-radius: 6px;
+      border: 1px solid #C1CDE5;
+      background: #FFF;
+    }
+    .bk-select.is-focus {
+      border-color: #3a84ff;
     }
 }
 
@@ -2743,6 +2756,10 @@ S 设置
   .bk-dialog-body {
     padding: 0 24px 24px 24px;
   }
+  .bk-dialog-content {
+    border-radius: 6px;
+    overflow: hidden;
+  }
 
   .bk-dialog-footer {
     height: 48px;
@@ -2755,7 +2772,14 @@ S 设置
       border-radius: 6px;
     }
   }
-
+  .bk-select{
+    border-radius: 6px;
+    border: 1px solid #C1CDE5;
+    background: #FFF;
+  }
+  .bk-select.is-focus {
+    border-color: #3a84ff;
+  }
   .offline-config-form {
     .bk-textarea-wrapper {
       border-radius: 6px;
