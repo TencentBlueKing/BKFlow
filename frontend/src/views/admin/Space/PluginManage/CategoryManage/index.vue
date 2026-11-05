@@ -224,7 +224,7 @@
                 :class="['cate-row', rowStateCls(cate.id), { 'is-active': selectedLevel1Id === cate.id, 'is-flash': flashId === cate.id }]"
                 @click="handleSelectLevelOne(cate.id)"
                 @mousedown="handleRowDragMousedown(cate.id, 'dir', $event)">
-                <i class="common-icon-drag row-drag" />
+                <i class="commonicon-icon common-icon-drawable" />
                 <span
                   class="row-checkbox"
                   @click.stop>
@@ -265,7 +265,7 @@
                   :class="['cate-row', rowStateCls(sub.id), { 'is-active': selectedSecondId === sub.id, 'is-flash': flashId === sub.id }]"
                   @click="handleSelectSecond(sub)"
                   @mousedown="handleRowDragMousedown(sub.id, 'dir', $event)">
-                  <i class="common-icon-drag row-drag" />
+                  <i class="commonicon-icon common-icon-drawable" />
                   <span
                     class="row-checkbox"
                     @click.stop>
@@ -288,7 +288,7 @@
                   :class="['cate-row', rowStateCls(plugin.id), { 'is-flash': flashId === plugin.id }]"
                   @click="toggleChecked(plugin.id)"
                   @mousedown="handleRowDragMousedown(plugin.id, 'plugin', $event)">
-                  <i class="common-icon-drag row-drag" />
+                  <i class="commonicon-icon common-icon-drawable" />
                   <span
                     class="row-checkbox"
                     @click.stop>
@@ -332,7 +332,7 @@
                   :class="['cate-row', rowStateCls(plugin.id), { 'is-flash': flashId === plugin.id }]"
                   @click="toggleChecked(plugin.id)"
                   @mousedown="handleRowDragMousedown(plugin.id, 'plugin', $event)">
-                  <i class="common-icon-drag row-drag" />
+                  <i class="commonicon-icon common-icon-drawable" />
                   <span
                     class="row-checkbox"
                     @click.stop>
@@ -1684,7 +1684,6 @@ export default {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    max-width: 1280px;
     padding: 16px;
     background: #fff;
     border-radius: 8px;
@@ -2267,9 +2266,25 @@ export default {
 .create-dialog {
     .bk-dialog-content {
         border-radius: 6px;
+        overflow: hidden;
+    }
+    .bk-dialog-footer {
+      .bk-button {
+        border-radius: 6px;
+      }
     }
     .bk-dialog-header {
-        padding: 30px 24px 20px;
+        padding: 0px 24px 20px;
+    }
+    .bk-select,
+    .bk-form-input {
+        border-radius: 6px;
+        border: 1px solid #C1CDE5;
+        background: #FFF;
+    }
+    .bk-select.is-focus,
+    .bk-form-input:focus {
+        border-color: #3a84ff;
     }
 }
 
