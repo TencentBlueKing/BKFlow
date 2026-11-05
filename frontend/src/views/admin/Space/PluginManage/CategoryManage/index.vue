@@ -224,7 +224,7 @@
                 :class="['cate-row', rowStateCls(cate.id), { 'is-active': selectedLevel1Id === cate.id, 'is-flash': flashId === cate.id }]"
                 @click="handleSelectLevelOne(cate.id)"
                 @mousedown="handleRowDragMousedown(cate.id, 'dir', $event)">
-                <i class="common-icon-drag row-drag" />
+                <i class="commonicon-icon common-icon-drawable" />
                 <span
                   class="row-checkbox"
                   @click.stop>
@@ -265,7 +265,7 @@
                   :class="['cate-row', rowStateCls(sub.id), { 'is-active': selectedSecondId === sub.id, 'is-flash': flashId === sub.id }]"
                   @click="handleSelectSecond(sub)"
                   @mousedown="handleRowDragMousedown(sub.id, 'dir', $event)">
-                  <i class="common-icon-drag row-drag" />
+                  <i class="commonicon-icon common-icon-drawable" />
                   <span
                     class="row-checkbox"
                     @click.stop>
@@ -288,7 +288,7 @@
                   :class="['cate-row', rowStateCls(plugin.id), { 'is-flash': flashId === plugin.id }]"
                   @click="toggleChecked(plugin.id)"
                   @mousedown="handleRowDragMousedown(plugin.id, 'plugin', $event)">
-                  <i class="common-icon-drag row-drag" />
+                  <i class="commonicon-icon common-icon-drawable" />
                   <span
                     class="row-checkbox"
                     @click.stop>
@@ -332,7 +332,7 @@
                   :class="['cate-row', rowStateCls(plugin.id), { 'is-flash': flashId === plugin.id }]"
                   @click="toggleChecked(plugin.id)"
                   @mousedown="handleRowDragMousedown(plugin.id, 'plugin', $event)">
-                  <i class="common-icon-drag row-drag" />
+                  <i class="commonicon-icon common-icon-drawable" />
                   <span
                     class="row-checkbox"
                     @click.stop>
