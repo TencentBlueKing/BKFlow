@@ -285,14 +285,12 @@ class TemplateSerializer(serializers.ModelSerializer):
                     oldest_snapshot = snapshot_obj.order_by("id").first()
                     if oldest_snapshot is not None:
                         oldest_snapshot.delete()
-                TemplateSnapshot.create_unpublished_snapshot(
-                    pipeline_tree, username, draft=True, template_id=instance.id, desc=draft_desc
-                )
-            else:
-                TemplateSnapshot.create_unpublished_snapshot(
-                    pipeline_tree, username, draft=True, template_id=instance.id, desc=draft_desc
-                )
-
+            snapshot = TemplateSnapshot.create_unpublished_snapshot(
+                pipeline_tree, username, draft=True, template_id=instance.id, desc=draft_desc
+            )
+            # 判断下此时是否发布过（是否有正式版本），没有的话需要将流程的数据修改为最新的草稿
+            if not instance.has_published_version():
+                instance.snapshot_id = snapshot.id
         else:
             if instance.snapshot_version is None:
                 current_version = "1.0.0"
@@ -315,7 +313,7 @@ class TemplateSerializer(serializers.ModelSerializer):
             Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"], username)
         except Exception as e:
             logger.exception(f"Triggers update or create failed,{e}")
-            raise serializers.ValidationError(detail={"msg": (f"更新失败,{e}")})
+            raise serializers.ValidationError(detail={"msg": f"更新失败,{e}"})
 
         enable_webhook = validated_data.get("enable_webhook")
         webhook_configs = validated_data.get("webhook_configs", [])
@@ -358,8 +356,10 @@ class TemplateSerializer(serializers.ModelSerializer):
         flow_version_config = (
             SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true"
         )
-        pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
-        data["pipeline_tree"] = pipeline_tree
+        if pre_pipeline_tree:
+            pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
+
+        data["pipeline_tree"] = pre_pipeline_tree
         webhook_configs = get_webhook_configs(scope_code=str(instance.id))
         data["webhook_configs"] = webhook_configs
         data["enable_webhook"] = True if webhook_configs else False
