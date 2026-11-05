@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>05 同一分支重复输出</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <i class="mk" style="left:790px;top:210px">1</i>
+    <div id="slider"></div>
+    <div class="toast error"><i data-ic="error" class="s14"></i>同一分支内已存在该输出，请改名或复用<i class="mk" style="right:-12px;top:-10px">3</i></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 05 · 流程编排人员</div>
+    <h2>同一分支重复输出</h2>
+    <div class="sub">分支 1 里「华南区资源检查」之后又加了「华南区配额复核」，两个节点先后执行、都输出 result。前者已勾选为 ${result}，现在在后者勾选同一个输出。</div>
+    <div class="note"><b class="n">1</b><span>两个节点在同一分支上先后执行，不属于并行关系，不能聚合。</span></div>
+    <div class="note"><b class="n">2</b><span>勾选被阻断：不弹向导，图标恢复为未勾选，不创建变量。</span></div>
+    <div class="note"><b class="n">3</b><span>顶部显示错误提示「同一分支内已存在该输出，请改名或复用」，几秒后自动消失。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>保存时也会校验：如果聚合后把来源节点挪到了同一分支，保存会被拒绝，并提示是哪个变量。</span></div>
+    <div class="note"><b class="n" style="background:#ff9c01">?</b><span>待确认：阻断后用户没有直接「改名」的入口，输出 KEY 由插件决定，只有勾选后才能改变量 KEY。现网遇到 KEY 冲突会自动生成 ${result_xxxx}。建议同一分支重复时沿用现网行为，生成带后缀的独立变量，并提示「同一分支已有 ${result}，已创建 ${result_7f3a}」。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="agg.js"></script>
+<script>
+  const f = FLOWS.sameBranch();
+  renderEditor(document.querySelector('[data-editor]'), { tpl: '多区域资源巡检', saveEnabled: true, nodes: f.nodes, edges: f.edges });
+  document.getElementById('slider').outerHTML = nodeConfig({
+    name: '华南区配额复核', region: '华南', items: '配额',
+    tableMk: '<i class="mk" style="right:-10px;top:48px">2</i>',
+    outputs: [
+      { name: '检查结果', key: 'result' },
+      { name: '巡检日志', key: 'check_log' },
+      { name: '执行结果', key: '_result' },
+    ],
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>

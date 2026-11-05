@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>09 运行结果：查看聚合值</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="任务"></div>
+      <div data-task></div>
+    </div>
+    <div class="mask"></div>
+    <i class="mk" style="left:544px;top:376px">1</i>
+    <div id="slider"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 09 · 任务执行人</div>
+    <h2>运行结果：查看聚合值</h2>
+    <div class="sub">用设计稿 08 的流程创建任务并执行。分支 2「华东区资源检查」执行失败，被手动跳过。在任务详情点「更多操作 → 全局变量」。</div>
+    <div class="note"><b class="n">1</b><span>画布状态沿用现网：华南区成功；华东区失败后被手动跳过，没有产生输出。</span></div>
+    <div class="note"><b class="n">2</b><span>聚合变量带「聚合」标记和写入统计「已写入 1/2」。</span></div>
+    <div class="note"><b class="n">3</b><span>值与模板约定一致：每一项是 {"branch", "value"}，只包含已写入的分支。</span></div>
+    <div class="note"><b class="n">4</b><span>下方按分支标识列出来源节点和写入状态，缺失的分支注明原因。来源节点只在这里展示，不写入值。数据来自任务快照中的聚合配置和节点状态。</span></div>
+    <div class="note"><b class="n">5</b><span>字典模式同理，以分支标识为键。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>下游「汇总通知」的节点详情里，输入参数「消息内容」显示渲染后的文本，可以对照排查。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>某个分支失败后流程是否继续，仍由该节点的失败处理决定，聚合不改变这一点。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="agg.js"></script>
+<script>
+  const ok = { hd: '#2dcb56', st: ic('check', 's12') };
+  const f = FLOWS.se({
+    a: ok, sum: ok, arc: ok,
+    c: { hd: '#ff9c01', st: '失败后跳过' },
+    alm: { hd: '#c4c6cc', cls: 'dim' }, almDash: true,
+    sCls: 'done', endCls: 'done', endStyle: 'background:#2dcb56',
+  });
+  f.nodes[0].style = 'background:#2dcb56';
+  renderTask(document.querySelector('[data-task]'), {
+    name: '多区域资源巡检_20260924153012', status: '<span class="tag success">完成</span>',
+    actions: ic('play') + ic('pause') + ic('stop') + '<span class="row gap4 link">更多操作' + ic('down', 's12') + '</span>',
+    nodes: f.nodes, edges: f.edges,
+  });
+  const json =
+    '[\n' +
+    '  {\n' +
+    '    <span class="k">"branch"</span>: <span class="s">"branch_1"</span>,\n' +
+    '    <span class="k">"value"</span>: {<span class="k">"status"</span>: <span class="s">"passed"</span>, <span class="k">"quota"</span>: <span class="n">8</span>}\n' +
+    '  }\n' +
+    ']';
+  document.getElementById('slider').outerHTML =
+    '<div class="slider" style="width:680px">' +
+    '<div class="hd"><span class="close">' + ic('right', 's14') + '</span>全局变量</div>' +
+    '<div class="bd" style="padding:24px">' +
+    '<div class="vcard"><div class="lb">${batch_id}</div><div class="val">20260924-01</div></div>' +
+    '<div class="vcard rel"><div class="lb"><span class="var">${result}</span><span class="tag sm primary">聚合 · 列表</span><span class="muted">已写入 1/2</span></div>' +
+    '<i class="mk" style="left:232px;top:-2px">2</i>' +
+    '<div class="rel"><div class="code" style="background:#fafbfd">' + json + '</div><i class="mk" style="right:-12px;top:-8px">3</i></div>' +
+    '<div class="rel" style="margin-top:8px"><div class="tb-wrap"><table class="tb compact"><colgroup><col style="width:100px"><col><col style="width:210px"></colgroup>' +
+    '<thead><tr><th>分支标识</th><th>来源节点</th><th>写入状态</th></tr></thead><tbody>' +
+    '<tr><td class="mono dark">branch_1</td><td>分支 1 · <span class="link">华南区资源检查</span></td><td><span class="tag sm success">已写入</span></td></tr>' +
+    '<tr><td class="mono dark">branch_2</td><td>分支 2 · <span class="link">华东区资源检查</span></td><td><span class="tag sm">未写入</span> <span class="muted">执行失败，已手动跳过</span></td></tr>' +
+    '</tbody></table></div><i class="mk" style="right:-12px;top:-10px">4</i></div>' +
+    '</div>' +
+    '<div class="vcard rel"><div class="lb"><span class="var">${check_log}</span><span class="tag sm primary">聚合 · 字典</span><span class="muted">已写入 1/1</span></div>' +
+    '<div class="code" style="background:#fafbfd">{<span class="k">"branch_1"</span>: <span class="s">"cpu 42%, mem 61%, disk 70%"</span>}</div><i class="mk" style="right:-12px;top:22px">5</i></div>' +
+    '<div class="vcard"><div class="lb">${_result}</div><div class="val">True</div></div>' +
+    '</div></div>';
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
