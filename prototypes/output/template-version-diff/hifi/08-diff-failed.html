@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>08 差异计算失败</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="dlg"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 08 · 流程编排人员</div>
+    <h2>差异计算失败</h2>
+    <div class="sub">读取基线 v1.3.0 的快照超时，差异没有算出来。编排人员仍然点了「发布」。</div>
+    <div class="note"><b class="n">1</b><span>差异区显示失败原因，不显示空清单，避免误以为没有改动。</span></div>
+    <div class="note"><b class="n">2</b><span>「重试」重新计算；也可以切换对比基线后重新计算。</span></div>
+    <div class="note"><b class="n">3</b><span>不阻断发布：点「发布」时先二次确认，确认后按原有流程发布。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>上一发布版的快照被删除时，默认基线取最近一个未删除的发布版，并显示「非上一发布版」提示（同设计稿 02）。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="diff.js"></script>
+<script>
+  renderBg();
+  const confirmPop =
+    '<div class="pop down" style="right:-6px;bottom:44px;width:300px;padding:14px 16px">' +
+    '<div class="row gap8 dark" style="font-size:14px;margin-bottom:6px"><i data-ic="warn" class="s14" style="color:#ff9c01"></i>未完成版本对比，确定直接发布？</div>' +
+    '<div class="muted" style="margin-bottom:12px">发布后可以在版本列表中查看各版本内容。</div>' +
+    '<div class="row gap8" style="justify-content:flex-end"><button class="btn primary sm">发布</button><button class="btn sm">取消</button></div></div>';
+  document.getElementById('dlg').outerHTML = releaseDialog({
+    panel: summaryBar('v1.3.0（2026-09-18 10:24 发布）', '') +
+      '<div class="empty"><div class="big" style="background:#ffeded;color:#ea3636">' + ic('error') + '</div>' +
+      '<h3>版本差异计算失败</h3>' +
+      '<p style="margin-bottom:16px">读取 v1.3.0 的快照超时，请稍后重试。</p>' +
+      '<span class="rel"><button class="btn">' + ic('refresh', 's14') + '重试</button><i class="mk" style="right:-14px;top:-10px">2</i></span></div>' +
+      '<i class="mk" style="left:50%;top:330px;margin-left:80px">1</i>',
+    leftFt: '<button class="btn disabled">JSON 对比</button>',
+    pubMk: '<i class="mk" style="left:-10px;top:-10px">3</i>' + confirmPop,
+  });
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
