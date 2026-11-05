@@ -30,6 +30,7 @@ from bkflow.bk_plugin.models import AuthStatus, BKPlugin, BKPluginAuthorization
 from bkflow.bk_plugin.tenant import get_plugin_tenant_id
 from bkflow.constants import ALL_SPACE
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
+from bkflow.plugin.constants import WRAPPER_CODES
 from bkflow.plugin.models import (
     OPEN_PLUGIN_WRAPPER_VERSION,
     OpenPluginCatalogIndex,
@@ -41,6 +42,7 @@ from bkflow.plugin.services.uniform_api_meta import (
     UniformAPIMetaError,
     extract_uniform_api_meta_data,
 )
+from bkflow.plugin_catalog.services.migration_service import PluginCatalogMigrationService
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
@@ -55,7 +57,11 @@ logger = logging.getLogger("root")
 
 PLUGIN_SCHEMA_CACHE_TTL = 300
 
-WRAPPER_CODES = {"remote_plugin", "uniform_api", "subprocess_plugin"}
+# 包装器插件 code 集合统一定义在 bkflow.plugin.constants（无依赖底层模块），
+# 这里保留同名引用供既有调用方 `from bkflow.plugin.services.plugin_schema_service
+# import WRAPPER_CODES` 继续使用；放到底层模块是为了让 plugin_catalog 下的模块
+# 能直接引用它，避免 plugin_catalog <-> plugin_schema_service 的循环依赖。
+WRAPPER_CODES = WRAPPER_CODES
 
 EXTERNAL_PLUGIN_TYPE_MAP = {
     "component": "component",
@@ -74,6 +80,43 @@ class PluginSchemaService:
         self.username = username
         self.scope_type = scope_type
         self.scope_id = scope_id
+        self._catalog_managed = None
+
+    @property
+    def catalog_managed(self):
+        """该空间是否已完成「插件目录」迁移（ready=True）。
+
+        已迁移空间的插件可见性判定权威收敛到 `SpacePluginCatalogEntry.status`，
+        未迁移空间沿用原有的黑白名单/授权/开放插件开关逻辑。
+        """
+        if self._catalog_managed is None:
+            self._catalog_managed = PluginCatalogMigrationService.is_ready(self.space_id)
+        return self._catalog_managed
+
+    def _get_catalog_visible_identities(self):
+        """已迁移空间里处于"可用"状态的插件身份集合。"""
+        from bkflow.plugin_catalog.models import PluginCatalogStatus, SpacePluginCatalogEntry
+
+        return set(
+            SpacePluginCatalogEntry.objects.filter(
+                space_id=self.space_id, status=PluginCatalogStatus.VISIBLE, is_deleted=False
+            ).values_list("plugin_type", "source_key", "plugin_code")
+        )
+
+    @staticmethod
+    def _plugin_identity(plugin_info):
+        """把三种来源的插件信息统一映射到插件目录的身份三元组 (plugin_type, source_key, plugin_code)。
+
+        PluginSchemaService 内部用 component/remote_plugin/uniform_api 三种命名，
+        插件目录用 builtin/bk_plugin/api。
+        """
+        ptype = plugin_info.get("plugin_type")
+        code = plugin_info.get("code") or plugin_info.get("plugin_id") or ""
+        if ptype == "component":
+            return ("builtin", "", code)
+        if ptype == "remote_plugin":
+            return ("bk_plugin", "", code)
+        return ("api", plugin_info.get("source_key") or "", code)
 
     def list_plugins(self, keyword=None, plugin_type=None, with_detail=False, limit=100, offset=0, plugin_source=None):
         """
@@ -100,15 +143,29 @@ class PluginSchemaService:
         else:
             handlers = type_handlers
 
+        # 已迁移空间：内置插件不再套用旧的黑白名单配置（旧配置迁移后已降级为只读历史配置），
+        # 可见性统一由插件目录的 status 决定，避免出现"两套权威"长期并存。
+        catalog_managed = self.catalog_managed
+        visible_identities = self._get_catalog_visible_identities() if catalog_managed else None
+
         for ptype, handler in handlers.items():
             try:
                 if ptype == "uniform_api":
                     plugins = handler(keyword=keyword, plugin_source=plugin_source)
+                elif ptype == "component":
+                    plugins = handler(keyword=keyword, use_space_plugin_config=not catalog_managed)
                 else:
                     plugins = handler(keyword=keyword)
                 all_plugins.extend(plugins)
             except Exception:
                 logger.exception("查询 %s 类型插件列表失败", ptype)
+
+        if visible_identities is not None:
+            all_plugins = [
+                plugin
+                for plugin in all_plugins
+                if self._plugin_identity(plugin) in visible_identities
+            ]
 
         if with_detail:
             self._fill_schema_batch(all_plugins)
@@ -149,7 +206,12 @@ class PluginSchemaService:
 
     # === 列表查询 ===
 
-    def _list_component_plugins(self, keyword=None):
+    def _list_component_plugins(self, keyword=None, use_space_plugin_config=True):
+        """
+        :param use_space_plugin_config: 是否套用旧的空间插件黑白名单配置。
+            已完成插件目录迁移的空间传 False（可见性改由目录 status 决定）；
+            未迁移空间保持 True，沿用原有行为。
+        """
         qs = ComponentModel.objects.filter(status=True).exclude(code__in=WRAPPER_CODES)
 
         system_allow_list = SpacePluginConfigModel.objects.get_space_allow_list(self.space_id)
@@ -157,11 +219,12 @@ class PluginSchemaService:
         if space_plugins:
             qs = qs.exclude(code__in=list(space_plugins))
 
-        scope_code = "{}_{}".format(self.scope_type, self.scope_id) if self.scope_type and self.scope_id else None
-        space_plugin_config = SpaceConfig.get_config(space_id=self.space_id, config_name=SpacePluginConfig.name)
-        if space_plugin_config and scope_code:
-            parser = SpacePluginConfigParser(space_plugin_config)
-            qs = parser.get_filtered_plugin_qs(scope_code, qs)
+        if use_space_plugin_config:
+            scope_code = "{}_{}".format(self.scope_type, self.scope_id) if self.scope_type and self.scope_id else None
+            space_plugin_config = SpaceConfig.get_config(space_id=self.space_id, config_name=SpacePluginConfig.name)
+            if space_plugin_config and scope_code:
+                parser = SpacePluginConfigParser(space_plugin_config)
+                qs = parser.get_filtered_plugin_qs(scope_code, qs)
 
         results = []
         seen_codes = {}

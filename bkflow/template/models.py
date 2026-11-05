@@ -50,11 +50,25 @@ logger = logging.getLogger("root")
 
 class TemplateManager(models.Manager):
     def copy_template(
-        self, template_id, space_id, operator, name=None, desc=None, copy_subprocess=False, version=None, is_draft=True
+        self,
+        template_id,
+        space_id,
+        operator,
+        name=None,
+        desc=None,
+        copy_subprocess=False,
+        version=None,
+        is_draft=True,
+        created_template_ids=None,
     ):
         """
         复制流程模版 snapshot 深拷贝复制 其他浅拷贝复制 其他关联资源如 mock 数据、决策表数据等暂不拷贝
         暂不支持拷贝带决策表插件的流程
+
+        :param created_template_ids: 可选list，用于收集本次复制过程中**新建**的模板 id
+            （含递归复制的子流程）。调用方据此补做"插件引用重算"等派生数据的初始化——
+            本模块不依赖 bkflow.plugin_catalog，保持依赖方向单一（plugin_catalog -> template），
+            避免 template <-> plugin_catalog 的循环导入。
         """
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
@@ -72,6 +86,7 @@ class TemplateManager(models.Manager):
                         copy_subprocess=True,
                         version=node["version"],
                         is_draft=False,
+                        created_template_ids=created_template_ids,
                     )
                     node["template_id"] = new_sub_template.id
                     node["version"] = new_sub_template.version
@@ -97,14 +112,21 @@ class TemplateManager(models.Manager):
             # 开启事务 确保都创建成功
             if is_draft and SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
                 copyed_snapshot = TemplateSnapshot.create_draft_snapshot(copyed_pipeline_tree, operator)
+                reference_role = "draft"
             else:
                 copyed_snapshot = TemplateSnapshot.create_snapshot(copyed_pipeline_tree, operator, "1.0.0")
+                reference_role = "published"
             template.snapshot_id = copyed_snapshot.id
             template.updated_by = operator
             template.creator = operator
             template.save()
             copyed_snapshot.template_id = template.id
             copyed_snapshot.save(update_fields=["template_id"])
+        # 注意：复制出来的流程的"插件引用记录"由调用方（TemplateViewSet.copy_template）负责重算，
+        # 不在本模块做——template.models 不依赖 bkflow.plugin_catalog，保持依赖方向单一
+        # （plugin_catalog -> template），避免 template <-> plugin_catalog 的循环导入。
+        if created_template_ids is not None:
+            created_template_ids.append(template.id)
         return template
 
 
@@ -226,6 +248,30 @@ class Template(CommonModel):
     def has_published_version(self):
         """是否存在已发布的正式版本（非草稿、未删除的快照）"""
         return TemplateSnapshot.objects.filter(template_id=self.id, draft=False, is_deleted=False).exists()
+
+    def get_baseline_pipeline_tree(self):
+        """
+        取本流程当前的基线流程树（用于"本次保存相对基线新增了哪些节点"的判定）：
+
+        - 优先取当前草稿快照（更新草稿场景：基线=保存前的旧草稿）
+        - 其次取当前已发布版本（从已发布版本再次编辑的场景）
+        - 都没有则返回 None（新建流程，此时所有节点都算新增）
+
+        该方法由插件目录的"新增已下架插件拦截"使用，
+        实现放在模板侧，使 plugin_catalog 不需要反向依赖 template.models，避免循环导入。
+        """
+        draft = TemplateSnapshot.objects.filter(template_id=self.id, draft=True).order_by("-id").first()
+        if draft is not None:
+            return draft.data
+
+        snapshot_id = getattr(self, "snapshot_id", None)
+        if snapshot_id:
+            snapshot = (
+                TemplateSnapshot.objects.filter(id=snapshot_id, draft=False, is_deleted=False).order_by("-id").first()
+            )
+            if snapshot is not None:
+                return snapshot.data
+        return None
 
     @property
     def subprocess_info(self):

@@ -50,11 +50,32 @@ def sync_open_plugin_catalog_source(space_id, source_key):
 
 @shared_task(ignore_result=True)
 def dispatch_open_plugin_catalog_sync():
-    """为已配置的开放插件来源分别投递同步任务。"""
+    """
+    为已配置的开放插件来源分别投递同步任务；并为已完成「插件目录」迁移的空间追加投递
+    bkflow.plugin_catalog 的统一插件目录同步任务（builtin/bk_plugin/api 三类），
+    复用本周期入口，不新增 Beat 调度。
+    """
     sync_sources = sorted(set(OpenPluginCatalogService.iter_configured_sources()))
 
     for space_id, source_key in sync_sources:
         sync_open_plugin_catalog_source.delay(space_id=space_id, source_key=source_key)
 
     logger.info("开放插件目录同步任务已投递: source_count=%s", len(sync_sources))
+
+    _dispatch_plugin_catalog_sync()
+
     return len(sync_sources)
+
+
+def _dispatch_plugin_catalog_sync():
+    """为已完成插件目录迁移的空间投递统一插件目录同步任务。延迟 import 避免
+    bkflow.plugin 对 bkflow.plugin_catalog 产生模块级依赖/循环导入。"""
+    from bkflow.plugin_catalog.services.sync_service import PluginCatalogSyncService
+    from bkflow.plugin_catalog.tasks import sync_space_plugin_catalog_task
+
+    space_ids = sorted(set(PluginCatalogSyncService.iter_ready_spaces()))
+    for space_id in space_ids:
+        sync_space_plugin_catalog_task.delay(space_id=space_id)
+
+    logger.info("空间插件目录同步任务已投递: space_count=%s", len(space_ids))
+    return len(space_ids)

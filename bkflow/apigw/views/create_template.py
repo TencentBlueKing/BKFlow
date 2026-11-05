@@ -34,6 +34,8 @@ from bkflow.contrib.operation_record.decorators import record_operation
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.label.serializers import LabelSerializer
+from bkflow.plugin_catalog.models import TemplatePluginReferenceRole
+from bkflow.plugin_catalog.services.reference_service import PluginReferenceService
 from bkflow.space.configs import FlowVersioning, GatewayExpressionConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.space.utils import build_default_pipeline_tree_with_space_id
@@ -103,14 +105,23 @@ def create_template(request, space_id):
                 snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username, "1.0.0")
             else:
                 snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+            reference_role = TemplatePluginReferenceRole.DRAFT
         else:
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
+            reference_role = TemplatePluginReferenceRole.PUBLISHED
         template = Template.objects.create(
             **validate_data, snapshot_id=snapshot.id, space_id=space_id, updated_by=username, creator=username
         )
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
         TemplateLabelRelation.objects.set_labels(template.id, label_ids)
+        # 插件引用重算（与流程写入同事务）
+        PluginReferenceService.rebuild_template_references(
+            space_id=space_id,
+            template_id=template.id,
+            role=reference_role,
+            pipeline_tree=pipeline_tree,
+        )
 
         if webhook_configs:
             apply_result = apply_webhook_configs(webhook_configs, str(template.id))

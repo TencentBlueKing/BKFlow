@@ -39,6 +39,11 @@ logger = logging.getLogger(__name__)
 
 
 class OpenPluginCatalogService:
+    # 单页请求条数；FETCH_MAX_PAGES 是安全上限（200*50=1万条），防止来源分页协议异常时死循环，
+    # 不是业务容量承诺，纯粹是兜底保护。
+    FETCH_PAGE_SIZE = 200
+    FETCH_MAX_PAGES = 50
+
     @classmethod
     def is_catalog_initialized(cls, space_id, source_key, plugin_source=None):
         catalog_qs = OpenPluginCatalogIndex.objects.filter(space_id=space_id, source_key=source_key)
@@ -48,6 +53,43 @@ class OpenPluginCatalogService:
 
     @classmethod
     def sync_space_plugins(cls, space_id, source_key=None, username="admin"):
+        """
+        同步开放插件目录（仅 V4 协议，`_refresh_catalog_index` 内部过滤），
+        供画布"缓存优先"展示路径使用，详见 bkflow/pipeline_plugins/query/uniform_api/uniform_api.py。
+        返回值契约（`list(来源 key)`）保持不变，被现有测试 `test_sync_space_plugins_aggregates_*`
+        直接断言，不要改成返回原始数据，若需要原始数据请用 `fetch_all_source_plugins`。
+        """
+        source_plugins = cls._collect_source_plugins(space_id=space_id, source_key=source_key, username=username)
+
+        for current_source_key, plugins_by_id in source_plugins.items():
+            cls._refresh_catalog_index(
+                space_id=space_id,
+                source_key=current_source_key,
+                api_list=list(plugins_by_id.values()),
+            )
+        return list(source_plugins.keys())
+
+    @classmethod
+    def fetch_all_source_plugins(cls, space_id, source_key=None, username="admin"):
+        """
+        返回每个已配置来源**当前完整**的插件 id 列表，不按 `wrapper_version` 过滤（V2/V3/V4 一视同仁）。
+
+        供 `bkflow.plugin_catalog.services.sync_service.PluginCatalogSyncService.sync_api` 直接消费，
+        把结果喂给统一插件目录（`SpacePluginCatalogEntry`），不经过只服务于 V4 展示缓存的
+        `OpenPluginCatalogIndex` 中间表。
+
+        :return: {source_key: [plugin_id, ...]}
+        """
+        source_plugins = cls._collect_source_plugins(space_id=space_id, source_key=source_key, username=username)
+        return {src: list(plugins_by_id.keys()) for src, plugins_by_id in source_plugins.items()}
+
+    @classmethod
+    def _collect_source_plugins(cls, space_id, source_key=None, username="admin"):
+        """实际发请求拉取每个已配置来源的完整插件清单，按"执行来源"聚合去重。
+
+        `sync_space_plugins`（只服务 V4 缓存）与 `fetch_all_source_plugins`（服务统一插件目录，
+        全版本不过滤）共用这一个方法，避免同一个来源在一次同步周期里被重复请求两次。
+        """
         source_plugins = {}
         for api_key, api_entry in cls._get_sources(space_id=space_id, source_key=source_key).items():
             current_source_key = cls._effective_source_key(api_key=api_key, api_entry=api_entry)
@@ -58,14 +100,7 @@ class OpenPluginCatalogService:
             )
             plugins_by_id = source_plugins.setdefault(current_source_key, {})
             plugins_by_id.update({api_item["id"]: api_item for api_item in api_list})
-
-        for current_source_key, plugins_by_id in source_plugins.items():
-            cls._refresh_catalog_index(
-                space_id=space_id,
-                source_key=current_source_key,
-                api_list=list(plugins_by_id.values()),
-            )
-        return list(source_plugins.keys())
+        return source_plugins
 
     @classmethod
     def list_space_plugins(cls, space_id, source_key=None):
@@ -180,6 +215,13 @@ class OpenPluginCatalogService:
 
     @classmethod
     def _fetch_api_list(cls, space_id, api_entry, username):
+        """
+        请求某个来源的完整插件清单，内部做真正的分页循环（此前只请求第一页、最多 200 条，
+        超过 200 条的来源会被误判为"后面的都已下架"，这里一并修复）。
+
+        终止分页的依据是"本页返回条数 < 请求的 limit"（标准分页语义，不依赖来源是否准确填写
+        `total` 字段）；额外加 FETCH_MAX_PAGES 安全上限兜底，防止来源分页协议异常时死循环。
+        """
         credential = cls._get_apigw_credential(space_id=space_id)
         if not credential:
             raise ValidationError("空间 {} 未配置 API Gateway 凭证".format(space_id))
@@ -191,24 +233,47 @@ class OpenPluginCatalogService:
             username=username,
             headers=api_entry.get("headers") or {},
         )
-        list_result = client.request(
-            url=api_entry.meta_apis if hasattr(api_entry, "meta_apis") else api_entry.get("meta_apis"),
-            method="GET",
-            data={"limit": 200, "offset": 0},
-            headers=headers,
-            username=username,
-            timeout=settings.OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT,
-        )
-        if not list_result.result:
-            raise APIResponseError("请求开放插件目录失败: {}".format(list_result.message))
-        if not isinstance(list_result.json_resp, dict):
-            raise APIResponseError("请求开放插件目录失败: 响应体不是 JSON 对象")
+        url = api_entry.meta_apis if hasattr(api_entry, "meta_apis") else api_entry.get("meta_apis")
 
-        response_data = list_result.json_resp.get("data")
-        if not isinstance(response_data, dict):
-            raise APIResponseError("请求开放插件目录失败: 响应体缺少 data 对象")
-        client.validate_response_data(response_data, client.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA)
-        return response_data["apis"]
+        page_size = cls.FETCH_PAGE_SIZE
+        all_apis = []
+        offset = 0
+        for _ in range(cls.FETCH_MAX_PAGES):
+            list_result = client.request(
+                url=url,
+                method="GET",
+                data={"limit": page_size, "offset": offset},
+                headers=headers,
+                username=username,
+                timeout=settings.OPEN_PLUGIN_CATALOG_SYNC_REQUEST_TIMEOUT,
+            )
+            if not list_result.result:
+                raise APIResponseError("请求开放插件目录失败: {}".format(list_result.message))
+            if not isinstance(list_result.json_resp, dict):
+                raise APIResponseError("请求开放插件目录失败: 响应体不是 JSON 对象")
+
+            response_data = list_result.json_resp.get("data")
+            if not isinstance(response_data, dict):
+                raise APIResponseError("请求开放插件目录失败: 响应体缺少 data 对象")
+            client.validate_response_data(response_data, client.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA)
+
+            page_apis = response_data["apis"]
+            all_apis.extend(page_apis)
+
+            if len(page_apis) < page_size:
+                # 返回条数不足一页，说明已经是最后一页
+                break
+            offset += len(page_apis)
+        else:
+            logger.warning(
+                "开放插件目录分页达到安全上限(%s页)，可能未拉取完整结果: space_id=%s, url=%s, fetched=%s",
+                cls.FETCH_MAX_PAGES,
+                space_id,
+                url,
+                len(all_apis),
+            )
+
+        return all_apis
 
     @classmethod
     def _refresh_catalog_index(cls, space_id, source_key, api_list):

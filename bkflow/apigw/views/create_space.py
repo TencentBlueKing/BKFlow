@@ -18,6 +18,7 @@ to the current version of the project delivered to anyone in the future.
 """
 
 import json
+import logging
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
@@ -30,9 +31,12 @@ from rest_framework.exceptions import PermissionDenied
 from bkflow.apigw.decorators import return_json_response
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.apigw.utils import get_space_config_presentation
+from bkflow.plugin_catalog.services.migration_service import PluginCatalogMigrationService
 from bkflow.space.models import Space, SpaceConfig, SpaceCreateType
 from bkflow.utils import err_code
 from bkflow.utils.tenant import get_apigw_request_tenant_id
+
+logger = logging.getLogger("root")
 
 
 @login_exempt
@@ -74,6 +78,14 @@ def create_space(request):
         if config:
             default_config.update(config)
         SpaceConfig.objects.batch_update(space_id=space.id, configs=default_config)
+        # 新空间插件目录必然是空库，初始化同步执行即可，不需要 dry-run/重跑能力。
+        # 初始化失败不阻塞空间创建：插件目录只是空间的管理视图，缺失时由
+        # `manage.py initialize_plugin_catalog --space-id <id>` 补做，
+        # 避免把空间创建这条核心链路拖垮。
+        try:
+            PluginCatalogMigrationService.initialize_space(space_id=space.id, operator=username)
+        except Exception:
+            logger.exception("新空间插件目录初始化失败，可由 initialize_plugin_catalog 命令补做: space_id=%s", space.id)
 
     space_config_presentation = get_space_config_presentation(space.id)
     resp = {"space": space.to_json(), "config": space_config_presentation}

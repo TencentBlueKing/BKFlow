@@ -26,6 +26,7 @@ from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.decision_table.models import DecisionTable
+from bkflow.plugin_catalog.services.reference_service import PluginReferenceService
 from bkflow.template.models import Template, TemplateReference, Trigger
 from bkflow.utils import err_code
 from bkflow.utils.webhook import clear_scope_webhooks
@@ -58,6 +59,8 @@ def delete_template(request, space_id, template_id):
     # 如果没有引用，执行删除操作，统一事务控制
     with transaction.atomic():
         Template.objects.filter(space_id=space_id, id=template_id).update(is_deleted=True)
+        # 流程删除后清理其插件引用记录
+        PluginReferenceService.clear_template_references(space_id=space_id, template_ids=[template_id])
         trigger_ids = Trigger.objects.filter(template_id=template_id).values_list("id", flat=True)
         Trigger.objects.batch_delete_by_ids(space_id=space_id, trigger_ids=list(trigger_ids))
         result = clear_scope_webhooks([str(template_id)])

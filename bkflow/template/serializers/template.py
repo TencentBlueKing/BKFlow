@@ -41,6 +41,9 @@ from bkflow.permission.services import iter_user_grants
 from bkflow.pipeline_validate.handler import ValidatorHandler
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
+from bkflow.plugin_catalog.models import TemplatePluginReferenceRole
+from bkflow.plugin_catalog.services.guard_service import PluginCatalogGuardService
+from bkflow.plugin_catalog.services.reference_service import PluginReferenceService
 from bkflow.space.configs import (
     FlowVersioning,
     GatewayExpressionConfig,
@@ -187,9 +190,26 @@ class TemplateSerializer(serializers.ModelSerializer):
             )
 
         if space_id:
+            # 11 · 流程保存拦截：先做"管理侧是否允许使用"的下架插件校验（更贴近用户心智，
+            # 先解释为什么不让存），再做既有"开放插件可用性校验"（来源/版本/租户），
+            # 两者职责不同互不替代。
+            PluginCatalogGuardService.check_newly_added_offline_plugins(
+                space_id=space_id,
+                pipeline_tree=pipeline_tree,
+                baseline_pipeline_tree=self._get_baseline_pipeline_tree(),
+            )
             OpenPluginSnapshotService.validate_pipeline_tree(space_id=space_id, pipeline_tree=pipeline_tree)
 
         return pipeline_tree
+
+    def _get_baseline_pipeline_tree(self):
+        """保存前的基线流程树：更新草稿时取当前草稿快照，从已发布版本编辑时取当前发布版本；
+        新建流程没有基线（None），此时所有节点都视为新增。
+        具体取法见 `Template.get_baseline_pipeline_tree()`。"""
+        instance = getattr(self, "instance", None)
+        if instance is None:
+            return None
+        return instance.get_baseline_pipeline_tree()
 
     @transaction.atomic()
     def create(self, validated_data):
@@ -208,8 +228,10 @@ class TemplateSerializer(serializers.ModelSerializer):
         )
         if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
             snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+            reference_role = TemplatePluginReferenceRole.DRAFT
         else:
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
+            reference_role = TemplatePluginReferenceRole.PUBLISHED
         validated_data["snapshot_id"] = snapshot.id
         validated_data.pop("triggers", None)
         validated_data.pop("labels", None)
@@ -220,6 +242,15 @@ class TemplateSerializer(serializers.ModelSerializer):
 
         snapshot.template_id = template.id
         snapshot.save(update_fields=["template_id"])
+
+        # 插件引用重算：与流程写入同事务（create 已带 @transaction.atomic），
+        # 避免"流程保存成功但引用统计没更新"
+        PluginReferenceService.rebuild_template_references(
+            space_id=space_id,
+            template_id=template.id,
+            role=reference_role,
+            pipeline_tree=pipeline_tree,
+        )
 
         event_broadcast_signal.send(
             sender=WebhookEventType.TEMPLATE_CREATE.value,
@@ -271,6 +302,7 @@ class TemplateSerializer(serializers.ModelSerializer):
         )
         if SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true":
             instance.update_draft_snapshot(pipeline_tree, username)
+            reference_role = TemplatePluginReferenceRole.DRAFT
         else:
             if instance.snapshot_version is None:
                 current_version = "1.0.0"
@@ -280,7 +312,17 @@ class TemplateSerializer(serializers.ModelSerializer):
             instance.snapshot_id = snapshot.id
             snapshot.template_id = instance.id
             snapshot.save(update_fields=["template_id"])
+            reference_role = TemplatePluginReferenceRole.PUBLISHED
         instance = super().update(instance, validated_data)
+
+        # 插件引用重算：与流程写入同事务，避免"流程保存成功但引用统计没更新"
+        PluginReferenceService.rebuild_template_references(
+            space_id=instance.space_id,
+            template_id=instance.id,
+            role=reference_role,
+            pipeline_tree=pipeline_tree,
+        )
+
         if template_labels is not None:
             self._sync_template_labels(instance.id, template_labels)
         # 批量修改流程绑定的触发器:

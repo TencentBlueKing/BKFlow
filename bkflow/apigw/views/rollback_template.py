@@ -28,6 +28,8 @@ from django.views.decorators.http import require_POST
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.constants import TemplateOperationSource, TemplateOperationType
+from bkflow.plugin_catalog.models import TemplatePluginReferenceRole
+from bkflow.plugin_catalog.services.reference_service import PluginReferenceService
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
 from bkflow.template.models import Template, TemplateOperationRecord, TemplateSnapshot
@@ -71,6 +73,13 @@ def rollback_template(request, space_id, template_id):
     with transaction.atomic():
         pipeline_tree = snapshot.data
         draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username, version)
+        # 回滚是把历史版本内容写回草稿，重算草稿(role=draft)的插件引用
+        PluginReferenceService.rebuild_template_references(
+            space_id=space_id,
+            template_id=instance.id,
+            role=TemplatePluginReferenceRole.DRAFT,
+            pipeline_tree=pipeline_tree,
+        )
 
     TemplateOperationRecord.objects.create(
         operate_source=TemplateOperationSource.api.name,

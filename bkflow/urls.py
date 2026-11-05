@@ -35,6 +35,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         re_path(r"^api/decision_table/", include("bkflow.decision_table.urls")),
         re_path(r"^api/space/", include("bkflow.space.urls")),
         re_path(r"^api/plugin/", include("bkflow.plugin.urls")),
+        re_path(r"^api/plugin_catalog/", include("bkflow.plugin_catalog.urls")),
         re_path(r"^api/bk_plugin/", include("bkflow.bk_plugin.urls")),
         re_path(r"^api/admin/", include("bkflow.admin.urls")),
         re_path(r"^api/permission/", include("bkflow.permission.urls")),

@@ -822,6 +822,200 @@ class SpacePluginConfig(BaseSpaceConfig):
         return SpacePluginConfigParser(config=value).is_valid()
 
 
+class PluginAdmissionStrategyConfig(BaseSpaceConfig):
+    """
+    新插件接入策略：新来源发现的插件默认如何流转（待审核 / 直接通过 / 按条件自动通过）。
+    对应「插件管理」页面的新插件策略配置。
+    """
+
+    class Mode:
+        REVIEW = "review"
+        VISIBLE = "visible"
+        CONDITIONAL = "conditional"
+
+        CHOICES = (REVIEW, VISIBLE, CONDITIONAL)
+
+    class VisibleAfterPass:
+        UNCATEGORIZED = "uncategorized"
+        AI = "ai"
+
+        CHOICES = (UNCATEGORIZED, AI)
+
+    class AiScope:
+        INCREMENT = "increment"
+        FREE = "free"
+
+        CHOICES = (INCREMENT, FREE)
+
+    class ConditionAfterPass:
+        UNCATEGORIZED = "uncategorized"
+        AI = "ai"
+        ASSIGN = "assign"
+
+        CHOICES = (UNCATEGORIZED, AI, ASSIGN)
+
+    name = "plugin_admission_strategy"
+    desc = _("新插件接入策略")
+    value_type = SpaceConfigValueType.JSON.value
+    example = {
+        "mode": "conditional",
+        "visible_after_pass": "uncategorized",
+        "visible_ai_scope": "increment",
+        "conditions": [
+            {
+                "sources": ["api_job"],
+                "after_pass": "assign",
+                "ai_scope": "increment",
+                "assign_directory_id": "cate_id",
+            }
+        ],
+        "fallback": {"after_pass": "uncategorized"},
+    }
+    default_value = {"mode": Mode.REVIEW}
+
+    is_public = False
+    group = "api_integration"
+    help = {
+        "summary": _("控制新发现插件默认进入「待审核」还是自动通过"),
+        "effect": _("全部需要审核（默认）/ 全部直接通过 / 按来源设置条件自动通过"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {"control": "plugin_admission_strategy", "label": _("新插件策略")}
+
+    @classmethod
+    def validate(cls, value: dict):
+        if not isinstance(value, dict):
+            raise ValidationError("[validate plugin_admission_strategy error]: value must be a dict")
+
+        mode = value.get("mode")
+        if mode not in cls.Mode.CHOICES:
+            raise ValidationError(
+                f"[validate plugin_admission_strategy error]: mode must be one of {cls.Mode.CHOICES}, got {mode}"
+            )
+
+        if mode == cls.Mode.VISIBLE:
+            after_pass = value.get("visible_after_pass")
+            if after_pass not in cls.VisibleAfterPass.CHOICES:
+                raise ValidationError(
+                    "[validate plugin_admission_strategy error]: "
+                    f"visible_after_pass must be one of {cls.VisibleAfterPass.CHOICES}, got {after_pass}"
+                )
+            if after_pass == cls.VisibleAfterPass.AI and value.get("visible_ai_scope") not in cls.AiScope.CHOICES:
+                raise ValidationError(
+                    "[validate plugin_admission_strategy error]: "
+                    f"visible_ai_scope must be one of {cls.AiScope.CHOICES} when visible_after_pass is ai"
+                )
+
+        if mode == cls.Mode.CONDITIONAL:
+            conditions = value.get("conditions") or []
+            if not conditions:
+                raise ValidationError(
+                    "[validate plugin_admission_strategy error]: conditions must not be empty when mode is conditional"
+                )
+            seen_sources = set()
+            for condition in conditions:
+                sources = condition.get("sources") or []
+                if not sources:
+                    raise ValidationError(
+                        "[validate plugin_admission_strategy error]: each condition requires non-empty sources"
+                    )
+                duplicated = seen_sources.intersection(sources)
+                if duplicated:
+                    raise ValidationError(
+                        "[validate plugin_admission_strategy error]: "
+                        f"source(s) {duplicated} are assigned to more than one condition group"
+                    )
+                seen_sources.update(sources)
+
+                after_pass = condition.get("after_pass")
+                if after_pass not in cls.ConditionAfterPass.CHOICES:
+                    raise ValidationError(
+                        "[validate plugin_admission_strategy error]: "
+                        f"condition after_pass must be one of {cls.ConditionAfterPass.CHOICES}, got {after_pass}"
+                    )
+                if after_pass == cls.ConditionAfterPass.ASSIGN and not condition.get("assign_directory_id"):
+                    raise ValidationError(
+                        "[validate plugin_admission_strategy error]: "
+                        "assign_directory_id is required when condition after_pass is assign"
+                    )
+                if after_pass == cls.ConditionAfterPass.AI and condition.get("ai_scope") not in cls.AiScope.CHOICES:
+                    raise ValidationError(
+                        "[validate plugin_admission_strategy error]: "
+                        f"condition ai_scope must be one of {cls.AiScope.CHOICES} when after_pass is ai"
+                    )
+
+            fallback = value.get("fallback")
+            if fallback is not None and fallback.get("after_pass") not in cls.ConditionAfterPass.CHOICES:
+                raise ValidationError(
+                    "[validate plugin_admission_strategy error]: "
+                    f"fallback.after_pass must be one of {cls.ConditionAfterPass.CHOICES}"
+                )
+
+        return True
+
+
+class PluginCatalogMigrationConfig(BaseSpaceConfig):
+    """
+    空间插件目录迁移状态：记录该空间是否已完成"统一插件目录"初始化迁移，
+    以及迁移前旧插件配置（黑白名单/启用状态）的只读快照，供 09 页面展示。
+    记录空间是否已完成插件目录初始化迁移，以及迁移前的旧配置只读快照。
+    """
+
+    name = "plugin_catalog_migration"
+    desc = _("插件目录迁移状态")
+    value_type = SpaceConfigValueType.JSON.value
+    example = {
+        "ready": True,
+        "migrated_at": "2026-09-23 14:32:00",
+        "migrated_by": "admin",
+        "legacy_snapshot": {
+            "space_plugin_config": {"default": {"mode": "allow_list", "plugin_codes": ["http", "python_code"]}},
+            "open_plugin_enabled_count": 12,
+        },
+    }
+    default_value = {"ready": False}
+
+    is_public = False
+    group = "api_integration"
+    help = {
+        "summary": _("本空间是否已启用统一插件目录"),
+        "effect": _("未启用时沿用旧的插件黑白名单/启用开关；启用后插件的可见、分类、推荐改在「插件管理」维护"),
+        "media": [],
+        "doc_link": "",
+    }
+    ui = {"control": "readonly", "label": _("插件目录迁移状态")}
+
+    @classmethod
+    def validate(cls, value: dict):
+        if not isinstance(value, dict) or "ready" not in value:
+            raise ValidationError("[validate plugin_catalog_migration error]: value must contain 'ready' field")
+        return True
+
+
+class PluginCatalogRevisionConfig(BaseSpaceConfig):
+    """
+    空间插件目录的乐观并发版本号，供"目录批量管理"整页保存做 revision 冲突检测，
+    目录批量管理整页保存时用于乐观并发校验。
+    """
+
+    name = "plugin_catalog_revision"
+    desc = _("插件目录版本号")
+    value_type = SpaceConfigValueType.JSON.value
+    example = {"directory_revision": 12}
+    default_value = {"directory_revision": 0}
+
+    is_public = False
+
+    @classmethod
+    def validate(cls, value: dict):
+        if not isinstance(value, dict) or not isinstance(value.get("directory_revision"), int):
+            raise ValidationError(
+                "[validate plugin_catalog_revision error]: value must contain integer 'directory_revision'"
+            )
+        return True
+
+
 class FlowVersioning(BaseSpaceConfig):
     name = "flow_versioning"
     desc = _("流程版本控制")

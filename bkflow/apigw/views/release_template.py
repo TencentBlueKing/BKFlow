@@ -35,6 +35,8 @@ from bkflow.constants import (
     WebhookScopeType,
 )
 from bkflow.exceptions import ValidationError
+from bkflow.plugin_catalog.models import TemplatePluginReferenceRole
+from bkflow.plugin_catalog.services.reference_service import PluginReferenceService
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
 from bkflow.template.models import Template, TemplateOperationRecord, TemplateSnapshot
@@ -80,6 +82,13 @@ def release_template(request, space_id, template_id):
             snapshot = instance.release_template(data)
             instance.snapshot_id = snapshot.id
             instance.save()
+            # 插件引用重算：发布后线上版(role=published)的引用按新发布的这棵树全量重算
+            PluginReferenceService.rebuild_template_references(
+                space_id=space_id,
+                template_id=instance.id,
+                role=TemplatePluginReferenceRole.PUBLISHED,
+                pipeline_tree=snapshot.data,
+            )
     except ValidationError as e:
         return JsonResponse({"result": False, "message": str(e), "code": err_code.VALIDATION_ERROR.code})
 

@@ -31,6 +31,7 @@ from bkflow.constants import (
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label
 from bkflow.pipeline_validate.handler import ValidatorHandler
+from bkflow.plugin_catalog.services.guard_service import PluginCatalogGuardService
 from bkflow.space.configs import (
     FlowVersioning,
     GatewayExpressionConfig,
@@ -134,9 +135,26 @@ class CreateTemplateSerializer(serializers.Serializer):
 
         if pipeline_tree:
             validate_template_references(self.context.get("space_id"), pipeline_tree)
+            # 非画布路径（网关创建/导入）同样要校验"新增已下架插件"，
+            # 复制整流程时基线取被复制的源流程，避免把正常的历史节点误判为新增。
+            PluginCatalogGuardService.check_newly_added_offline_plugins(
+                space_id=self.context.get("space_id"),
+                pipeline_tree=pipeline_tree,
+                baseline_pipeline_tree=self._get_copy_baseline_pipeline_tree(source_template_id),
+            )
         _validate_template_label_ids(attrs.get("label_ids") or [], self.context.get("space_id"))
 
         return attrs
+
+    @staticmethod
+    def _get_copy_baseline_pipeline_tree(source_template_id):
+        """复制整流程时基线为源流程的当前版本；非复制场景返回 None（所有节点都算新增）。"""
+        if not source_template_id:
+            return None
+        source_template = Template.objects.filter(id=source_template_id, is_deleted=False).first()
+        if source_template is None:
+            return None
+        return source_template.get_baseline_pipeline_tree()
 
 
 class CreateTemplateApigwSerializer(CreateTemplateSerializer):
@@ -231,8 +249,23 @@ class UpdateTemplateSerializer(serializers.Serializer):
 
         if pipeline_tree:
             validate_template_references(self.context.get("space_id"), pipeline_tree)
+            # 11 · 网关更新流程同样校验"新增已下架插件"，基线取该流程当前草稿/已发布版本
+            PluginCatalogGuardService.check_newly_added_offline_plugins(
+                space_id=self.context.get("space_id"),
+                pipeline_tree=pipeline_tree,
+                baseline_pipeline_tree=self._get_update_baseline_pipeline_tree(),
+            )
 
         return attrs
+
+    def _get_update_baseline_pipeline_tree(self):
+        template_id = self.context.get("template_id")
+        if not template_id:
+            return None
+        template = Template.objects.filter(id=template_id, is_deleted=False).first()
+        if template is None:
+            return None
+        return template.get_baseline_pipeline_tree()
 
 
 class UpdateTemplateLabelsSerializer(serializers.Serializer):

@@ -35,6 +35,8 @@ from bkflow.constants import TemplateOperationSource, TemplateOperationType
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.label.serializers import LabelSerializer
+from bkflow.plugin_catalog.models import TemplatePluginReferenceRole
+from bkflow.plugin_catalog.services.reference_service import PluginReferenceService
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import SpaceConfig
 from bkflow.template.models import (
@@ -59,7 +61,9 @@ from bkflow.utils.webhook import apply_webhook_configs, clear_scope_webhooks
 def update_template(request, space_id, template_id):
     data = json.loads(request.body)
 
-    ser = UpdateTemplateSerializer(data=data, context={"request": request, "space_id": int(space_id)})
+    ser = UpdateTemplateSerializer(
+        data=data, context={"request": request, "space_id": int(space_id), "template_id": int(template_id)}
+    )
 
     try:
         ser.is_valid(raise_exception=True)
@@ -104,6 +108,13 @@ def update_template(request, space_id, template_id):
                     template_version = template.version
                 # 更新草稿数据
                 template.update_draft_snapshot(pipeline_tree, validated_data_dict["updated_by"], template_version)
+                # 插件引用重算：草稿(role=draft)
+                PluginReferenceService.rebuild_template_references(
+                    space_id=space_id,
+                    template_id=template.id,
+                    role=TemplatePluginReferenceRole.DRAFT,
+                    pipeline_tree=pipeline_tree,
+                )
 
                 if auto_release:
                     if version:
@@ -128,6 +139,13 @@ def update_template(request, space_id, template_id):
                         }
                     )
                     template.snapshot_id = snapshot.id
+                    # 插件引用重算：自动发布后线上版(role=published)
+                    PluginReferenceService.rebuild_template_references(
+                        space_id=space_id,
+                        template_id=template.id,
+                        role=TemplatePluginReferenceRole.PUBLISHED,
+                        pipeline_tree=pipeline_tree,
+                    )
 
                     # 添加发布记录
                     TemplateOperationRecord.objects.create(

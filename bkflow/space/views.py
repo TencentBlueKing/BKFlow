@@ -42,8 +42,9 @@ from bkflow.apigw.serializers.credential import (
 )
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.constants import WebhookScopeType
-from bkflow.exceptions import APIRequestError
+from bkflow.exceptions import APIRequestError, ValidationError
 from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
+from bkflow.plugin_catalog.services.migration_service import PluginCatalogMigrationService
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
     SpaceConfigHandler,
@@ -292,10 +293,21 @@ class SpaceViewSet(TenantScopeMixin, AdminModelViewSet):
         request.data.update({"create_type": SpaceCreateType.WEB.value, "creator": request.user.username})
         response = super().create(request, *args, **kwargs)
         if response.status_code == status.HTTP_201_CREATED:
+            space_id = response.data.get("id")
             SpaceConfig.objects.batch_update(
-                space_id=response.data.get("id"),
+                space_id=space_id,
                 configs={"superusers": [request.user.username], "flow_versioning": "true"},
             )
+            # 新空间插件目录必然是空库，初始化同步执行即可，不需要 dry-run/重跑能力。
+            # 初始化失败不阻塞空间创建：插件目录只是空间的管理视图，缺失时可由
+            # `manage.py initialize_plugin_catalog --space-id <id>` 补做，
+            # 避免把空间创建这条核心链路拖垮。
+            try:
+                PluginCatalogMigrationService.initialize_space(space_id=space_id, operator=request.user.username)
+            except Exception:
+                logger.exception(
+                    "新空间插件目录初始化失败，可由 initialize_plugin_catalog 命令补做: space_id=%s", space_id
+                )
         return response
 
     def list(self, request, *args, **kwargs):
@@ -420,6 +432,8 @@ class SpaceConfigAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewS
         ser = SpaceConfigBatchApplySerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         space_id, configs = ser.validated_data["space_id"], ser.validated_data["configs"]
+        for config_name in configs:
+            self._ensure_config_writable(space_id, config_name)
         SpaceConfig.objects.batch_update(space_id=space_id, configs=configs)
         return Response(SpaceConfig.objects.get_space_config_info(space_id=space_id, simplified=False))
 
@@ -508,9 +522,34 @@ class SpaceConfigAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewS
         OpenPluginCatalogService.disable_source_plugins(**ser.validated_data)
         return Response({"source_key": ser.validated_data["source_key"], "enabled": False})
 
+    @swagger_auto_schema(
+        method="get",
+        operation_summary="查询空间插件目录迁移状态",
+        query_serializer=SpaceConfigBaseQuerySerializer,
+    )
+    @action(detail=False, methods=["GET"], url_path="plugin_catalog_migration")
+    def plugin_catalog_migration(self, request, *args, **kwargs):
+        """09 · 空间配置-空间插件引导页的只读入口，返回 ready/migrated_at/legacy_snapshot。"""
+        ser = SpaceConfigBaseQuerySerializer(data=request.query_params)
+        ser.is_valid(raise_exception=True)
+        space_id = ser.validated_data["space_id"]
+        status = PluginCatalogMigrationService.get_status(space_id) or {"ready": False}
+        return Response({"space_id": space_id, **status})
+
+    def _ensure_config_writable(self, space_id, config_name):
+        """
+        迁移完成后，旧的内置插件黑白名单配置（space_plugin_config）降级为只读历史配置，
+        不再允许写入，插件的可见/隐藏/下架与分类改在「插件管理」维护。
+        """
+        if config_name != SpacePluginConfig.name:
+            return
+        if PluginCatalogMigrationService.is_ready(space_id):
+            raise ValidationError("本空间已启用插件目录，插件的可见/隐藏/下架与分类请前往「插件管理」维护")
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        self._ensure_config_writable(request.data["space_id"], serializer.validated_data.get("name"))
         try:
             SpaceConfig.objects.create_space_config(space_id=request.data["space_id"], data=serializer.validated_data)
         except Exception as e:
@@ -524,6 +563,7 @@ class SpaceConfigAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewS
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
+        self._ensure_config_writable(request.data["space_id"], serializer.validated_data.get("name"))
 
         try:
             SpaceConfig.objects.update_space_config(
