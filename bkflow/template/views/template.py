@@ -415,7 +415,7 @@ class TemplateVersionViewSet(
     filterset_class = TemplateSnapshotFilterSet
     pagination_class = BKFLOWNoMaxLimitPagination
     MOCK_ABOVE_ACTIONS = []
-    EDIT_ABOVE_ACTIONS = ["delete_snapshot"]
+    EDIT_ABOVE_ACTIONS = ["delete_snapshot", "clear_draft_snapshot"]
     permission_classes = [
         AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
     ]
@@ -474,6 +474,9 @@ class TemplateVersionViewSet(
             template = Template.objects.get(id=template_id)
         except Template.DoesNotExist:
             return Response(exception=True, data={"detail": "模板不存在"})
+
+        # detail=False 不会触发 has_object_permission，需手动校验目标模板的编辑权限
+        self.check_object_permissions(request, template)
 
         if SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) != "true":
             return Response(exception=True, data={"detail": "版本管理功能未开启，无法清空草稿"})
