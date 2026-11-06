@@ -113,7 +113,10 @@ from bkflow.template.serializers.template import (
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
-from bkflow.utils.pipeline import replace_subprocess_version
+from bkflow.utils.pipeline import (
+    build_default_pipeline_tree,
+    replace_subprocess_version,
+)
 from bkflow.utils.version import bump_custom
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet, UserModelViewSet
 from bkflow.utils.webhook import clear_scope_webhooks
@@ -770,7 +773,13 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
             try:
                 draft_snapshot = TemplateSnapshot.objects.get(id=template_obj.snapshot_id)
             except TemplateSnapshot.DoesNotExist:
-                return Response(exception=True, data={"message": "快照数据不存在"})
+                logger.exception(f"template_id={template_obj.id}, snapshot_id={template_obj.snapshot_id} not found")
+                draft_snapshot = TemplateSnapshot(
+                    data=build_default_pipeline_tree("empty"),
+                    md5sum="",
+                    template_id=template_obj.id,
+                    version=None,
+                )
         data = TemplateSnapshotSerializer(draft_snapshot).data
         flow_version_config = (
             SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) == "true"

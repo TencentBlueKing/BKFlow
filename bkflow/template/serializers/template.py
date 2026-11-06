@@ -61,7 +61,10 @@ from bkflow.template.utils import (
     send_callback,
     validate_pipeline_tree_gateway_expression,
 )
-from bkflow.utils.pipeline import replace_subprocess_version
+from bkflow.utils.pipeline import (
+    build_default_pipeline_tree,
+    replace_subprocess_version,
+)
 from bkflow.utils.version import bump_custom
 from bkflow.utils.webhook import (
     apply_webhook_configs,
@@ -356,8 +359,10 @@ class TemplateSerializer(serializers.ModelSerializer):
         flow_version_config = (
             SpaceConfig.get_config(space_id=instance.space_id, config_name=FlowVersioning.name) == "true"
         )
-        if pre_pipeline_tree:
-            pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
+
+        if not pre_pipeline_tree:
+            pre_pipeline_tree = build_default_pipeline_tree("empty")
+        pre_pipeline_tree = replace_subprocess_version(pre_pipeline_tree, flow_version_config)
 
         data["pipeline_tree"] = pre_pipeline_tree
         webhook_configs = get_webhook_configs(scope_code=str(instance.id))
