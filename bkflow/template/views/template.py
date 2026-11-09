@@ -824,8 +824,6 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
                 data = {"username": request.user.username, "is_validate": True, **ser.validated_data}
                 snapshot = instance.release_template(data)
                 instance.snapshot_id = snapshot.id
-                snapshot.template_id = instance.id
-                snapshot.save(update_fields=["template_id"])
                 instance.save()
         except ValidationError as e:
             return Response(exception=True, data={"detail": str(e)})

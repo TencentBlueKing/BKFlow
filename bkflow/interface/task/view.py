@@ -81,15 +81,15 @@ class TaskInterfaceAdminViewSet(TenantScopeMixin, GenericViewSet):
         result = client.task_list(data={**query_params, "space_id": space_id})
         return Response(enrich_task_list_result_labels(result))
 
-    @action(methods=["POST"], detail=False, url_path="update_labels/(?P<space_id>\\d+)/(?P<pk>\\d+)")
-    def update_labels(self, request, space_id, pk=None):
+    @action(methods=["POST"], detail=False, url_path="update_labels/(?P<space_id>\\d+)/(?P<task_id>\\d+)")
+    def update_labels(self, request, space_id, task_id=None):
         """
-        更新特定任务（pk指定）的标签列表。
+        更新特定任务（task_id指定）的标签列表。
         请求体期望格式：{"label_ids": [1, 2, 5]}
         """
         time_zone = get_user_timezone(request)
         client = TaskComponentClient(space_id=space_id, time_zone=time_zone)
-        result = client.update_labels(pk, data={**request.data, "space_id": space_id})
+        result = client.update_labels(task_id, data={**request.data, "space_id": space_id})
         labels_map = Label.objects.get_labels_map(set(result["data"]))
         result["data"] = [labels_map.get(label_id) for label_id in result["data"]]
         return Response(result)

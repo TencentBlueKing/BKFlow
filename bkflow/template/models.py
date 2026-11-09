@@ -360,28 +360,27 @@ class Template(CommonModel):
         if not version:
             raise ValidationError("版本号不能为空")
         try:
-            template_snapshot = TemplateSnapshot.objects.filter(template_id=self.id, draft=True).order_by("-id").first()
-            if template_snapshot is None:
-                # 没有草稿快照时，仅在强制发布(force)下从当前版本创建快照兜底发布
-                if data.get("force", False):
-                    template_snapshot = TemplateSnapshot.create_snapshot(
-                        self.pipeline_tree, data["username"], version, data.get("desc")
-                    )
-                    template_snapshot.template_id = self.id
-                    template_snapshot.save()
-                else:
+            draft_snapshot = TemplateSnapshot.objects.filter(template_id=self.id, draft=True).order_by("-id").first()
+            if draft_snapshot is None:
+                if not data.get("force", False):
                     logger.warning(f"未找到模板（ID: {self.id}）的草稿快照（draft=True）")
                     raise ValidationError(f"该模板{self.id}没有草稿版本")
+                # 强制发布仅以当前已落库的快照兜底；快照缺失时 pipeline_tree 为 {}，不得固化为正式版本
+                pipeline_tree = self.pipeline_tree
             else:
-                if data.get("is_validate", True):
-                    ValidatorHandler.validate(template_snapshot.data, validate_type=ValidateType.TEMPLATE)
+                pipeline_tree = draft_snapshot.data
 
-                template_snapshot = TemplateSnapshot.create_snapshot(
-                    template_snapshot.data,
-                    data["username"],
-                    version,
-                    data.get("desc"),
-                )
+            if not pipeline_tree:
+                raise ValidationError(f"该模板{self.id}缺少可发布的流程数据")
+
+            if data.get("is_validate", True):
+                ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
+
+            template_snapshot = TemplateSnapshot.create_snapshot(
+                pipeline_tree, data["username"], version, data.get("desc")
+            )
+            template_snapshot.template_id = self.id
+            template_snapshot.save()
 
         except Exception as e:
             logger.error(f"发布模板草稿时发生错误（template_id={self.id}）: {e}", exc_info=True)

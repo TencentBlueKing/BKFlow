@@ -27,6 +27,8 @@ from rest_framework.test import APIRequestFactory, force_authenticate
 from bkflow.decision_table.models import DecisionTable
 from bkflow.exceptions import ValidationError
 from bkflow.label.models import Label, TemplateLabelRelation
+from bkflow.permission.grants import Grant
+from bkflow.permission.services import issue_token
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.space.configs import FlowVersioning
 from bkflow.space.models import Space, SpaceConfig
@@ -612,6 +614,42 @@ class TestTemplateVersionViewSet:
             assert call.args[0] == self.space.id
             assert call.kwargs["resource_id"] == template.id
             assert call.kwargs["resource_id"] != snapshot.id
+
+    @pytest.mark.parametrize(
+        "grant_permission,grant_owner,allowed",
+        [("VIEW", True, True), ("EDIT", True, True), ("VIEW", False, False)],
+    )
+    def test_retrieve_snapshot_with_real_template_token(self, grant_permission, grant_owner, allowed):
+        """真实 TEMPLATE VIEW/EDIT 票据须由 TemplatePermission 分支完成对象鉴权，不能依赖 MOCK 分支放行。"""
+        snapshot = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
+        template = Template.objects.create(
+            name="Test Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+
+        user = User.objects.create_user(username="normal_user", password="password")
+        resource_id = str(template.id if grant_owner else template.id + 1000)
+        token = issue_token(
+            self.space.id, user.username, [Grant("TEMPLATE", resource_id, grant_permission)], 3600, False
+        )
+
+        view = TemplateVersionViewSet.as_view({"get": "retrieve"})
+        request = self.factory.get(f"/api/template/snapshot/{snapshot.id}/?space_id={self.space.id}")
+        force_authenticate(request, user=user)
+        request.token = token.pk
+
+        response = view(request, pk=snapshot.id)
+
+        if allowed:
+            assert response.status_code == 200
+            assert response.data.get("result") is True
+        else:
+            assert response.status_code == 403 or response.data.get("result") is False
 
     def test_list_versions_without_template_id(self):
         """测试列表查询版本缺少template_id"""
@@ -1225,6 +1263,57 @@ class TestTemplateViewSet:
             assert resp_data.get("template_id") == template.id
         else:
             assert response.status_code == 200
+
+    def test_force_release_rejects_missing_snapshot(self):
+        """清空草稿后当前快照悬空，force 发布不得把空流程固化为正式版本。"""
+        draft_snapshot = TemplateSnapshot.create_unpublished_snapshot(self.pipeline_tree, "test_user", draft=True)
+        template = Template.objects.create(
+            name="Test Template",
+            space_id=self.space.id,
+            snapshot_id=draft_snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        draft_snapshot.template_id = template.id
+        draft_snapshot.save(update_fields=["template_id"])
+        # 等价于 clear_draft_snapshot：草稿被清空后 template.snapshot_id 指向已删除的快照
+        TemplateSnapshot.objects.filter(template_id=template.id, draft=True).delete()
+
+        view = TemplateViewSet.as_view({"post": "release_template"})
+        request = self.factory.post(
+            f"/templates/{template.id}/release_template/", {"version": "1.0.0", "force": True}, format="json"
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=template.id)
+
+        assert response.data.get("result") is False
+        assert "缺少可发布的流程数据" in str(response.data)
+        assert not TemplateSnapshot.objects.filter(template_id=template.id, version="1.0.0").exists()
+        template.refresh_from_db()
+        assert template.snapshot_id == draft_snapshot.id
+
+    def test_force_release_rejects_invalid_pipeline_tree(self):
+        """force 兜底同样执行流程校验，结构残缺的当前快照不能被发布。"""
+        snapshot = TemplateSnapshot.create_snapshot({"id": "broken"}, "test_user", "0.9.0")
+        template = Template.objects.create(
+            name="Test Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+
+        view = TemplateViewSet.as_view({"post": "release_template"})
+        request = self.factory.post(
+            f"/templates/{template.id}/release_template/", {"version": "1.0.0", "force": True}, format="json"
+        )
+        force_authenticate(request, user=self.user)
+        response = view(request, pk=template.id)
+
+        assert response.data.get("result") is False
+        assert not TemplateSnapshot.objects.filter(template_id=template.id, version="1.0.0").exists()
 
     def test_rollback_template(self):
         """测试回滚模板"""
