@@ -555,6 +555,64 @@ class TestTemplateVersionViewSet:
         assert response.status_code == 200
         assert len(response.data) >= 1
 
+    @mock.patch("bkflow.permission.permissions.Token.verify", return_value=False)
+    def test_retrieve_snapshot_without_permission_is_denied(self, mock_verify):
+        """普通用户读取快照时按所属模板鉴权，不能因快照缺少 space_id 抛出未处理异常。"""
+        snapshot = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
+        template = Template.objects.create(
+            name="Test Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+
+        user = User.objects.create_user(username="normal_user", password="password")
+        view = TemplateVersionViewSet.as_view({"get": "retrieve"})
+        request = self.factory.get(f"/api/template/snapshot/{snapshot.id}/?space_id={self.space.id}")
+        force_authenticate(request, user=user)
+        request.token = "invalid-token"
+
+        response = view(request, pk=snapshot.id)
+
+        assert response.status_code == 403 or response.data.get("result") is False
+        assert mock_verify.called
+
+    @mock.patch("bkflow.permission.permissions.Token.verify", return_value=True)
+    def test_retrieve_snapshot_verifies_owner_template(self, mock_verify):
+        """快照详情的 token 鉴权使用所属模板的空间与模板 ID，而非快照自身 ID。"""
+        # 占位快照使模板 ID 与快照 ID 错开，避免两张表自增主键恰好相同时断言失去区分度
+        TemplateSnapshot.objects.create(data={}, md5sum="placeholder")
+        snapshot = TemplateSnapshot.create_snapshot(self.pipeline_tree, "test_user", "1.0.0")
+        template = Template.objects.create(
+            name="Test Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator="test_user",
+            updated_by="test_user",
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+        assert template.id != snapshot.id
+
+        user = User.objects.create_user(username="normal_user", password="password")
+        view = TemplateVersionViewSet.as_view({"get": "retrieve"})
+        request = self.factory.get(f"/api/template/snapshot/{snapshot.id}/?space_id={self.space.id}")
+        force_authenticate(request, user=user)
+        request.token = "valid-token"
+
+        response = view(request, pk=snapshot.id)
+
+        assert response.status_code == 200
+        assert response.data.get("result") is True
+        assert mock_verify.called
+        for call in mock_verify.call_args_list:
+            assert call.args[0] == self.space.id
+            assert call.kwargs["resource_id"] == template.id
+            assert call.kwargs["resource_id"] != snapshot.id
+
     def test_list_versions_without_template_id(self):
         """测试列表查询版本缺少template_id"""
         view = TemplateVersionViewSet.as_view({"get": "list"})

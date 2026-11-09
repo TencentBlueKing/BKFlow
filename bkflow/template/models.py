@@ -59,6 +59,9 @@ class TemplateManager(models.Manager):
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
         template_pipeline_tree = template.get_pipeline_tree_by_version(version)
+        if not template_pipeline_tree or "activities" not in template_pipeline_tree:
+            raise ValidationError("该模板暂无流程数据，无法复制")
+
         # 校验流程树中的网关表达式语言是否与空间配置一致
         space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
         validate_pipeline_tree_gateway_expression(template_pipeline_tree, space_gateway_expression)
@@ -167,7 +170,16 @@ class Template(CommonModel):
 
     @property
     def snapshot(self):
-        return TemplateSnapshot.objects.get(id=self.snapshot_id)
+        """获取模板当前快照；快照缺失时返回未落库的空快照，保证上层读取接口不报错。"""
+        try:
+            return TemplateSnapshot.objects.get(id=self.snapshot_id)
+        except TemplateSnapshot.DoesNotExist:
+            logger.warning(
+                "[Template->snapshot] snapshot does not exist, template_id=%s, snapshot_id=%s",
+                self.id,
+                self.snapshot_id,
+            )
+            return TemplateSnapshot(data={}, md5sum="", version=None)
 
     @property
     def pipeline_tree(self):

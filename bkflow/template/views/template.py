@@ -113,7 +113,10 @@ from bkflow.template.serializers.template import (
 from bkflow.template.utils import analysis_pipeline_constants_ref
 from bkflow.utils.mixins import BKFLOWCommonMixin, BKFLOWNoMaxLimitPagination
 from bkflow.utils.permissions import AdminPermission, AppInternalPermission
-from bkflow.utils.pipeline import replace_subprocess_version
+from bkflow.utils.pipeline import (
+    build_default_pipeline_tree,
+    replace_subprocess_version,
+)
 from bkflow.utils.version import bump_custom
 from bkflow.utils.views import AdminModelViewSet, SimpleGenericViewSet, UserModelViewSet
 from bkflow.utils.webhook import clear_scope_webhooks
@@ -415,13 +418,17 @@ class TemplateVersionViewSet(
     filterset_class = TemplateSnapshotFilterSet
     pagination_class = BKFLOWNoMaxLimitPagination
     MOCK_ABOVE_ACTIONS = []
+    EDIT_ABOVE_ACTIONS = ["delete_snapshot", "clear_draft_snapshot"]
     permission_classes = [
         AdminPermission | SpaceSuperuserPermission | TemplatePermission | TemplateMockPermission | ScopePermission
     ]
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        space_id = Template.objects.get(id=instance.template_id).space_id
+        template = Template.objects.filter(id=instance.template_id).first()
+        if template is None:
+            return Response(exception=True, data={"detail": "模板不存在"})
+        space_id = template.space_id
         data = TemplateSnapshotSerializer(instance).data
         flow_version_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
         pipeline_tree = replace_subprocess_version(instance.data, flow_version_config)
@@ -470,6 +477,9 @@ class TemplateVersionViewSet(
             template = Template.objects.get(id=template_id)
         except Template.DoesNotExist:
             return Response(exception=True, data={"detail": "模板不存在"})
+
+        # detail=False 不会触发 has_object_permission，需手动校验目标模板的编辑权限
+        self.check_object_permissions(request, template)
 
         if SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) != "true":
             return Response(exception=True, data={"detail": "版本管理功能未开启，无法清空草稿"})
@@ -644,6 +654,9 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
                 logger.exception(message)
                 return Response(exception=True, data={"detail": str(e)})
 
+            if not pipeline_tree:
+                return Response(exception=True, data={"detail": "该模板暂无流程数据，无法预览"})
+
             flow_version_config = (
                 SpaceConfig.get_config(space_id=template.space_id, config_name=FlowVersioning.name) == "true"
             )
@@ -763,7 +776,13 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
             try:
                 draft_snapshot = TemplateSnapshot.objects.get(id=template_obj.snapshot_id)
             except TemplateSnapshot.DoesNotExist:
-                return Response(exception=True, data={"message": "快照数据不存在"})
+                logger.exception(f"template_id={template_obj.id}, snapshot_id={template_obj.snapshot_id} not found")
+                draft_snapshot = TemplateSnapshot(
+                    data=build_default_pipeline_tree("empty"),
+                    md5sum="",
+                    template_id=template_obj.id,
+                    version=None,
+                )
         data = TemplateSnapshotSerializer(draft_snapshot).data
         flow_version_config = (
             SpaceConfig.get_config(space_id=template_obj.space_id, config_name=FlowVersioning.name) == "true"

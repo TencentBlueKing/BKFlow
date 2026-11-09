@@ -112,21 +112,15 @@ def update_template(request, space_id, template_id):
                         oldest_snapshot = snapshot_obj.order_by("id").first()
                         if oldest_snapshot is not None:
                             oldest_snapshot.delete()
-                    TemplateSnapshot.create_unpublished_snapshot(
-                        pipeline_tree,
-                        validated_data_dict["updated_by"],
-                        draft=True,
-                        template_id=template.id,
-                        desc=draft_desc,
-                    )
-                else:
-                    TemplateSnapshot.create_unpublished_snapshot(
-                        pipeline_tree,
-                        validated_data_dict["updated_by"],
-                        draft=True,
-                        template_id=template.id,
-                        desc=draft_desc,
-                    )
+                snapshot = TemplateSnapshot.create_unpublished_snapshot(
+                    pipeline_tree,
+                    validated_data_dict["updated_by"],
+                    draft=True,
+                    template_id=template.id,
+                    desc=draft_desc,
+                )
+                if not template.has_published_version():
+                    validated_data_dict["snapshot_id"] = snapshot.id
 
                 if auto_release:
                     if version:
