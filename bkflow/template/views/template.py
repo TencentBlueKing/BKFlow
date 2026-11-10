@@ -886,7 +886,7 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
         username = request.user.username
         # 自动保存超出最大数量时，删除最早的自动保存
         auto_snapshots = TemplateSnapshot.objects.filter(template_id=template.id, auto_save=True)
-        if auto_snapshots.count() > settings.MAX_AUTO_SAVE_SNAPSHOT_COUNT:
+        if auto_snapshots.count() >= settings.MAX_AUTO_SAVE_SNAPSHOT_COUNT:
             auto_snapshots.order_by("id").first().delete()
 
         TemplateSnapshot.create_unpublished_snapshot(
