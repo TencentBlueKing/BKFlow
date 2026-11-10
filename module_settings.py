@@ -369,6 +369,7 @@ elif env.BKFLOW_MODULE_TYPE == BKFLOWModuleType.interface.value:
         "bkflow.space",
         "bkflow.apigw",
         "bkflow.plugin",
+        "bkflow.plugin_catalog",
         "bkflow.interface",
         "bkflow.decision_table",
         "apigw_manager.apigw",

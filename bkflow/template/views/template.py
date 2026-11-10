@@ -61,6 +61,8 @@ from bkflow.pipeline_web.drawing_new.drawing import draw_pipeline as draw_pipeli
 from bkflow.pipeline_web.preview import preview_template_tree
 from bkflow.pipeline_web.preview_base import PipelineTemplateWebPreviewer
 from bkflow.plugin.services.open_plugin_snapshot import OpenPluginSnapshotService
+from bkflow.plugin_catalog.models import TemplatePluginReferenceRole
+from bkflow.plugin_catalog.services.reference_service import PluginReferenceService
 from bkflow.space.configs import (
     FlowVersioning,
     GatewayExpressionConfig,
@@ -360,6 +362,9 @@ class AdminTemplateViewSet(TenantScopeMixin, AdminModelViewSet):
                     is_deleted=True
                 )
 
+            # 流程删除后清理其插件引用记录（引用统计不再把已删流程算进去）
+            PluginReferenceService.clear_template_references(space_id=space_id, template_ids=to_delete_ids)
+
             clear_result = clear_scope_webhooks([str(tid) for tid in to_delete_ids])
             if not clear_result["result"]:
                 message = clear_result["message"]
@@ -384,6 +389,8 @@ class AdminTemplateViewSet(TenantScopeMixin, AdminModelViewSet):
         name = ser.validated_data.get("name")
         desc = ser.validated_data.get("desc")
         try:
+            # 收集本次复制新建的所有模板 id（含递归复制的子流程），复制完成后逐个补做插件引用重算
+            created_template_ids = []
             template = Template.objects.copy_template(
                 template_id,
                 space_id,
@@ -391,7 +398,24 @@ class AdminTemplateViewSet(TenantScopeMixin, AdminModelViewSet):
                 name,
                 desc,
                 copy_subprocess,
+                created_template_ids=created_template_ids,
             )
+            # 插件引用重算：放在 view 层而不是 `TemplateManager.copy_template` 里，是为了让
+            # template.models 不反向依赖 plugin_catalog，保持依赖方向单一（plugin_catalog -> template）。
+            for new_template_id in created_template_ids:
+                new_template = Template.objects.get(id=new_template_id)
+                snapshot = TemplateSnapshot.objects.filter(id=new_template.snapshot_id).first()
+                role = (
+                    TemplatePluginReferenceRole.DRAFT
+                    if snapshot is not None and snapshot.draft
+                    else TemplatePluginReferenceRole.PUBLISHED
+                )
+                PluginReferenceService.rebuild_template_references(
+                    space_id=space_id,
+                    template_id=new_template_id,
+                    role=role,
+                    pipeline_tree=new_template.pipeline_tree,
+                )
         except Template.DoesNotExist:
             err_msg = f"模版不存在, space_id={space_id}, template_id={template_id}"
             logger.error(str(err_msg))
@@ -772,6 +796,13 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
                 snapshot = instance.release_template(data)
                 instance.snapshot_id = snapshot.id
                 instance.save()
+                # 插件引用重算：发布后线上版(role=published)的引用按新发布的这棵树全量重算
+                PluginReferenceService.rebuild_template_references(
+                    space_id=instance.space_id,
+                    template_id=instance.id,
+                    role=TemplatePluginReferenceRole.PUBLISHED,
+                    pipeline_tree=snapshot.data,
+                )
         except ValidationError as e:
             return Response(exception=True, data={"detail": str(e)})
 
@@ -806,6 +837,13 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
 
         pipeline_tree = TemplateSnapshot.objects.get(template_id=instance.id, version=version).data
         draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username, version)
+        # 回滚是把历史版本内容写回草稿，因此重算草稿(role=draft)的插件引用
+        PluginReferenceService.rebuild_template_references(
+            space_id=instance.space_id,
+            template_id=instance.id,
+            role=TemplatePluginReferenceRole.DRAFT,
+            pipeline_tree=pipeline_tree,
+        )
         TemplateOperationRecord.objects.create(
             operate_source=TemplateOperationSource.app.name,
             operate_type=TemplateOperationType.rollback.name,
