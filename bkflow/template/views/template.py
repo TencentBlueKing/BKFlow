@@ -494,7 +494,13 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
     serializer_class = TemplateSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = TemplateFilterSet
-    EDIT_ABOVE_ACTIONS = ["update", "auto_save_template"]
+    EDIT_ABOVE_ACTIONS = [
+        "update",
+        "update_labels",
+        "release_template",
+        "rollback_template",
+        "auto_save_template",
+    ]
     MOCK_ABOVE_ACTIONS = ["create_mock_task"]
     pagination_class = BKFLOWNoMaxLimitPagination
     permission_classes = [
