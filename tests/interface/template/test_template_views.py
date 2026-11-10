@@ -22,6 +22,7 @@ from unittest import mock
 
 import pytest
 from blueapps.account.models import User
+from django.urls import resolve
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from bkflow.decision_table.models import DecisionTable
@@ -850,6 +851,63 @@ class TestTemplateViewSet:
         SpaceConfig.objects.create(
             space_id=self.space.id, name=FlowVersioning.name, value_type="TEXT", text_value="true"
         )
+
+    @pytest.mark.parametrize("flow_versioning", [True, False])
+    @pytest.mark.parametrize("resource_type", ["TEMPLATE", "SCOPE"])
+    @pytest.mark.parametrize("method", ["put", "patch"])
+    @pytest.mark.parametrize("permission,allowed", [("VIEW", False), ("EDIT", True), ("MOCK", True)])
+    def test_save_template_with_real_token(self, settings, flow_versioning, resource_type, method, permission, allowed):
+        """PUT/PATCH 保存均要求 EDIT 或 MOCK，VIEW 不得修改模板或创建快照。"""
+        settings.BLOCK_ADMIN_PERMISSION = False
+        settings.ENABLE_MULTI_TENANT_MODE = False
+        SpaceConfig.objects.filter(space_id=self.space.id, name=FlowVersioning.name).update(
+            text_value="true" if flow_versioning else "false"
+        )
+        snapshot = TemplateSnapshot.create_snapshot(self.pipeline_tree, self.user.username, "1.0.0")
+        template = Template.objects.create(
+            name="Original Template",
+            space_id=self.space.id,
+            snapshot_id=snapshot.id,
+            creator=self.user.username,
+            scope_type="project",
+            scope_value="7",
+        )
+        snapshot.template_id = template.id
+        snapshot.save(update_fields=["template_id"])
+        user = User.objects.create_user(username="normal_user", password="password")
+        resource_id = str(template.id) if resource_type == "TEMPLATE" else "project_7"
+        token = issue_token(self.space.id, user.username, [Grant(resource_type, resource_id, permission)], 3600, False)
+        pipeline_tree = deepcopy(self.pipeline_tree)
+        pipeline_tree["activities"]["node1"]["name"] = "updated_node"
+        request = getattr(self.factory, method)(
+            f"/api/template/{template.id}/",
+            {"name": "Updated Template", "pipeline_tree": pipeline_tree, "triggers": []},
+            format="json",
+        )
+        request.token = token.pk
+        force_authenticate(request, user=user)
+        route = resolve(request.path)
+        response = route.func(request, **route.kwargs)
+        template.refresh_from_db()
+
+        assert response.data["result"] is allowed
+        if not allowed:
+            assert response.data["code"] == "permission_denied"
+            assert template.name == "Original Template"
+            assert template.snapshot_id == snapshot.id
+            assert TemplateSnapshot.objects.filter(template_id=template.id).count() == 1
+            snapshot.refresh_from_db()
+            assert snapshot.data["activities"]["node1"]["name"] == "test_node"
+        else:
+            assert template.name == "Updated Template"
+            assert TemplateSnapshot.objects.filter(template_id=template.id).count() == 2
+            saved_snapshot = TemplateSnapshot.objects.filter(template_id=template.id).latest("id")
+            assert saved_snapshot.data["activities"]["node1"]["name"] == "updated_node"
+            if flow_versioning:
+                assert saved_snapshot.draft is True
+                assert template.snapshot_id == snapshot.id
+            else:
+                assert template.snapshot_id == saved_snapshot.id
 
     def test_list_template(self):
         """测试列表查询模板"""

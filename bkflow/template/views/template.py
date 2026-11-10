@@ -496,6 +496,7 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
     filterset_class = TemplateFilterSet
     EDIT_ABOVE_ACTIONS = [
         "update",
+        "partial_update",
         "update_labels",
         "release_template",
         "rollback_template",
