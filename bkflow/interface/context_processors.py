@@ -69,7 +69,7 @@ def bkflow_settings(request):
         "BKVISION_MAIN_JS_SRC_URL": env.BKAPP_BKVISION_MAIN_JS_SRC_URL,
         "TENANT_ID": get_request_tenant_id(request),
         "USE_APIGW": use_apigw(),
-        "DISPLAY_NAME": getattr(request.user, "display_name", request.user.username),
+        "DISPLAY_NAME": getattr(request.user, "display_name", None) or request.user.username,
         "BK_USER_WEB_APIGW_URL": f"{settings.BK_API_URL_TMPL.format(api_name='bk-user-web')}/"
         f"{settings.BK_APIGW_STAGE_NAME}",
         "BKPAAS_USER_URL": settings.BKPAAS_USER_URL,

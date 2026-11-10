@@ -18,64 +18,119 @@ to the current version of the project delivered to anyone in the future.
 """
 
 from bkflow.permission.permissions import BaseMockTokenPermission, BaseTokenPermission
+from bkflow.template.models import Template, TemplateSnapshot
 from bkflow.template.serializers.template import TemplateRelatedResourceSerializer
 
 
-class TemplatePermission(BaseTokenPermission):
+class TemplateResourceTargetMixin:
+    """解析对象级模板资源鉴权所需的 (space_id, template_id)。"""
+
+    @staticmethod
+    def get_resource_target(obj):
+        """快照不存储空间信息，鉴权坐标取自其所属模板；资源无效时返回 None。"""
+        if isinstance(obj, TemplateSnapshot):
+            template = Template.objects.filter(id=obj.template_id).first()
+            if template is None:
+                return None
+            return template.space_id, template.id
+        space_id = getattr(obj, "space_id", None)
+        if space_id is None:
+            return None
+        return space_id, obj.id
+
+
+class TemplatePermission(TemplateResourceTargetMixin, BaseTokenPermission):
     def get_resource_type(self):
         return "TEMPLATE"
 
     def has_permission(self, request, view):
         if view.action in view.MOCK_ABOVE_ACTIONS:
             return False
+        return True
 
     def has_object_permission(self, request, view, obj):
         if view.action in view.MOCK_ABOVE_ACTIONS:
             return False
 
+        target = self.get_resource_target(obj)
+        if target is None:
+            return False
+        space_id, template_id = target
+
         has_edit_permission = self.has_edit_permission(
-            request.user.username, obj.space_id, obj.id, request.token, request=request, target_resource_type="TEMPLATE"
+            request.user.username,
+            space_id,
+            template_id,
+            request.token,
+            request=request,
+            target_resource_type="TEMPLATE",
         )
 
         if view.action in view.EDIT_ABOVE_ACTIONS:
             return has_edit_permission
 
         has_view_permission = self.has_view_permission(
-            request.user.username, obj.space_id, obj.id, request.token, request=request, target_resource_type="TEMPLATE"
+            request.user.username,
+            space_id,
+            template_id,
+            request.token,
+            request=request,
+            target_resource_type="TEMPLATE",
         )
         return has_view_permission or has_edit_permission
 
 
-class ScopePermission(BaseTokenPermission):
+class ScopePermission(TemplateResourceTargetMixin, BaseTokenPermission):
     def get_resource_type(self):
         return "SCOPE"
 
     def has_permission(self, request, view):
         if view.action in view.MOCK_ABOVE_ACTIONS:
             return False
+        return True
 
     def has_object_permission(self, request, view, obj):
+        target = self.get_resource_target(obj)
+        if target is None:
+            return False
+        space_id, template_id = target
+
         has_mock_permission = self.has_mock_permission(
-            request.user.username, obj.space_id, obj.id, request.token, request=request, target_resource_type="TEMPLATE"
+            request.user.username,
+            space_id,
+            template_id,
+            request.token,
+            request=request,
+            target_resource_type="TEMPLATE",
         )
         if view.action in view.MOCK_ABOVE_ACTIONS:
             return has_mock_permission
 
         has_edit_permission = self.has_edit_permission(
-            request.user.username, obj.space_id, obj.id, request.token, request=request, target_resource_type="TEMPLATE"
+            request.user.username,
+            space_id,
+            template_id,
+            request.token,
+            request=request,
+            target_resource_type="TEMPLATE",
         )
         if view.action in view.EDIT_ABOVE_ACTIONS:
             return has_edit_permission or has_mock_permission
 
         has_view_permission = self.has_view_permission(
-            request.user.username, obj.space_id, obj.id, request.token, request=request, target_resource_type="TEMPLATE"
+            request.user.username,
+            space_id,
+            template_id,
+            request.token,
+            request=request,
+            target_resource_type="TEMPLATE",
         )
         has_operate_permission = False
         if view.action in ["preview_task_tree"]:
             has_operate_permission = self.has_operate_permission(
                 request.user.username,
-                obj.space_id,
-                obj.id,
+                space_id,
+                template_id,
                 request.token,
                 request=request,
                 target_resource_type="TEMPLATE",
@@ -83,10 +138,19 @@ class ScopePermission(BaseTokenPermission):
         return has_view_permission or has_edit_permission or has_operate_permission or has_mock_permission
 
 
-class TemplateMockPermission(BaseMockTokenPermission):
+class TemplateMockPermission(TemplateResourceTargetMixin, BaseMockTokenPermission):
     def has_object_permission(self, request, view, obj):
+        target = self.get_resource_target(obj)
+        if target is None:
+            return False
+        space_id, template_id = target
         return self.has_mock_permission(
-            request.user.username, obj.space_id, obj.id, request.token, request=request, target_resource_type="TEMPLATE"
+            request.user.username,
+            space_id,
+            template_id,
+            request.token,
+            request=request,
+            target_resource_type="TEMPLATE",
         )
 
 

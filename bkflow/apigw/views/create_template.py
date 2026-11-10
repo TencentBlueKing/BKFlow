@@ -83,6 +83,8 @@ def create_template(request, space_id):
         # 在序列化器中已经判断了存在，所以不需要处理异常
         source_template = Template.objects.get(id=source_template_id)
         pipeline_tree = copy.deepcopy(source_template.pipeline_tree)
+        if not pipeline_tree:
+            raise CreateTemplateException("流程不存在快照数据")
         replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
     elif pipeline_tree:
         replace_pipeline_tree_node_ids(pipeline_tree, OperateType.CREATE_TEMPLATE.value)
@@ -100,9 +102,9 @@ def create_template(request, space_id):
         username = validate_data.pop("creator", "") or request.user.username
         if SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
             if auto_release:
-                snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username, "1.0.0")
+                snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
             else:
-                snapshot = TemplateSnapshot.create_draft_snapshot(pipeline_tree, username)
+                snapshot = TemplateSnapshot.create_unpublished_snapshot(pipeline_tree, username, draft=True)
         else:
             snapshot = TemplateSnapshot.create_snapshot(pipeline_tree, username, "1.0.0")
         template = Template.objects.create(

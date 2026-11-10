@@ -59,6 +59,9 @@ class TemplateManager(models.Manager):
         template = self.get(id=template_id, space_id=space_id)
         # 复制逻辑 snapshot 需要深拷贝
         template_pipeline_tree = template.get_pipeline_tree_by_version(version)
+        if not template_pipeline_tree or "activities" not in template_pipeline_tree:
+            raise ValidationError("该模板暂无流程数据，无法复制")
+
         # 校验流程树中的网关表达式语言是否与空间配置一致
         space_gateway_expression = SpaceConfig.get_config(space_id, GatewayExpressionConfig.name)
         validate_pipeline_tree_gateway_expression(template_pipeline_tree, space_gateway_expression)
@@ -96,7 +99,9 @@ class TemplateManager(models.Manager):
         with transaction.atomic():
             # 开启事务 确保都创建成功
             if is_draft and SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true":
-                copyed_snapshot = TemplateSnapshot.create_draft_snapshot(copyed_pipeline_tree, operator)
+                copyed_snapshot = TemplateSnapshot.create_unpublished_snapshot(
+                    copyed_pipeline_tree, operator, draft=True
+                )
             else:
                 copyed_snapshot = TemplateSnapshot.create_snapshot(copyed_pipeline_tree, operator, "1.0.0")
             template.snapshot_id = copyed_snapshot.id
@@ -165,7 +170,16 @@ class Template(CommonModel):
 
     @property
     def snapshot(self):
-        return TemplateSnapshot.objects.get(id=self.snapshot_id)
+        """获取模板当前快照；快照缺失时返回未落库的空快照，保证上层读取接口不报错。"""
+        try:
+            return TemplateSnapshot.objects.get(id=self.snapshot_id)
+        except TemplateSnapshot.DoesNotExist:
+            logger.warning(
+                "[Template->snapshot] snapshot does not exist, template_id=%s, snapshot_id=%s",
+                self.id,
+                self.snapshot_id,
+            )
+            return TemplateSnapshot(data={}, md5sum="", version=None)
 
     @property
     def pipeline_tree(self):
@@ -185,7 +199,7 @@ class Template(CommonModel):
                     data=pipeline_tree, md5sum=compute_pipeline_md5(pipeline_tree), create_time=datetime.datetime.now()
                 )
             except Exception as e:
-                logger.error("[Template->update_snapshot] update snapshot error, error = {}".format(e))
+                logger.exception("[Template->update_snapshot] update snapshot error, error = {}".format(e))
 
     def create_flow(self, username) -> int:
         """
@@ -224,8 +238,10 @@ class Template(CommonModel):
         return SpaceConfig.get_config(space_id=self.space_id, config_name=FlowVersioning.name) == target
 
     def has_published_version(self):
-        """是否存在已发布的正式版本（非草稿、未删除的快照）"""
-        return TemplateSnapshot.objects.filter(template_id=self.id, draft=False, is_deleted=False).exists()
+        """是否存在已发布的正式版本（非草稿、非自动保存和未删除的快照）"""
+        return TemplateSnapshot.objects.filter(
+            template_id=self.id, draft=False, auto_save=False, is_deleted=False
+        ).exists()
 
     @property
     def subprocess_info(self):
@@ -344,25 +360,28 @@ class Template(CommonModel):
         if not version:
             raise ValidationError("版本号不能为空")
         try:
-            template_snapshot = TemplateSnapshot.objects.get(template_id=self.id, draft=True)
+            draft_snapshot = TemplateSnapshot.objects.filter(template_id=self.id, draft=True).order_by("-id").first()
+            if draft_snapshot is None:
+                if not data.get("force", False):
+                    logger.warning(f"未找到模板（ID: {self.id}）的草稿快照（draft=True）")
+                    raise ValidationError(f"该模板{self.id}没有草稿版本")
+                # 强制发布仅以当前已落库的快照兜底；快照缺失时 pipeline_tree 为 {}，不得固化为正式版本
+                pipeline_tree = self.pipeline_tree
+            else:
+                pipeline_tree = draft_snapshot.data
+
+            if not pipeline_tree:
+                raise ValidationError(f"该模板{self.id}缺少可发布的流程数据")
+
             if data.get("is_validate", True):
-                ValidatorHandler.validate(template_snapshot.data, validate_type=ValidateType.TEMPLATE)
-            template_snapshot.draft = False
-            template_snapshot.version = version
-            template_snapshot.desc = data.get("desc")
-            template_snapshot.operator = data["username"]
+                ValidatorHandler.validate(pipeline_tree, validate_type=ValidateType.TEMPLATE)
+
+            template_snapshot = TemplateSnapshot.create_snapshot(
+                pipeline_tree, data["username"], version, data.get("desc")
+            )
+            template_snapshot.template_id = self.id
             template_snapshot.save()
 
-        except TemplateSnapshot.DoesNotExist:
-            if data.get("force", False):
-                template_snapshot = TemplateSnapshot.create_snapshot(
-                    self.pipeline_tree, data["username"], version, data.get("desc")
-                )
-                template_snapshot.template_id = self.id
-                template_snapshot.save()
-            else:
-                logger.warning(f"未找到模板（ID: {self.id}）的草稿快照（draft=True）")
-                raise ValidationError(f"该模板{self.id}没有草稿版本")
         except Exception as e:
             logger.error(f"发布模板草稿时发生错误（template_id={self.id}）: {e}", exc_info=True)
             raise ValidationError(f"发布模板失败: {e}")
@@ -374,10 +393,11 @@ class TemplateSnapshot(CommonSnapshot):
     默认模板快照
     """
 
-    template_id = models.BigIntegerField(help_text=_("模板ID"), null=True)
+    template_id = models.BigIntegerField(help_text=_("模板ID"), null=True, db_index=True)
     version = models.CharField(_("版本号"), max_length=32, null=True, blank=True, db_index=True)
     desc = models.CharField(_("描述"), max_length=255, null=True, blank=True)
     draft = models.BooleanField(_("是否草稿"), default=False)
+    auto_save = models.BooleanField(_("是否自动保存"), default=False)
     creator = models.CharField(_("创建人"), max_length=64, null=True, blank=True)
     operator = models.CharField(_("操作人"), max_length=64, null=True, blank=True)
     update_time = models.DateTimeField(_("更新时间"), auto_now=True)
@@ -402,17 +422,21 @@ class TemplateSnapshot(CommonSnapshot):
         return cls.objects.create(**data)
 
     @classmethod
-    def create_draft_snapshot(cls, pipeline_tree, username, version=None):
+    def create_unpublished_snapshot(cls, pipeline_tree, username, desc=None, draft=False, auto_save=False, **kwargs):
         data = {
             "data": pipeline_tree,
             "md5sum": compute_pipeline_md5(pipeline_tree),
             "creator": username,
             "operator": username,
+            "desc": desc,
         }
-        if version:
-            data["version"] = version
+        if draft != auto_save:
+            data["draft"] = draft
+            data["auto_save"] = auto_save
         else:
-            data["draft"] = True
+            raise ValidationError("draft和auto_save不能一致")
+        if kwargs:
+            data.update(**kwargs)
         return cls.objects.create(**data)
 
 
