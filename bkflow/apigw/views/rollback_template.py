@@ -21,6 +21,7 @@ import logging
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -66,6 +67,18 @@ def rollback_template(request, space_id, template_id):
         snapshot = TemplateSnapshot.objects.get(template_id=instance.id, version=version)
     except TemplateSnapshot.DoesNotExist:
         return JsonResponse({"result": False, "message": f"版本 {version} 不存在", "code": err_code.VALIDATION_ERROR.code})
+
+    draft_snapshots = TemplateSnapshot.objects.filter(template_id=instance.id, draft=True)
+    if draft_snapshots.count() >= settings.MAX_TEMPLATE_DRAFT_COUNT:
+        draft_snapshots.order_by("id").first().delete()
+
+    TemplateSnapshot.create_unpublished_snapshot(
+        pipeline_tree=snapshot.data,
+        username=request.user.username,
+        desc=f"基于v{version}",
+        draft=True,
+        template_id=instance.id,
+    )
 
     TemplateOperationRecord.objects.create(
         operate_source=TemplateOperationSource.api.name,

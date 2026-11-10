@@ -874,7 +874,7 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
         TemplateSnapshot.create_unpublished_snapshot(
             pipeline_tree=snapshot.data,
             username=request.user.username,
-            desc=f"基于v{instance.version}" if instance.version else None,
+            desc=f"基于v{version}",
             draft=True,
             template_id=instance.id,
         )
