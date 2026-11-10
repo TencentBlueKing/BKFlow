@@ -19,6 +19,7 @@ to the current version of the project delivered to anyone in the future.
 from django.contrib import admin
 
 from bkflow.plugin_catalog.models import (
+    CatalogChangeRecord,
     PluginDirectory,
     SpacePluginCatalogEntry,
     TemplatePluginReference,
@@ -67,6 +68,33 @@ class TemplatePluginReferenceAdmin(admin.ModelAdmin):
     ordering = ("-update_time",)
 
 
+class CatalogChangeRecordAdmin(admin.ModelAdmin):
+    """变更记录只提供只读查询（设计文档"不新增审计页面"），便于运维直接排查
+    "这个插件为什么用不了了、是谁改的"。"""
+
+    list_display = (
+        "space_id",
+        "operate_type",
+        "operate_source",
+        "operator",
+        "instance_id",
+        "method",
+        "reason",
+        "request_id",
+        "operate_date",
+    )
+    list_filter = ("space_id", "operate_type", "operate_source")
+    search_fields = ("space_id", "operator", "instance_id", "request_id", "method")
+    ordering = ("-operate_date",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
 admin.site.register(PluginDirectory, PluginDirectoryAdmin)
 admin.site.register(SpacePluginCatalogEntry, SpacePluginCatalogEntryAdmin)
 admin.site.register(TemplatePluginReference, TemplatePluginReferenceAdmin)
+admin.site.register(CatalogChangeRecord, CatalogChangeRecordAdmin)

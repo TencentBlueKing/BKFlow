@@ -43,6 +43,10 @@ def uniform_meta_result(data, result=True, response_result=True, message=""):
 class TestListComponentPlugins:
     """测试内置插件列表查询"""
 
+    @patch(
+        "bkflow.plugin.services.plugin_schema_service.PluginCatalogMigrationService.is_ready",
+        new=lambda *args, **kwargs: False,
+    )
     @patch("bkflow.plugin.services.plugin_schema_service.SpacePluginConfigModel")
     @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
     @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")
@@ -76,6 +80,10 @@ class TestListComponentPlugins:
         assert plugins[0]["group_name"] == "作业平台(JOB)"
         assert "inputs" not in plugins[0]
 
+    @patch(
+        "bkflow.plugin.services.plugin_schema_service.PluginCatalogMigrationService.is_ready",
+        new=lambda *args, **kwargs: False,
+    )
     @patch("bkflow.plugin.services.plugin_schema_service.SpacePluginConfigModel")
     @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")
     @patch("bkflow.plugin.services.plugin_schema_service.ComponentModel")

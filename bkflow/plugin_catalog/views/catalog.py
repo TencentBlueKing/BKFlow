@@ -45,6 +45,11 @@ from bkflow.utils.views import SimpleGenericViewSet
 logger = logging.getLogger("root")
 
 
+def _request_id(request):
+    """取请求链路 ID，便于变更记录与网关/前端日志对齐；未启用时返回空串。"""
+    return getattr(request, "request_id", "") or ""
+
+
 class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
     """
     插件列表管理：状态 Tab 查询与计数、单条编辑、状态流转、批量操作、空间推荐位维护。
@@ -95,7 +100,11 @@ class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
         if "recommended" in data:
             extra["recommended"] = data["recommended"]
         entry = PluginCatalogService.update_entry(
-            space_id=data["space_id"], entry_id=pk, operator=request.user.username, **extra
+            space_id=data["space_id"],
+            entry_id=pk,
+            operator=request.user.username,
+            request_id=_request_id(request),
+            **extra,
         )
         return Response(PluginCatalogQueryService.serialize_entries(data["space_id"], [entry])[0])
 
@@ -114,6 +123,7 @@ class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
             disable_config=data.get("disable_config"),
             offline_reason=data.get("offline_reason", ""),
             replace_plugin_id=data.get("replace_plugin_id"),
+            request_id=_request_id(request),
             **extra,
         )
         return Response(PluginCatalogQueryService.serialize_entries(data["space_id"], [entry])[0])
@@ -155,6 +165,7 @@ class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
             entry_id=pk,
             disable_config=data["disable_config"],
             operator=request.user.username,
+            request_id=_request_id(request),
         )
         return Response(PluginCatalogQueryService.serialize_entries(data["space_id"], [entry])[0])
 
@@ -169,6 +180,7 @@ class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
             ids=data["ids"],
             directory_id=data.get("directory_id"),
             operator=request.user.username,
+            request_id=_request_id(request),
         )
         return Response(result)
 
@@ -183,6 +195,7 @@ class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
             target_directory_id=data.get("target_directory_id"),
             items=data.get("items"),
             operator=request.user.username,
+            request_id=_request_id(request),
         )
         return Response(result)
 
@@ -190,7 +203,12 @@ class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
         ser = BatchCleanSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
-        result = PluginCatalogService.batch_clean(space_id=data["space_id"], ids=data["ids"])
+        result = PluginCatalogService.batch_clean(
+            space_id=data["space_id"],
+            ids=data["ids"],
+            operator=request.user.username,
+            request_id=_request_id(request),
+        )
         return Response(result)
 
     # ----------------------------------------------------------------------- 推荐(05) ----
@@ -204,5 +222,10 @@ class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
         ser = SpaceIdQuerySerializer(data=request.data or request.query_params)
         ser.is_valid(raise_exception=True)
         space_id = ser.validated_data["space_id"]
-        entry = PluginCatalogService.cancel_recommend(space_id=space_id, entry_id=pk, operator=request.user.username)
+        entry = PluginCatalogService.cancel_recommend(
+            space_id=space_id,
+            entry_id=pk,
+            operator=request.user.username,
+            request_id=_request_id(request),
+        )
         return Response(PluginCatalogQueryService.serialize_entries(space_id, [entry])[0])

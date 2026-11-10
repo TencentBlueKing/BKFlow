@@ -24,7 +24,14 @@ from django.db.models import Max
 from django.utils import timezone
 
 from bkflow.exceptions import NotFoundError, ValidationError
-from bkflow.plugin_catalog.models import PluginCatalogStatus, PluginDirectory, SpacePluginCatalogEntry
+from bkflow.plugin_catalog.models import (
+    CatalogChangeSource,
+    CatalogChangeType,
+    PluginCatalogStatus,
+    PluginDirectory,
+    SpacePluginCatalogEntry,
+)
+from bkflow.plugin_catalog.services.change_record_service import CatalogChangeRecordService
 from bkflow.plugin_catalog.services.query_service import MAX_RECOMMEND, PluginCatalogQueryService
 
 logger = logging.getLogger(__name__)
@@ -82,14 +89,41 @@ class PluginCatalogService:
     # ----------------------------------------------------------- 编辑单条(01) ----
 
     @classmethod
-    def update_entry(cls, space_id, entry_id, directory_id=UNSET, recommended=UNSET, operator="admin"):
+    def update_entry(
+        cls,
+        space_id,
+        entry_id,
+        directory_id=UNSET,
+        recommended=UNSET,
+        operator="admin",
+        operate_source=CatalogChangeSource.WEB,
+        request_id="",
+    ):
         if directory_id is not UNSET:
             entry = cls._get_entry_or_404(space_id, entry_id)
+            before_value = CatalogChangeRecordService.entry_snapshot(entry)
             entry.directory = cls._resolve_directory(space_id, directory_id)
             entry.updated_by = operator
             entry.save(update_fields=["directory", "updated_by", "update_at"])
+            CatalogChangeRecordService.record_entry_change(
+                space_id=space_id,
+                entry=entry,
+                before_value=before_value,
+                operate_type=CatalogChangeType.UPDATE_ENTRY,
+                operator=operator,
+                method="plugins/update_entry",
+                operate_source=operate_source,
+                request_id=request_id,
+            )
         if recommended is not UNSET:
-            cls.set_recommended(space_id, entry_id, recommended, operator)
+            cls.set_recommended(
+                space_id,
+                entry_id,
+                recommended,
+                operator,
+                operate_source=operate_source,
+                request_id=request_id,
+            )
         return cls._get_entry_or_404(space_id, entry_id)
 
     # --------------------------------------------------------- 状态流转(01/02/03) ----
@@ -105,6 +139,10 @@ class PluginCatalogService:
         disable_config=None,
         offline_reason="",
         replace_plugin_id=None,
+        operate_source=CatalogChangeSource.WEB,
+        request_id="",
+        change_type=CatalogChangeType.TRANSITION_STATUS,
+        method="plugins/status",
     ):
         with transaction.atomic():
             entry = cls._get_entry_or_404(space_id, entry_id, for_update=True)
@@ -112,6 +150,7 @@ class PluginCatalogService:
             if target_status not in allowed:
                 raise ValidationError(f"插件当前状态「{entry.status}」不允许流转到「{target_status}」")
 
+            before_value = CatalogChangeRecordService.entry_snapshot(entry)
             now = timezone.now()
             update_fields = ["status", "updated_by", "update_at"]
 
@@ -147,6 +186,18 @@ class PluginCatalogService:
             entry.updated_by = operator
             entry.update_at = now
             entry.save(update_fields=update_fields)
+
+            CatalogChangeRecordService.record_entry_change(
+                space_id=space_id,
+                entry=entry,
+                before_value=before_value,
+                operate_type=change_type,
+                operator=operator,
+                method=method,
+                reason=offline_reason,
+                operate_source=operate_source,
+                request_id=request_id,
+            )
         return entry
 
     @classmethod
@@ -158,28 +209,81 @@ class PluginCatalogService:
         return {"directory_id": None}
 
     @classmethod
-    def update_disable_config(cls, space_id, entry_id, disable_config, operator="admin"):
+    def update_disable_config(
+        cls,
+        space_id,
+        entry_id,
+        disable_config,
+        operator="admin",
+        operate_source=CatalogChangeSource.WEB,
+        request_id="",
+    ):
         """03 · 独立编辑停用提示配置，仅「已停用」/「已下架」两态下允许（与状态流转解耦）。"""
         entry = cls._get_entry_or_404(space_id, entry_id)
         if entry.status not in (PluginCatalogStatus.DISABLED, PluginCatalogStatus.OFFLINE):
             raise ValidationError(f"当前状态「{entry.status}」不支持编辑停用配置")
+        before_value = CatalogChangeRecordService.entry_snapshot(entry)
         entry.disable_config = cls._merge_disable_config(entry.disable_config, disable_config)
         entry.updated_by = operator
         entry.save(update_fields=["disable_config", "updated_by", "update_at"])
+        CatalogChangeRecordService.record_entry_change(
+            space_id=space_id,
+            entry=entry,
+            before_value=before_value,
+            operate_type=CatalogChangeType.UPDATE_DISABLE_CONFIG,
+            operator=operator,
+            method="plugins/disable_config",
+            operate_source=operate_source,
+            request_id=request_id,
+        )
         return entry
 
     # ------------------------------------------------------------- 批量操作 ----
 
     @classmethod
-    def batch_category(cls, space_id, ids, directory_id, operator="admin"):
+    def batch_category(
+        cls,
+        space_id,
+        ids,
+        directory_id,
+        operator="admin",
+        operate_source=CatalogChangeSource.WEB,
+        request_id="",
+    ):
         directory = cls._resolve_directory(space_id, directory_id)
-        updated = SpacePluginCatalogEntry.objects.filter(space_id=space_id, id__in=ids, is_deleted=False).update(
-            directory=directory, updated_by=operator, update_at=timezone.now()
-        )
+        entries = list(SpacePluginCatalogEntry.objects.filter(space_id=space_id, id__in=ids, is_deleted=False))
+        before_map = {entry.id: CatalogChangeRecordService.entry_snapshot(entry) for entry in entries}
+        with transaction.atomic():
+            updated = SpacePluginCatalogEntry.objects.filter(space_id=space_id, id__in=ids, is_deleted=False).update(
+                directory=directory, updated_by=operator, update_at=timezone.now()
+            )
+            # 批量归类按条目逐条留痕：查单个插件的历史时才能查到这次批量操作
+            for entry in entries:
+                entry.directory = directory
+                CatalogChangeRecordService.record_entry_change(
+                    space_id=space_id,
+                    entry=entry,
+                    before_value=before_map[entry.id],
+                    operate_type=CatalogChangeType.BATCH_CATEGORY,
+                    operator=operator,
+                    method="plugins/batch_category",
+                    operate_source=operate_source,
+                    request_id=request_id,
+                )
         return {"ids": ids, "updated": updated}
 
     @classmethod
-    def batch_status(cls, space_id, ids, status, target_directory_id=None, items=None, operator="admin"):
+    def batch_status(
+        cls,
+        space_id,
+        ids,
+        status,
+        target_directory_id=None,
+        items=None,
+        operator="admin",
+        operate_source=CatalogChangeSource.WEB,
+        request_id="",
+    ):
         """
         批量启用/不启用复用同一个入口。`items` 支持"逐条保留各自原目录"
         场景（`[{"id":.., "target_directory_id":..}]`），未提供时按 `target_directory_id` 统一赋值；
@@ -210,30 +314,63 @@ class PluginCatalogService:
                     else:
                         # 未显式指定目录时，沿用条目当前 directory_id（03 的"各自保留原目录"默认行为）
                         extra["target_directory_id"] = entry.directory_id
-                cls.transition_status(space_id=space_id, entry_id=eid, target_status=status, operator=operator, **extra)
+                cls.transition_status(
+                    space_id=space_id,
+                    entry_id=eid,
+                    target_status=status,
+                    operator=operator,
+                    operate_source=operate_source,
+                    request_id=request_id,
+                    change_type=CatalogChangeType.BATCH_STATUS,
+                    method="plugins/batch_status",
+                    **extra,
+                )
 
         return {"ids": list(entries.keys())}
 
     @classmethod
-    def batch_clean(cls, space_id, ids):
+    def batch_clean(cls, space_id, ids, operator="admin", operate_source=CatalogChangeSource.WEB, request_id=""):
         """04 · 批量清理已失效记录：硬删除（不是软删除），因为失效记录本身已是"事实不存在"，
         区别于目录整理场景的软删除。"""
-        entries = SpacePluginCatalogEntry.objects.filter(space_id=space_id, id__in=ids)
-        found_count = entries.count()
+        entries = list(SpacePluginCatalogEntry.objects.filter(space_id=space_id, id__in=ids))
+        found_count = len(entries)
         if found_count != len(set(ids)):
             raise ValidationError("存在不属于该空间或不存在的插件记录")
-        statuses = set(entries.values_list("status", flat=True))
+        statuses = {entry.status for entry in entries}
         if statuses - {PluginCatalogStatus.INVALID}:
             raise ValidationError("只能清理状态为「已失效」的记录，批量操作整体拒绝")
-        entries.delete()
+        with transaction.atomic():
+            # 记录先写、记录后删：条目被物理删除后就没有前后值可对比了
+            for entry in entries:
+                CatalogChangeRecordService.record(
+                    space_id=space_id,
+                    instance_id=entry.id,
+                    operate_type=CatalogChangeType.BATCH_CLEAN,
+                    operator=operator,
+                    before_value=CatalogChangeRecordService.entry_snapshot(entry),
+                    after_value={},
+                    method="plugins/batch_clean",
+                    operate_source=operate_source,
+                    request_id=request_id,
+                )
+            SpacePluginCatalogEntry.objects.filter(id__in=[entry.id for entry in entries]).delete()
         return {"deleted": found_count}
 
     # ----------------------------------------------------------------- 推荐(05) ----
 
     @classmethod
-    def set_recommended(cls, space_id, entry_id, recommended, operator="admin"):
+    def set_recommended(
+        cls,
+        space_id,
+        entry_id,
+        recommended,
+        operator="admin",
+        operate_source=CatalogChangeSource.WEB,
+        request_id="",
+    ):
         with transaction.atomic():
             entry = cls._get_entry_or_404(space_id, entry_id, for_update=True)
+            before_value = CatalogChangeRecordService.entry_snapshot(entry)
             if recommended and not entry.recommended:
                 current_count = (
                     SpacePluginCatalogEntry.objects.select_for_update()
@@ -255,11 +392,31 @@ class PluginCatalogService:
                 entry.recommend_order = None
             entry.updated_by = operator
             entry.save(update_fields=["recommended", "recommend_order", "updated_by", "update_at"])
+
+            CatalogChangeRecordService.record_entry_change(
+                space_id=space_id,
+                entry=entry,
+                before_value=before_value,
+                operate_type=(
+                    CatalogChangeType.RECOMMEND if recommended else CatalogChangeType.CANCEL_RECOMMEND
+                ),
+                operator=operator,
+                method="plugins/recommend" if recommended else "plugins/recommend_cancel",
+                operate_source=operate_source,
+                request_id=request_id,
+            )
         return entry
 
     @classmethod
-    def cancel_recommend(cls, space_id, entry_id, operator="admin"):
-        return cls.set_recommended(space_id, entry_id, recommended=False, operator=operator)
+    def cancel_recommend(cls, space_id, entry_id, operator="admin", operate_source=CatalogChangeSource.WEB, request_id=""):
+        return cls.set_recommended(
+            space_id,
+            entry_id,
+            recommended=False,
+            operator=operator,
+            operate_source=operate_source,
+            request_id=request_id,
+        )
 
     @classmethod
     def list_recommend(cls, space_id):

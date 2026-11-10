@@ -266,6 +266,13 @@ class PluginCatalogQueryService:
 
     @classmethod
     def get_summary(cls, space_id):
+        """
+        插件目录侧边栏汇总：目录树（每个节点带插件数量）+ 三个虚拟节点的计数。
+
+        计数口径与列表页默认过滤保持一致（排除"已失效"条目），保证侧边栏数字与
+        点进去看到的条数对得上；一级目录的 count 含其二级子目录，与 08 目录管理的
+        `total_plugin_count` 口径一致。
+        """
         directories = PluginDirectory.objects.filter(space_id=space_id).order_by("parent_id", "order", "id")
         nodes, top_level = {}, []
         for directory in directories:
@@ -277,22 +284,51 @@ class PluginCatalogQueryService:
             if directory.parent_id is not None and directory.parent_id in nodes:
                 nodes[directory.parent_id]["children"].append(nodes[directory.id])
 
-        status_counts = cls.get_status_counts(space_id)
+        directory_counts = cls._get_directory_plugin_counts(space_id)
+        for directory_id, node in nodes.items():
+            node["count"] = directory_counts.get(directory_id, 0)
+
+        entries = SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False).exclude(
+            status=PluginCatalogStatus.INVALID
+        )
+
         strategy = PluginAdmissionStrategyService.get_strategy(space_id) or {}
         recommend_count = SpacePluginCatalogEntry.objects.filter(
             space_id=space_id, recommended=True, is_deleted=False
         ).count()
-        unresolved_node_count = TemplatePluginReference.objects.filter(space_id=space_id, resolved=False).count()
 
         return {
             "directory_tree": top_level,
-            "status_counts": status_counts,
-            "strategy_summary": {"mode": strategy.get("mode", "review")},
-            "pending_strategy_changes": status_counts.get(PluginCatalogStatus.REVIEW, 0),
+            # 虚拟节点计数：「全部插件」/「未分类插件」；「空间推荐」用 recommend_count
+            "total_count": entries.count(),
+            "uncategorized_count": entries.filter(directory__isnull=True).count(),
             "recommend_count": recommend_count,
             "recommend_max": MAX_RECOMMEND,
-            "unresolved_node_count": unresolved_node_count,
-            # 本空间是否已完成插件目录初始化迁移。未就绪时上面各计数恒为 0，
-            # 前端据此提示"尚未启用插件目录"，而不是把 0 当成"没有插件"。
+            "strategy_summary": {"mode": strategy.get("mode", "review")},
             "ready": PluginCatalogMigrationService.is_ready(space_id),
         }
+
+    @classmethod
+    def _get_directory_plugin_counts(cls, space_id):
+        """各目录的插件数量。
+
+        二级目录 = 直接归属该目录的条目数；一级目录 = 自身 + 其二级子目录的条目数。
+        与列表页默认口径一致（排除"已失效"条目）。
+        """
+        rows = (
+            SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
+            .exclude(status=PluginCatalogStatus.INVALID)
+            .exclude(directory__isnull=True)
+            .values("directory_id")
+            .annotate(total=Count("id"))
+        )
+        counts = {row["directory_id"]: row["total"] for row in rows}
+
+        # 目录最多两级：一级目录的 count 需叠加其二级子目录
+        child_ids = {}
+        for parent_id, child_id in PluginDirectory.objects.filter(space_id=space_id).values_list("parent_id", "id"):
+            if parent_id is not None:
+                child_ids.setdefault(parent_id, []).append(child_id)
+        for parent_id, children in child_ids.items():
+            counts[parent_id] = counts.get(parent_id, 0) + sum(counts.get(cid, 0) for cid in children)
+        return counts

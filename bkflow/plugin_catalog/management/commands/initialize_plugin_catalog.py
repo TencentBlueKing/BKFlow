@@ -27,6 +27,7 @@ class Command(BaseCommand):
     help = (
         "预览/执行空间插件目录的存量初始化迁移。"
         "单空间失败不影响其他空间；已 ready=True 的空间重跑直接跳过。"
+        "加 --backfill-references 可只补写存量流程的插件引用记录（不改目录与就绪状态）。"
     )
 
     def add_arguments(self, parser):
@@ -39,11 +40,21 @@ class Command(BaseCommand):
         )
         parser.add_argument("--all-spaces", action="store_true", default=False, help="初始化全部空间")
         parser.add_argument("--dry-run", action="store_true", default=False, help="只打印将要生成的条数与分类分布，不写库")
+        parser.add_argument(
+            "--backfill-references",
+            action="store_true",
+            default=False,
+            help=(
+                "只补写存量流程的插件引用记录（不改目录条目与就绪状态），"
+                "用于已初始化空间补跑；要求空间已 ready，未就绪空间自动跳过"
+            ),
+        )
 
     def handle(self, *args, **options):
         space_ids = options["space_id"] or []
         all_spaces = options["all_spaces"]
         dry_run = options["dry_run"]
+        backfill = options["backfill_references"]
 
         if not space_ids and not all_spaces:
             raise CommandError("必须指定 --space-id 或 --all-spaces 之一")
@@ -57,16 +68,30 @@ class Command(BaseCommand):
             space_ids = list(dict.fromkeys(space_ids))
 
         mode = "dry-run" if dry_run else "apply"
+        if backfill:
+            mode = f"{mode}-backfill-refs"
         succeeded, failed, skipped = 0, 0, 0
         for sid in space_ids:
             try:
-                result = PluginCatalogMigrationService.initialize_space(space_id=sid, operator="admin", dry_run=dry_run)
+                if backfill:
+                    result = PluginCatalogMigrationService.backfill_references(
+                        space_id=sid, operator="admin", dry_run=dry_run
+                    )
+                else:
+                    result = PluginCatalogMigrationService.initialize_space(
+                        space_id=sid, operator="admin", dry_run=dry_run
+                    )
             except Exception as exc:  # noqa: BLE001 单空间失败不影响其他空间继续执行
                 failed += 1
                 self.stderr.write(f"[{mode}] space_id={sid} FAILED: {exc}")
                 continue
 
-            if result.get("already_migrated"):
+            if backfill:
+                if result.get("skipped"):
+                    skipped += 1
+                    self.stdout.write(f"[{mode}] space_id={sid} SKIPPED({result.get('reason')})")
+                    continue
+            elif result.get("already_migrated"):
                 skipped += 1
                 self.stdout.write(f"[{mode}] space_id={sid} SKIPPED(already ready)")
                 continue
