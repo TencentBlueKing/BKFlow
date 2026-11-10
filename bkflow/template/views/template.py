@@ -867,6 +867,18 @@ class TemplateViewSet(TenantScopeMixin, UserModelViewSet):
             snapshot = TemplateSnapshot.objects.get(template_id=instance.id, version=version)
         except TemplateSnapshot.DoesNotExist:
             return Response(exception=True, data={"detail": "版本不存在"})
+        draft_snapshots = TemplateSnapshot.objects.filter(template_id=instance.id, draft=True)
+        if draft_snapshots.count() >= settings.MAX_TEMPLATE_DRAFT_COUNT:
+            draft_snapshots.order_by("id").first().delete()
+
+        TemplateSnapshot.create_unpublished_snapshot(
+            pipeline_tree=snapshot.data,
+            username=request.user.username,
+            desc=f"基于v{instance.version}" if instance.version else None,
+            draft=True,
+            template_id=instance.id,
+        )
+
         TemplateOperationRecord.objects.create(
             operate_source=TemplateOperationSource.app.name,
             operate_type=TemplateOperationType.rollback.name,
