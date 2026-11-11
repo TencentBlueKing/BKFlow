@@ -590,7 +590,7 @@ class DebugService:
                 self._freeze_debug_tree(ctx, operator)
 
             template = Template.objects.filter(id=self.template_id).first()
-            tenant_id = ensure_space_tenant(self.request, template.space_id)
+            tenant_id = ensure_space_tenant(self.request, template.space_id if template else self.space_id)
             create_data = {
                 "template_id": self.template_id,
                 "space_id": self.space_id,
@@ -1317,7 +1317,7 @@ class DebugService:
             self._freeze_debug_tree(ctx, operator, ns.node_id, execution_mode="real")
             mini_tree = build_single_node_pipeline_tree(self.pipeline_tree, ns.node_id, var_values)
             template = Template.objects.filter(id=self.template_id).first()
-            tenant_id = ensure_space_tenant(self.request, template.space_id)
+            tenant_id = ensure_space_tenant(self.request, template.space_id if template else self.space_id)
             create_result = client.create_task(
                 {
                     "template_id": self.template_id,
