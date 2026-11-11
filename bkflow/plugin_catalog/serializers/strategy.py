@@ -42,6 +42,3 @@ class StrategySaveSerializer(serializers.Serializer):
 
 class SourceGroupQuerySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
-    exclude_directory_id = serializers.IntegerField(
-        help_text=_("编辑某一级目录自身绑定时传入，排除自身已绑定的来源"), required=False, allow_null=True
-    )

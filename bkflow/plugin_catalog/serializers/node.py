@@ -21,6 +21,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from bkflow.plugin_catalog.models import PluginType
+from bkflow.plugin_catalog.services.source_group_service import SourceGroupService
 
 
 class PluginIdentitySerializer(serializers.Serializer):
@@ -28,6 +29,18 @@ class PluginIdentitySerializer(serializers.Serializer):
     source_key = serializers.CharField(required=False, allow_blank=True, default="")
     plugin_code = serializers.CharField()
     plugin_version = serializers.CharField(required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        """把 source_key 归一化到库内口径。
+
+        对外统一用「来源匹配键」（`builtin` / `bk_plugin` / api 的来源 key），而库里
+        builtin / bk_plugin 的 source_key 恒为空串，所以这里翻译回去：前端传
+        `"builtin"`（插件目录列表返回的来源 id）或 `""` 都能查到同一条记录。
+        """
+        attrs["source_key"] = SourceGroupService.normalize_source_key(
+            attrs["plugin_type"], attrs.get("source_key", "")
+        )
+        return attrs
 
 
 class PluginStatusesSerializer(serializers.Serializer):
@@ -49,6 +62,13 @@ class PluginVersionsQuerySerializer(serializers.Serializer):
     plugin_type = serializers.ChoiceField(choices=[p for p, _label in PluginType.CHOICES])
     source_key = serializers.CharField(required=False, allow_blank=True, default="")
     plugin_code = serializers.CharField()
+
+    def validate(self, attrs):
+        """source_key 归一化到库内口径，理由同 `PluginIdentitySerializer`。"""
+        attrs["source_key"] = SourceGroupService.normalize_source_key(
+            attrs["plugin_type"], attrs.get("source_key", "")
+        )
+        return attrs
 
 
 class VersionDiffSerializer(serializers.Serializer):

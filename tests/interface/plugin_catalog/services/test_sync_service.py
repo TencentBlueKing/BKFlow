@@ -61,7 +61,7 @@ class TestSyncApi:
 
         assert stat["invalidated"] == 1
         entry = SpacePluginCatalogEntry.objects.get(space_id=1, plugin_type=PluginType.API, plugin_code="v2_plugin")
-        assert entry.status == PluginCatalogStatus.INVALID
+        assert entry.status == PluginCatalogStatus.EXPIRED
 
     @patch("bkflow.plugin_catalog.services.sync_service.OpenPluginCatalogService")
     def test_sync_api_cascades_invalid_when_source_config_removed(self, mock_service):
@@ -73,7 +73,7 @@ class TestSyncApi:
         mock_service.fetch_all_source_plugins.return_value = {"sops": ["v4_plugin"]}
         PluginCatalogSyncService.sync_api(space_id=1)
         entry = SpacePluginCatalogEntry.objects.get(space_id=1, plugin_type=PluginType.API, plugin_code="v4_plugin")
-        assert entry.status != PluginCatalogStatus.INVALID
+        assert entry.status != PluginCatalogStatus.EXPIRED
 
         # 模拟来源配置被整体删除：fetch_all_source_plugins 不再返回这个来源
         mock_service.fetch_all_source_plugins.return_value = {}
@@ -81,8 +81,7 @@ class TestSyncApi:
 
         assert stat["invalidated"] == 1
         entry.refresh_from_db()
-        assert entry.status == PluginCatalogStatus.INVALID
-        assert entry.invalid_reason == "来源中已不存在该插件"
+        assert entry.status == PluginCatalogStatus.EXPIRED
 
     @patch("bkflow.plugin_catalog.services.sync_service.OpenPluginCatalogService")
     def test_sync_api_revives_entry_when_plugin_reappears(self, mock_service):
@@ -91,18 +90,18 @@ class TestSyncApi:
         mock_service.fetch_all_source_plugins.return_value = {"sops": ["v4_plugin"]}
         PluginCatalogSyncService.sync_api(space_id=1)
         entry = SpacePluginCatalogEntry.objects.get(space_id=1, plugin_type=PluginType.API, plugin_code="v4_plugin")
-        entry.status = PluginCatalogStatus.VISIBLE
+        entry.status = PluginCatalogStatus.ENABLE
         entry.save(update_fields=["status"])
 
         mock_service.fetch_all_source_plugins.return_value = {}
         PluginCatalogSyncService.sync_api(space_id=1)
         entry.refresh_from_db()
-        assert entry.status == PluginCatalogStatus.INVALID
+        assert entry.status == PluginCatalogStatus.EXPIRED
 
         mock_service.fetch_all_source_plugins.return_value = {"sops": ["v4_plugin"]}
         PluginCatalogSyncService.sync_api(space_id=1)
         entry.refresh_from_db()
-        assert entry.status == PluginCatalogStatus.VISIBLE
+        assert entry.status == PluginCatalogStatus.ENABLE
 
     @patch("bkflow.plugin_catalog.services.sync_service.OpenPluginCatalogService")
     def test_sync_api_skips_when_fetch_fails(self, mock_service):

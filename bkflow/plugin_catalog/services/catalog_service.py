@@ -20,7 +20,6 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from django.db import transaction
-from django.db.models import Max
 from django.utils import timezone
 
 from bkflow.exceptions import NotFoundError, ValidationError
@@ -39,16 +38,20 @@ logger = logging.getLogger(__name__)
 # 未提供该参数（区别于显式传 None="未分类"）的哨兵值
 UNSET = object()
 
-# 状态机允许的流转方向。invalid 为终态，只能由同步任务唤醒，不开放任何人工流转入口；
-# offline 不开放回退到「已停用」（下架后只能重新启用或保持下架，减少状态跳转复杂度）。
+# 状态机允许的流转方向（三态 + 一个失效终态）：
+#   待审核 → 启用（审核通过）/ 未启用（审核不通过）
+#   启用   → 未启用（管理员停用）
+#   未启用 → 启用（重新启用）
+#   已失效 → 终态，不开放人工流转；来源重新出现时由同步任务按 pre_invalid_status 唤醒
 ALLOWED_TRANSITIONS = {
-    PluginCatalogStatus.REVIEW: {PluginCatalogStatus.VISIBLE, PluginCatalogStatus.NOT_ENABLED},
-    PluginCatalogStatus.VISIBLE: {PluginCatalogStatus.DISABLED},
-    PluginCatalogStatus.DISABLED: {PluginCatalogStatus.VISIBLE, PluginCatalogStatus.OFFLINE},
-    PluginCatalogStatus.OFFLINE: {PluginCatalogStatus.VISIBLE},
-    PluginCatalogStatus.NOT_ENABLED: {PluginCatalogStatus.VISIBLE},
-    PluginCatalogStatus.INVALID: set(),
+    PluginCatalogStatus.PENDING_REVIEW: {PluginCatalogStatus.ENABLE, PluginCatalogStatus.DISABLED},
+    PluginCatalogStatus.ENABLE: {PluginCatalogStatus.DISABLED},
+    PluginCatalogStatus.DISABLED: {PluginCatalogStatus.ENABLE},
+    PluginCatalogStatus.EXPIRED: set(),
 }
+
+# 审核不通过时写入「未启用原因」的固定文案（人工决定，与来源无关）
+REJECTED_REASON = "审核不通过"
 
 
 class PluginCatalogService:
@@ -78,13 +81,24 @@ class PluginCatalogService:
         return directory
 
     @staticmethod
-    def _merge_disable_config(existing, incoming):
-        """保留 `_meta` 命名空间下的内部字段（如 pre_invalid_status/applied_ai_request_id），
-        只用用户输入覆盖业务可见的其余字段，避免人工编辑时误把内部状态冲掉。"""
-        meta = dict((existing or {}).get("_meta", {}))
-        merged = {key: value for key, value in (incoming or {}).items() if key != "_meta"}
-        merged["_meta"] = meta
-        return merged
+    def _resolve_replace_plugin(space_id, entry_id, replace_plugin_id):
+        """解析建议替换插件：必须是本空间内、可见、且不是自身的另一个插件。
+
+        设计稿 8「停用插件」弹窗的替换插件下拉只能选当前可见的其他插件，
+        因此这里按同口径校验，避免写入一个前端根本选不到的引用。
+        """
+        replace_entry = SpacePluginCatalogEntry.objects.filter(
+            space_id=space_id, pk=replace_plugin_id
+        ).first()
+        if replace_entry is None:
+            raise ValidationError(f"建议替换插件 {replace_plugin_id} 不存在")
+        if replace_entry.id == entry_id:
+            raise ValidationError("建议替换插件不能是插件自身")
+        if replace_entry.status != PluginCatalogStatus.ENABLE:
+            raise ValidationError(
+                f"建议替换插件 {replace_plugin_id} 当前不是可用状态，不能作为替换建议"
+            )
+        return replace_entry
 
     # ----------------------------------------------------------- 编辑单条(01) ----
 
@@ -136,8 +150,7 @@ class PluginCatalogService:
         target_status,
         operator="admin",
         target_directory_id=UNSET,
-        disable_config=None,
-        offline_reason="",
+        disable_reason="",
         replace_plugin_id=None,
         operate_source=CatalogChangeSource.WEB,
         request_id="",
@@ -154,33 +167,27 @@ class PluginCatalogService:
             now = timezone.now()
             update_fields = ["status", "updated_by", "update_at"]
 
-            if target_status == PluginCatalogStatus.VISIBLE:
+            if target_status == PluginCatalogStatus.ENABLE:
                 if target_directory_id is UNSET:
                     raise ValidationError("启用插件需要指定 target_directory_id（可为空表示未分类）")
                 entry.directory = cls._resolve_directory(space_id, target_directory_id)
                 entry.ever_enabled = True
                 update_fields += ["directory", "ever_enabled"]
             elif target_status == PluginCatalogStatus.DISABLED:
-                if not disable_config:
-                    raise ValidationError("停用插件需要填写停用提示配置 disable_config")
-                entry.disable_config = cls._merge_disable_config(entry.disable_config, disable_config)
-                update_fields.append("disable_config")
-            elif target_status == PluginCatalogStatus.OFFLINE:
-                if not offline_reason:
-                    raise ValidationError("下架插件需要填写下架原因 offline_reason")
-                entry.offline_reason = offline_reason
-                entry.offline_by = operator
-                entry.offline_time = now
-                update_fields += ["offline_reason", "offline_by", "offline_time"]
-                if replace_plugin_id:
-                    replace_entry = SpacePluginCatalogEntry.objects.filter(
-                        space_id=space_id, pk=replace_plugin_id
-                    ).first()
-                    if replace_entry is None:
-                        raise ValidationError(f"建议替换插件 {replace_plugin_id} 不存在")
-                    entry.replace_plugin = replace_entry
-                    update_fields.append("replace_plugin")
-            # target_status == NOT_ENABLED（不启用）：仅改 status，不需要额外字段
+                # 未启用原因是选填：
+                #   - 管理员停用：用户填写的原因
+                #   - 审核不通过：写固定文案「审核不通过」
+                # 不填时前端统一显示「该插件已被空间管理停用」
+                if entry.status == PluginCatalogStatus.PENDING_REVIEW:
+                    entry.disable_reason = disable_reason or REJECTED_REASON
+                else:
+                    entry.disable_reason = disable_reason or ""
+                update_fields.append("disable_reason")
+
+            # 建议替换插件在「未启用」场景可填（设计稿的停用配置弹窗有该下拉）
+            if replace_plugin_id:
+                entry.replace_plugin = cls._resolve_replace_plugin(space_id, entry.id, replace_plugin_id)
+                update_fields.append("replace_plugin")
 
             entry.status = target_status
             entry.updated_by = operator
@@ -194,7 +201,7 @@ class PluginCatalogService:
                 operate_type=change_type,
                 operator=operator,
                 method=method,
-                reason=offline_reason,
+                reason=entry.disable_reason,
                 operate_source=operate_source,
                 request_id=request_id,
             )
@@ -209,30 +216,46 @@ class PluginCatalogService:
         return {"directory_id": None}
 
     @classmethod
-    def update_disable_config(
+    def update_reason(
         cls,
         space_id,
         entry_id,
-        disable_config,
+        reason="",
+        replace_plugin_id=None,
         operator="admin",
         operate_source=CatalogChangeSource.WEB,
         request_id="",
     ):
-        """03 · 独立编辑停用提示配置，仅「已停用」/「已下架」两态下允许（与状态流转解耦）。"""
+        """03 · 独立编辑「未启用配置」（未启用原因 + 建议替换插件），仅「未启用」态下允许。
+
+        未启用原因与建议替换插件是一组配置（设计稿的「停用配置」弹窗就是这两个字段），
+        与状态流转解耦：停用后仍可单独调整文案与替代推荐。
+        「已失效」是来源事实（源头已不存在该插件），不在此入口维护。
+        """
         entry = cls._get_entry_or_404(space_id, entry_id)
-        if entry.status not in (PluginCatalogStatus.DISABLED, PluginCatalogStatus.OFFLINE):
-            raise ValidationError(f"当前状态「{entry.status}」不支持编辑停用配置")
+        if entry.status != PluginCatalogStatus.DISABLED:
+            raise ValidationError(f"当前状态「{entry.status}」不支持编辑未启用配置")
+
+        reason = reason or ""
+        if len(reason) > 200:
+            raise ValidationError("原因不能超过 200 字")
+
         before_value = CatalogChangeRecordService.entry_snapshot(entry)
-        entry.disable_config = cls._merge_disable_config(entry.disable_config, disable_config)
+        entry.disable_reason = reason
+        update_fields = ["disable_reason"]
+        if replace_plugin_id:
+            entry.replace_plugin = cls._resolve_replace_plugin(space_id, entry.id, replace_plugin_id)
+            update_fields.append("replace_plugin")
         entry.updated_by = operator
-        entry.save(update_fields=["disable_config", "updated_by", "update_at"])
+        entry.save(update_fields=update_fields + ["updated_by", "update_at"])
         CatalogChangeRecordService.record_entry_change(
             space_id=space_id,
             entry=entry,
             before_value=before_value,
-            operate_type=CatalogChangeType.UPDATE_DISABLE_CONFIG,
+            operate_type=CatalogChangeType.UPDATE_REASON,
             operator=operator,
-            method="plugins/disable_config",
+            method="plugins/reason",
+            reason=reason,
             operate_source=operate_source,
             request_id=request_id,
         )
@@ -285,9 +308,9 @@ class PluginCatalogService:
         request_id="",
     ):
         """
-        批量启用/不启用复用同一个入口。`items` 支持"逐条保留各自原目录"
+        批量启用/未启用复用同一个入口。`items` 支持"逐条保留各自原目录"
         场景（`[{"id":.., "target_directory_id":..}]`），未提供时按 `target_directory_id` 统一赋值；
-        两者都没有且 status=visible 时，各条目沿用自身现有 directory_id（等价于"保持原目录不变"）。
+        两者都没有且 status=enable 时，各条目沿用自身现有 directory_id（等价于"保持原目录不变"）。
         """
         entries = {
             entry.id: entry
@@ -306,7 +329,7 @@ class PluginCatalogService:
         with transaction.atomic():
             for eid, entry in entries.items():
                 extra = {}
-                if status == PluginCatalogStatus.VISIBLE:
+                if status == PluginCatalogStatus.ENABLE:
                     if eid in directory_overrides:
                         extra["target_directory_id"] = directory_overrides[eid]
                     elif target_directory_id is not None:
@@ -327,34 +350,6 @@ class PluginCatalogService:
                 )
 
         return {"ids": list(entries.keys())}
-
-    @classmethod
-    def batch_clean(cls, space_id, ids, operator="admin", operate_source=CatalogChangeSource.WEB, request_id=""):
-        """04 · 批量清理已失效记录：硬删除（不是软删除），因为失效记录本身已是"事实不存在"，
-        区别于目录整理场景的软删除。"""
-        entries = list(SpacePluginCatalogEntry.objects.filter(space_id=space_id, id__in=ids))
-        found_count = len(entries)
-        if found_count != len(set(ids)):
-            raise ValidationError("存在不属于该空间或不存在的插件记录")
-        statuses = {entry.status for entry in entries}
-        if statuses - {PluginCatalogStatus.INVALID}:
-            raise ValidationError("只能清理状态为「已失效」的记录，批量操作整体拒绝")
-        with transaction.atomic():
-            # 记录先写、记录后删：条目被物理删除后就没有前后值可对比了
-            for entry in entries:
-                CatalogChangeRecordService.record(
-                    space_id=space_id,
-                    instance_id=entry.id,
-                    operate_type=CatalogChangeType.BATCH_CLEAN,
-                    operator=operator,
-                    before_value=CatalogChangeRecordService.entry_snapshot(entry),
-                    after_value={},
-                    method="plugins/batch_clean",
-                    operate_source=operate_source,
-                    request_id=request_id,
-                )
-            SpacePluginCatalogEntry.objects.filter(id__in=[entry.id for entry in entries]).delete()
-        return {"deleted": found_count}
 
     # ----------------------------------------------------------------- 推荐(05) ----
 
@@ -379,19 +374,11 @@ class PluginCatalogService:
                 )
                 if current_count >= MAX_RECOMMEND:
                     raise ValidationError(f"空间推荐已达上限 {MAX_RECOMMEND}，请先移除不需要的推荐")
-                max_order = (
-                    SpacePluginCatalogEntry.objects.filter(space_id=space_id, recommended=True).aggregate(
-                        Max("recommend_order")
-                    )["recommend_order__max"]
-                    or 0
-                )
                 entry.recommended = True
-                entry.recommend_order = max_order + 1
             elif not recommended and entry.recommended:
                 entry.recommended = False
-                entry.recommend_order = None
             entry.updated_by = operator
-            entry.save(update_fields=["recommended", "recommend_order", "updated_by", "update_at"])
+            entry.save(update_fields=["recommended", "updated_by", "update_at"])
 
             CatalogChangeRecordService.record_entry_change(
                 space_id=space_id,
@@ -422,6 +409,6 @@ class PluginCatalogService:
     def list_recommend(cls, space_id):
         entries = SpacePluginCatalogEntry.objects.filter(
             space_id=space_id, recommended=True, is_deleted=False
-        ).order_by("recommend_order", "id")
+        ).order_by("id")
         return PluginCatalogQueryService.serialize_entries(space_id, list(entries))
 

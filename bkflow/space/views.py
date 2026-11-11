@@ -529,12 +529,15 @@ class SpaceConfigAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewS
     )
     @action(detail=False, methods=["GET"], url_path="plugin_catalog_migration")
     def plugin_catalog_migration(self, request, *args, **kwargs):
-        """09 · 空间配置-空间插件引导页的只读入口，返回 ready/migrated_at/legacy_snapshot。"""
+        """09 · 空间配置-空间插件引导页的只读入口，返回 ready/migrated_at/legacy_snapshot。
+
+        `legacy_snapshot` 已加工成前端可直接渲染成「迁移前的配置（只读）」表格的结构
+        （过滤方式 / 操作 / 按 scope 覆盖 / 快照），前端不用再解析旧配置的原始 JSON。
+        """
         ser = SpaceConfigBaseQuerySerializer(data=request.query_params)
         ser.is_valid(raise_exception=True)
         space_id = ser.validated_data["space_id"]
-        status = PluginCatalogMigrationService.get_status(space_id) or {"ready": False}
-        return Response({"space_id": space_id, **status})
+        return Response({"space_id": space_id, **PluginCatalogMigrationService.get_status_view(space_id)})
 
     def _ensure_config_writable(self, space_id, config_name):
         """

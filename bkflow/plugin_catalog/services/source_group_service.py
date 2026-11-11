@@ -43,22 +43,12 @@ class SourceGroupService:
     """
 
     @classmethod
-    def list_groups(cls, space_id, exclude_directory_id=None):
+    def list_groups(cls, space_id):
         groups = [
             cls._builtin_group(),
             cls._bk_plugin_group(),
             cls._api_group(space_id),
         ]
-        bound_map = cls._bound_directory_map(space_id, exclude_directory_id=exclude_directory_id)
-
-        for group in groups:
-            bound = bound_map.get(group["id"])
-            if bound:
-                group["bound_directory_id"], group["bound_directory_name"] = bound
-            for child in group["children"]:
-                bound = bound_map.get(child["id"])
-                if bound:
-                    child["bound_directory_id"], child["bound_directory_name"] = bound
         return groups
 
     @classmethod
@@ -93,9 +83,22 @@ class SourceGroupService:
                 config = None
 
             if config is not None:
+                used_source_keys = set()
                 for api_key, api_entry in config.api.items():
                     source_key = cls._effective_source_key(api_key, api_entry)
                     display_name = getattr(api_entry, "display_name", None) or api_key
+                    # 兜底：source_key 在同一空间内本应唯一（UniformApiConfig.validate 已拦截），
+                    # 但历史脏数据可能绕过校验。重复时只保留第一个并记日志——两个 id 相同的选项
+                    # 会让前端"选了哪个"无法区分，且同步时这两个来源的插件会被合并成一份。
+                    if source_key in used_source_keys:
+                        logger.warning(
+                            "跳过重复 source_key 的 API 来源: space_id=%s, api_key=%s, source_key=%s",
+                            space_id,
+                            api_key,
+                            source_key,
+                        )
+                        continue
+                    used_source_keys.add(source_key)
                     # 自 PluginCatalogSyncService.sync_api 支持全量分页直取（不再按 wrapper_version
                     # 过滤）后，所有 API 来源均可被 SpacePluginCatalogEntry 精细化管理到单个插件，
                     # 所有 API 来源都支持精细化管理到单个插件，因此这里恒为 whole=False。
@@ -119,21 +122,40 @@ class SourceGroupService:
         source_key = getattr(api_entry, "source_key", None)
         return source_key if isinstance(source_key, str) and source_key else api_key
 
-    @classmethod
-    def _bound_directory_map(cls, space_id, exclude_directory_id=None):
+    @staticmethod
+    def display_source_id(plugin_type, source_key):
+        """对外的「来源」标识：与本服务返回的来源分组 id 同口径。
+
+        库里 `builtin` / `bk_plugin` 的 `source_key` 恒为空串（这两类本身没有来源细分），
+        直接对外给空串，前端无法渲染设计稿里的「来源」列、也无法做来源筛选。这里统一成
+        「来源匹配键」口径：
+
+        - `builtin`   -> `"builtin"`
+        - `bk_plugin` -> `"bk_plugin"`
+        - `api`       -> 该来源的 `source_key`（如 `"api_job"`）
+
+        与 `PluginAdmissionStrategyService._match_key` 同口径，也与 `GET
+        /api/plugin_catalog/strategy/sources/` 返回的 id 一致——前端拿同一份 id 就能同时用于
+        「来源」列展示、来源筛选、以及新插件策略条件组的 `sources` 选择。
+
+        注意：库里存的 `source_key` 不变（保持空串），只改对外表达，否则会破坏
+        `unique_together(space_id, plugin_type, source_key, plugin_code)` 与存量数据的一致性。
         """
-        反查一级目录的来源绑定，key 为"来源匹配键"（与 _match_key 口径一致），
-        value 为 (directory_id, directory_name)。exclude_directory_id 用于编辑自身一级目录时，
-        不把自己已绑定的来源算作"已被其他分类绑定"。
+        if plugin_type == PluginType.API and source_key:
+            return source_key
+        return plugin_type
+
+    @staticmethod
+    def normalize_source_key(plugin_type, source_key):
+        """把对外口径的「来源 id」翻译回库里的 `source_key`。
+
+        对外 id 是「来源匹配键」，库里 `builtin` / `bk_plugin` 的 `source_key` 恒为空串，
+        所以这两类统一归一成空串；api 的来源 id 就是库里的 `source_key`，原样返回。
+        用于入参归一化：前端传 `"builtin"` 或 `""` 都能查到同一条记录。
         """
-        qs = PluginDirectory.objects.filter(space_id=space_id, parent__isnull=True).exclude(bindings=[])
-        if exclude_directory_id:
-            qs = qs.exclude(id=exclude_directory_id)
-        result = {}
-        for directory in qs.only("id", "name", "bindings"):
-            for match_key in directory.bindings:
-                result[match_key] = (directory.id, directory.name)
-        return result
+        if plugin_type in (PluginType.BUILTIN, PluginType.BK_PLUGIN):
+            return ""
+        return source_key or ""
 
     @classmethod
     def builtin_display_names(cls):
@@ -148,6 +170,22 @@ class SourceGroupService:
     @classmethod
     def bk_plugin_display_names(cls, space_id):
         return dict(BKPlugin.objects.for_space(space_id).values_list("code", "name"))
+
+    @classmethod
+    def source_display_names(cls, space_id):
+        """对外「来源 id」-> 来源展示名，供列表页渲染设计稿的「来源」列。
+
+        - builtin   → `builtin`   -> "BKFlow"
+        - bk_plugin → `bk_plugin` -> "PaaS"
+        - api       → 该来源的 source_key -> 用户在统一 API 配置里起的来源名（display_name）
+        """
+        names = {
+            PluginType.BUILTIN: "BKFlow",
+            PluginType.BK_PLUGIN: "PaaS",
+        }
+        for child in cls._api_group(space_id)["children"]:
+            names[child["id"]] = child["name"]
+        return names
 
     @classmethod
     def api_display_names(cls, space_id):

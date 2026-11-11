@@ -38,17 +38,35 @@ class ManageSaveSerializer(serializers.Serializer):
         required=False,
         default=dict,
     )
-    deleted_plugin_ids = serializers.ListField(
-        child=serializers.IntegerField(),
-        help_text=_("本次整理中移除的插件条目 id（软删除）"),
-        required=False,
-        default=list,
-    )
 
     def validate_directories(self, value):
+        """校验整页提交的目录文档。
+
+        `order` 是**必填**的：它是同级目录之间的排序号（升序，越小越靠前），
+        由前端在拖拽后按新顺序给出。若不传，后端会退化成"全部为 0 → 按 id 排"，
+        表现为"拖了没生效"却没有任何报错，属于静默失败，所以这里直接拦掉。
+
+        同一 `parent_id` 下的 `order` 必须唯一，否则同级排序在重复值处退化成按 id 排，
+        前端拿到的顺序与预期不一致，同样要显式报错。
+        """
         for key, item in value.items():
             if not isinstance(item, dict) or not item.get("name"):
                 raise serializers.ValidationError(f"目录 {key} 缺少必填字段 name")
+            if "order" not in item:
+                raise serializers.ValidationError(f"目录 {key} 缺少必填字段 order")
+            if isinstance(item["order"], bool) or not isinstance(item["order"], int):
+                raise serializers.ValidationError(f"目录 {key} 的 order 必须是整数")
+
+        seen = {}
+        for key, item in value.items():
+            parent_id = (item.get("parent_id") or "").strip()
+            order = item["order"]
+            signature = (parent_id, order)
+            if signature in seen:
+                raise serializers.ValidationError(
+                    f"目录 {key} 与目录 {seen[signature]} 的 order 重复（同级的 order 必须唯一）"
+                )
+            seen[signature] = key
         return value
 
 
@@ -59,20 +77,7 @@ class PreviewDeleteSerializer(serializers.Serializer):
 
 class ExecuteDeleteSerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
-    directory_id = serializers.IntegerField(help_text=_("目录ID"))
-    strategy = serializers.ChoiceField(
-        choices=[
-            DirectoryService.STRATEGY_PROMOTE,
-            DirectoryService.STRATEGY_MERGE,
-            DirectoryService.STRATEGY_UNCATEGORIZED,
-        ],
-        required=False,
-        allow_null=True,
-        help_text=_("仅一级目录需要：promote(子目录升级)/merge(并入其他一级目录)/uncategorized(全部回到未分类)"),
-    )
-    target_directory_id = serializers.IntegerField(
-        help_text=_("策略为 merge 时必填，合并到的目标一级目录 id"), required=False, allow_null=True
-    )
+    directory_id = serializers.IntegerField(help_text=_("待删除目录 id"))
 
 
 class AiClassifySerializer(serializers.Serializer):

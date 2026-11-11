@@ -144,14 +144,14 @@ class PluginCatalogSyncService:
         # 之前失效、这一轮又重新出现的插件，唤醒回失效前的状态
         for code in current_codes & set(existing.keys()):
             entry = existing[code]
-            if entry.status == PluginCatalogStatus.INVALID:
+            if entry.status == PluginCatalogStatus.EXPIRED:
                 cls._revive_entry(entry, now)
 
         # 之前存在、这一轮不存在、且当前不是失效态的插件，标记失效
         invalidated = 0
         for code in set(existing.keys()) - current_codes:
             entry = existing[code]
-            if entry.status == PluginCatalogStatus.INVALID:
+            if entry.status == PluginCatalogStatus.EXPIRED:
                 continue
             cls._mark_invalid(entry, now)
             invalidated += 1
@@ -160,11 +160,11 @@ class PluginCatalogSyncService:
         still_present_ids = [
             existing[code].id
             for code in current_codes & set(existing.keys())
-            if existing[code].status != PluginCatalogStatus.INVALID
+            if existing[code].status != PluginCatalogStatus.EXPIRED
         ]
         if still_present_ids:
             SpacePluginCatalogEntry.objects.filter(id__in=still_present_ids).update(
-                source_valid=True, last_synced_at=now
+                last_synced_at=now
             )
 
         return {"created": created, "invalidated": invalidated}
@@ -181,8 +181,7 @@ class PluginCatalogSyncService:
             plugin_code=plugin_code,
             status=decision.status,
             directory_id=decision.directory_id,
-            ever_enabled=decision.status == PluginCatalogStatus.VISIBLE,
-            source_valid=True,
+            ever_enabled=decision.status == PluginCatalogStatus.ENABLE,
             last_synced_at=now,
             updated_by="system",
         )
@@ -210,26 +209,26 @@ class PluginCatalogSyncService:
 
     @classmethod
     def _mark_invalid(cls, entry, now):
-        disable_config = cls._set_meta(entry.disable_config, pre_invalid_status=entry.status)
-        entry.status = PluginCatalogStatus.INVALID
-        entry.invalid_reason = "来源中已不存在该插件"
+        """标记失效：记下失效前的状态，供来源重新出现后唤醒回原状态。
+
+        失效只改「来源事实」（状态置已失效 + 发现时间），
+        **不动管理员的管理决定**（目录、推荐、未启用原因）——设计文档要求
+        「失效不改管理决定」「来源同步不能覆盖人工决定」，所以失效原因不写入
+        `disable_reason`，人工填写的停用原因必须原样保留。
+        """
+        entry.pre_invalid_status = entry.status
+        entry.status = PluginCatalogStatus.EXPIRED
         entry.found_time = now
-        entry.source_valid = False
         entry.last_synced_at = now
-        entry.disable_config = disable_config
         entry.recommended = False
-        entry.recommend_order = None
         entry.updated_by = "system"
         entry.save(
             update_fields=[
                 "status",
-                "invalid_reason",
                 "found_time",
-                "source_valid",
                 "last_synced_at",
-                "disable_config",
+                "pre_invalid_status",
                 "recommended",
-                "recommend_order",
                 "updated_by",
                 "update_at",
             ]
@@ -237,37 +236,28 @@ class PluginCatalogSyncService:
 
     @classmethod
     def _revive_entry(cls, entry, now):
-        meta = dict((entry.disable_config or {}).get("_meta", {}))
-        pre_status = meta.pop("pre_invalid_status", PluginCatalogStatus.REVIEW)
-        disable_config = dict(entry.disable_config or {})
-        disable_config["_meta"] = meta
+        """唤醒回失效前的状态。
+
+        `pre_invalid_status` 是**一次性**记忆：用完即清空，避免下一轮失效时读到上一次的旧值。
+        没有记忆（空串）时保守回落到待审核，交给管理员处理。
+        `disable_reason` 不动：人工填的停用原因在失效期间保留，唤醒后仍有效。
+        """
+        pre_status = entry.pre_invalid_status or PluginCatalogStatus.PENDING_REVIEW
+        entry.pre_invalid_status = ""
         entry.status = pre_status
-        entry.invalid_reason = ""
         entry.found_time = None
-        entry.source_valid = True
         entry.last_synced_at = now
-        entry.disable_config = disable_config
         entry.updated_by = "system"
         entry.save(
             update_fields=[
                 "status",
-                "invalid_reason",
                 "found_time",
-                "source_valid",
                 "last_synced_at",
-                "disable_config",
+                "pre_invalid_status",
                 "updated_by",
                 "update_at",
             ]
         )
-
-    @staticmethod
-    def _set_meta(disable_config, **meta_updates):
-        disable_config = dict(disable_config or {})
-        meta = dict(disable_config.get("_meta", {}))
-        meta.update(meta_updates)
-        disable_config["_meta"] = meta
-        return disable_config
 
     @classmethod
     def iter_ready_spaces(cls):

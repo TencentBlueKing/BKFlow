@@ -65,7 +65,6 @@ class DirectoryManageViewSet(TenantScopeMixin, SimpleGenericViewSet):
             space_id=data["space_id"],
             directories=data["directories"],
             assignments=data["assignments"],
-            deleted_plugin_ids=data["deleted_plugin_ids"],
             expected_revision=data["expected_revision"],
             operator=request.user.username,
             request_id=_request_id(request),
@@ -91,8 +90,6 @@ class DirectoryManageViewSet(TenantScopeMixin, SimpleGenericViewSet):
         result = DirectoryService.execute_delete(
             space_id=data["space_id"],
             directory_id=data["directory_id"],
-            strategy=data.get("strategy"),
-            target_directory_id=data.get("target_directory_id"),
             operator=request.user.username,
             request_id=_request_id(request),
         )

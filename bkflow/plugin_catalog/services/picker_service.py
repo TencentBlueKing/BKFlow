@@ -78,12 +78,14 @@ class PluginPickerService:
                     "name": name,
                     "desc": desc,
                     "recommended": entry.recommended,
-                    "recommend_order": entry.recommend_order,
                     "directory_path": directory_paths.get(entry.directory_id, []),
                     "usage_count": stat.get("ref_count", 0),
                     # 目录条目没有独立的"发布时间"字段，这里用最近一次来源同步时间近似，
                     # 仅用于排序，不对外返回。
                     "publish_time": entry.last_synced_at,
+                    # 推荐项内部按 id 升序（即"设为推荐的先后顺序"，与接口 3 空间推荐列表一致），
+                    # 仅用于排序，不对外返回。
+                    "_entry_id": entry.id,
                 }
             )
 
@@ -105,7 +107,7 @@ class PluginPickerService:
     @classmethod
     def _list_visible_entries(cls, space_id, directory_id="all", plugin_type="all"):
         queryset = SpacePluginCatalogEntry.objects.filter(
-            space_id=space_id, status=PluginCatalogStatus.VISIBLE, is_deleted=False
+            space_id=space_id, status=PluginCatalogStatus.ENABLE, is_deleted=False
         )
         queryset = cls._apply_directory_filter(queryset, space_id, directory_id)
         if plugin_type and plugin_type != "all":
@@ -172,16 +174,11 @@ class PluginPickerService:
 
     @staticmethod
     def _load_directory_paths(space_id):
-        """目录最多两级，直接拼父子 name；未分类返回空数组。"""
-        directories = list(PluginDirectory.objects.filter(space_id=space_id).only("id", "parent_id", "name"))
-        name_map = {directory.id: directory.name for directory in directories}
-        paths = {}
-        for directory in directories:
-            if directory.parent_id and directory.parent_id in name_map:
-                paths[directory.id] = [name_map[directory.parent_id], directory.name]
-            else:
-                paths[directory.id] = [directory.name]
-        return paths
+        """目录最多两级，直接拼父子 name；未分类返回空数组。
+
+        与列表页（接口 2）共用同一份实现，保证两个接口的目录路径口径一致。
+        """
+        return PluginCatalogQueryService.directory_paths(space_id)
 
     @staticmethod
     def _sort_results(results, ordering):
@@ -194,14 +191,12 @@ class PluginPickerService:
             # 目录条目没有独立的"发布时间"字段，用最近一次来源同步时间近似
             results.sort(key=lambda item: item.get("publish_time") or "", reverse=ordering.startswith("-"))
         else:
-            # 默认：推荐优先（按推荐序），其余按最近同步时间倒序
+            # 默认：推荐项整体在前；推荐项内部按 id 升序（设为推荐的先后顺序，与接口 3 一致），
+            # 非推荐项内部按最近同步时间倒序。
+            # 两次 sort 是稳定排序——后一次是主键（是否推荐 + id），前一次的时间序在非推荐分组内保留。
             results.sort(key=lambda item: item.get("publish_time") or "", reverse=True)
-            results.sort(
-                key=lambda item: (
-                    0 if item["recommended"] else 1,
-                    item["recommend_order"] or 0 if item["recommended"] else 0,
-                )
-            )
-        # publish_time 只用于排序，不出现在接口响应里
+            results.sort(key=lambda item: (0 if item["recommended"] else 1, item["_entry_id"] if item["recommended"] else 0))
+        # publish_time / _entry_id 只用于排序，不出现在接口响应里
         for item in results:
             item.pop("publish_time", None)
+            item.pop("_entry_id", None)

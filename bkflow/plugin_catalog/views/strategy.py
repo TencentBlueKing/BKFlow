@@ -66,7 +66,5 @@ class StrategyViewSet(TenantScopeMixin, SimpleGenericViewSet):
         ser = SourceGroupQuerySerializer(data=request.query_params)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
-        groups = SourceGroupService.list_groups(
-            space_id=data["space_id"], exclude_directory_id=data.get("exclude_directory_id")
-        )
+        groups = SourceGroupService.list_groups(space_id=data["space_id"])
         return Response(groups)
