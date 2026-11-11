@@ -38,3 +38,33 @@ export async function jumpToCanvas(router, templateId, spaceId, query) {
   await router.push(route);
 }
 
+/**
+ * 获取任务执行页路由
+ */
+export async function getTaskExecuteRoute(instanceId, spaceId) {
+  let canvasMode = 'horizontal';
+  if (spaceId) {
+    try {
+      canvasMode = await store.dispatch('loadCanvasMode', spaceId);
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+  const query = { instanceId };
+  if (canvasMode === 'horizontal') {
+    return { name: 'taskExecuteDetail', query };
+  }
+  return { name: 'taskExecute', query };
+}
+
+export function getTaskExecuteRouteSync(instanceId, spaceId, query) {
+  let canvasMode = 'horizontal';
+  if (spaceId) {
+    canvasMode = store.state.canvasModeMap?.[spaceId] || canvasMode;
+  }
+  if (canvasMode === 'horizontal') {
+    return { name: 'taskExecuteDetail', params: { spaceId }, query: { instanceId, ...query } };
+  }
+  return { name: 'taskExecute', params: { spaceId }, query: { instanceId, ...query } };
+}
+

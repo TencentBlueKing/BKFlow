@@ -15,6 +15,7 @@ const TemplateMock = () => import('@/views/template/TemplateMock/index.vue');
 
 const Task = () => import('@/views/task/index.vue');
 const TaskExecute = () => import('@/views/task/TaskExecute/index.vue');
+const TaskExecuteDetail = () => import('@/views/task/TaskExecute/TaskExecuteDetail/index.vue');
 
 const EngineAdmin = () => import('@/views/admin/index.vue');
 const SpaceAdmin = () => import('@/views/admin/Space/index.vue');
@@ -97,6 +98,17 @@ const routes = [
         path: 'execute/:spaceId/',
         component: TaskExecute,
         name: 'taskExecute',
+        pathToRegexpOptions: { strict: true },
+        props: route => ({
+          spaceId: route.params.spaceId,
+          instanceId: route.query.instanceId,
+        }),
+        meta: { project: true },
+      },
+      {
+        path: 'execute-detail/:spaceId/',
+        component: TaskExecuteDetail,
+        name: 'taskExecuteDetail',
         pathToRegexpOptions: { strict: true },
         props: route => ({
           spaceId: route.params.spaceId,

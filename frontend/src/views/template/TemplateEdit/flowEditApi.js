@@ -194,6 +194,38 @@ export const revokeFlowTask = (params) => {
 };
 
 /**
+ * 获取流程操作记录
+ */
+export const fetchTaskOperationRecord = (params) => {
+  const { task_id: taskId } = params;
+  return axios.get(`task/get_task_operation_record/${taskId}/`, {
+    space_id: store.state.spaceId,
+  }).then(response => response.data);
+};
+
+/**
+ * 获取任务操作记录
+ */
+export const fetchTaskNodeOperationHistory = (params) => {
+  const { task_id: taskId, node_id: nodeId } = params;
+  return axios.get(`task/get_task_operation_record/${taskId}/`, {
+    space_id: store.state.spaceId,
+    nodeId,
+  }).then(response => response.data);
+};
+
+/**
+ * 获取任务所有全局变量当前渲染后的值
+ * 后端返回 { data: { key: value } } 字典结构，调用方按 SDK 契约转为 [{ key, value }] 数组
+ */
+export const fetchTaskGlobalVariables = (params) => {
+  const { task_id: taskId } = params;
+  return axios.get(`task/render_current_constants/${taskId}/`, {
+    params: { space_id: store.state.spaceId },
+  }).then(response => response.data);
+};
+
+/**
  * 获取任务状态
  */
 export const fetchTaskState = ({ task_id: taskId }) => axios.get(`task/get_task_states/${taskId}/`, {

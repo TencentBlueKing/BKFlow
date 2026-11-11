@@ -157,6 +157,7 @@ import moment from 'moment-timezone';
 import FullCodeEditor from '@/components/common/FullCodeEditor.vue';
 import TaskParamEdit from '../../../template/TemplateMock/MockExecute/components/TaskParamEdit.vue';
 import tools from '@/utils/tools.js';
+import { getTaskExecuteRoute } from '@/utils/canvasRoute.js';
 import LabelCascade from '../common/LabelCascade.vue';
 
 export default {
@@ -280,15 +281,8 @@ export default {
                         message: this.$t('任务创建成功'),
                         theme: 'success',
                     });
-                    const { href } = this.$router.resolve({
-                        name: 'taskExecute',
-                        params: {
-                            spaceId: this.spaceId,
-                        },
-                        query: {
-                            instanceId: resp.data.id,
-                        },
-                    });
+                    const route = await getTaskExecuteRoute(resp.data.id, this.spaceId);
+                    const { href } = this.$router.resolve(route);
                     window.open(href, '_blank');
                     this.$emit('close');
                 }

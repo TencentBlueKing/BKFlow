@@ -243,6 +243,7 @@
   import i18n from '@/config/i18n/index.js';
   import { mapState, mapActions } from 'vuex';
   import tools from '@/utils/tools.js';
+  import { getTaskExecuteRouteSync } from '@/utils/canvasRoute.js';
   import atomFilter from '@/utils/atomFilter.js';
   import { TASK_STATE_DICT, NODE_DICT } from '@/constants/index.js';
   import NodeTree from './NodeTree';
@@ -916,15 +917,7 @@
         this.$emit('close');
       },
       onViewSubProcessExecute() {
-        const { href } = this.$router.resolve({
-            name: 'taskExecute',
-            params: {
-              spaceId: this.spaceId,
-            },
-            query: {
-              instanceId: this.currentSubflowTaskId,
-            },
-        });
+        const { href } = this.$router.resolve(getTaskExecuteRouteSync(this.currentSubflowTaskId, this.spaceId));
         window.open(href, '_blank');
       },
       // 补充记录缺少的字段

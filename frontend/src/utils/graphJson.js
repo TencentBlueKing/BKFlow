@@ -149,6 +149,18 @@ export const graphToJson = (canvasData) => {
   };
   // 节点输出字典
   const nodeTargetMaps = getNodeTargetMaps(lines);
+  // 统计每个 SubCanvas 容器内层子节点相对容器原点的最大占用范围
+  // 新版 SDK 导出的容器 location 可能缺失 width/height（未被手动拉伸过），
+  // 而其内层子节点按默认 768×400 布局，旧版画布回退 415×158 会导致子节点游离在容器外
+  const loopInnerExtent = {};
+  locations.forEach((loc) => {
+    if (!loc.parent || typeof loc.parent !== 'string') return;
+    const containerLoc = locations.find(item => item.id === loc.parent && item.type === 'SubCanvas');
+    if (!containerLoc) return;
+    const extent = loopInnerExtent[loc.parent] || (loopInnerExtent[loc.parent] = { width: 0, height: 0 });
+    extent.width = Math.max(extent.width, (loc.x - containerLoc.x) + 154); // 154 为 tasknode 宽度
+    extent.height = Math.max(extent.height, (loc.y - containerLoc.y) + 54); // 54 为 tasknode 高度
+  });
   // 竖版画布群组信息字典
   const groupInfo = {};
   if (canvasMode === 'vertical') {
@@ -186,8 +198,10 @@ export const graphToJson = (canvasData) => {
       nodeWidth = 154;
       nodeHeight = 54;
     } else if (isLoopGroup) {
-      nodeWidth = locWidth || 415;
-      nodeHeight = locHeight || 158;
+      // 优先取持久化尺寸,缺失时按内层子节点占用范围自适应，兜底 SDK 默认 768×400
+      const extent = loopInnerExtent[id] || {};
+      nodeWidth = locWidth || Math.max(768, (extent.width || 0) + 80);
+      nodeHeight = locHeight || Math.max(400, (extent.height || 0) + 120);
     }
     const cell = {
       id,

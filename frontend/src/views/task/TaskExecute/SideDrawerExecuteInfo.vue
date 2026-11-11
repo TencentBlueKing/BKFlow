@@ -240,6 +240,7 @@
   import i18n from '@/config/i18n/index.js';
   import { mapState, mapActions, mapMutations } from 'vuex';
   import tools from '@/utils/tools.js';
+  import { getTaskExecuteRouteSync } from '@/utils/canvasRoute.js';
   import atomFilter from '@/utils/atomFilter.js';
   import { TASK_STATE_DICT, NODE_DICT } from '@/constants/index.js';
   import NodeTree from './NodeTree';
@@ -1296,28 +1297,12 @@
         this.$emit('onOpenConditionInfo', data, isCondition);
       },
       onViewSubProcessExecute() {
-        const { href } = this.$router.resolve({
-            name: 'taskExecute',
-            params: {
-              spaceId: this.spaceId,
-            },
-            query: {
-              instanceId: this.currentSubflowTaskId,
-            },
-        });
+        const { href } = this.$router.resolve(getTaskExecuteRouteSync(this.currentSubflowTaskId, this.spaceId));
         return href;
       },
       // 查看子画布任务详情
       onViewSubCanvasExecute() {
-        const { href } = this.$router.resolve({
-            name: 'taskExecute',
-            params: {
-              spaceId: this.spaceId,
-            },
-            query: {
-              instanceId: this.currentSubflowTaskId,
-            },
-        });
+        const { href } = this.$router.resolve(getTaskExecuteRouteSync(this.currentSubflowTaskId, this.spaceId));
         return href;
       },
       // 补充记录缺少的字段

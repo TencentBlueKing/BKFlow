@@ -54,19 +54,12 @@
           <div v-else-if="item.id === 'name'">
             <router-link
               class="task-name"
-              :to="{
-                name: 'taskExecute',
-                params: {
-                  spaceId: spaceId,
-                },
-                query: {
-                  instanceId: props.row.id,
-                  type:
-                    createMethod === 'MOCK'
-                      ? 'mock'
-                      : undefined,
-                },
-              }">
+              :to="getTaskExecuteRouteSync(props.row.id, spaceId, {
+                type:
+                  createMethod === 'MOCK'
+                    ? 'mock'
+                    : undefined,
+              })">
               {{ props.row.name }}
             </router-link>
           </div>
@@ -172,6 +165,7 @@ import i18n from '@/config/i18n/index.js';
 import LabelCascade from '../common/LabelCascade.vue';
 import LabelCell from '../Template/label-cell.vue';
 import tools from '@/utils/tools.js';
+import { getTaskExecuteRouteSync } from '@/utils/canvasRoute.js';
 
 const TABLE_FIELDS = [
     {
@@ -332,6 +326,7 @@ export default {
         }),
     },
     methods: {
+        getTaskExecuteRouteSync,
         ...mapActions('taskList/', [
             'loadTaskList',
             'deleteTask',
