@@ -13,7 +13,7 @@ export const SPACE_LIST = [
     icon: 'common-icon-task-menu',
     id: 'task',
     disabled: false,
-    subRoutes: ['taskExecute', 'EnginePanel'],
+    subRoutes: ['taskExecute', 'taskExecuteDetail', 'EnginePanel'],
   },
   {
     name: i18n.t('调试任务'),

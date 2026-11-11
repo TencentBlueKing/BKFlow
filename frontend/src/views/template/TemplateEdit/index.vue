@@ -534,7 +534,7 @@
     async mounted() {
       this.openSnapshootTimer();
       window.addEventListener('beforeunload', this.handleBeforeUnload, false);
-      window.addEventListener('unload', this.handleUnload.bind(this), false);
+      window.addEventListener('pagehide', this.handleUnload.bind(this), false);
       this.getSpaceRelatedConfig();
       if (this.type === 'edit') {
         const data = this.getTplTabData();
@@ -547,7 +547,7 @@
         tplTabCount.setTab(data, 'del');
       }
       window.removeEventListener('beforeunload', this.handleBeforeUnload, false);
-      window.removeEventListener('unload', this.handleUnload, false);
+      window.removeEventListener('pagehide', this.handleUnload, false);
       this.resetTemplateData();
       this.hideGuideTips();
     },

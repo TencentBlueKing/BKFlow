@@ -6,6 +6,7 @@
       v-if="!templateDataLoading && permissions"
       ref="flowDetailRef"
       :flow-id="String(templateId)"
+      :initial-location="initialLocation"
       :api-config="tplCanvasEditorApiConfig"
       :permissions="permissions"
       :enable-version-management="isEnableVersionManage"
@@ -19,6 +20,7 @@
   import { mapActions, mapMutations } from 'vuex';
   import { FlowDetailBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-detail';
   import '@blueking/bkflow-canvas-editor-vue2/style';
+  import { getTaskExecuteRoute } from '@/utils/canvasRoute.js';
   import * as canvasEditorApi from '../TemplateEdit/flowEditApi';
 
   export default {
@@ -42,6 +44,16 @@
       };
     },
     computed: {
+      initialLocation() {
+        const target = { mode: 'view' };
+        if (this.compVersion) {
+          target.version = this.compVersion;
+        }
+        return {
+          flowId: String(this.templateId),
+          target,
+        };
+      },
       tplCanvasEditorApiConfig() {
         return {
           scopeData: {
@@ -119,7 +131,7 @@
         }
       },
       // SDK 执行流程成功回调
-      onFlowExecuteSuccess({ createResult, executeResult }) {
+      async onFlowExecuteSuccess({ createResult, executeResult }) {
         const executeUrl = executeResult?.data?.url;
         if (executeUrl) {
           window.open(executeUrl, '_blank');
@@ -129,11 +141,8 @@
         if (!taskId) {
           return;
         }
-        const { href } = this.$router.resolve({
-          name: 'taskExecute',
-          params: { spaceId: this.spaceId },
-          query: { instanceId: taskId },
-        });
+        const route = await getTaskExecuteRoute(taskId, this.spaceId);
+        const { href } = this.$router.resolve(route);
         window.open(href, '_blank');
       },
       handleBack() {

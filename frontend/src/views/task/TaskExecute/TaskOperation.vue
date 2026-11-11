@@ -50,22 +50,9 @@
     </bk-alert>
     <div class="task-container">
       <div class="pipeline-nodes">
-        <FlowExecuteBridge
-          v-if="useCanvasEditor"
-          :pipeline-tree="instanceFlow"
-          :node-states="canvasEditorNodeStates"
-          :api-config="canvasEditorApiConfig"
-          :show-header="false"
-          @node-click="onCanvasEditorNodeClick"
-          @retry="onRetryClick"
-          @skip="onSkipClick"
-          @forceFail="onForceFailClick"
-          @gatewaySkip="onGatewaySelectionClick"
-          @resume="onTaskNodeResumeClick"
-          @approve="onApprovalClick" />
         <component
           :is="templateComponentName"
-          v-else-if="!nodeSwitching"
+          v-if="!nodeSwitching"
           :key="subcanvasPipelineChangeKey"
           ref="processCanvas"
           class="canvas-comp-wrapper"
@@ -267,7 +254,7 @@
   import ProcessCanvas from '@/components/canvas/ProcessCanvas/index.vue';
   import StageCanvas from '@/components/canvas/StageCanvas/MainStageCanvas.vue';
   import { checkConditionLoop, findLoopTarget, findNearestGatewayByIncoming } from '@/utils/orderCanvasNodeToNodeTree.js';
-  import { FlowExecuteBridge } from '@blueking/bkflow-canvas-editor-vue2/flow-execute';
+
   import '@blueking/bkflow-canvas-editor-vue2/style';
   import WebhookCallback from './WebhookCallback.vue';
 
@@ -320,7 +307,6 @@
       ProcessCanvas,
       VerticalCanvas,
       StageCanvas,
-      FlowExecuteBridge,
       WebhookCallback,
     },
     mixins: [permission, tplPerspective],
@@ -594,33 +580,6 @@
           };
           return canvasModeToComponentMap[this.canvasMode] || canvasModeToComponentMap.horizontal;
       },
-      canvasEditorNodeStates() {
-        const children = this.instanceStatus?.children;
-        if (!children) return {};
-        const result = {};
-        Object.keys(children).forEach((id) => {
-          const node = children[id] || {};
-          // 供SDK侧展示节点与循环容器的 retry / skip / loop 角标
-          result[id] = {
-            status: node.state,
-            retry: node.retry,
-            skip: node.skip,
-            error_ignored: node.error_ignored,
-            loop: node.loop,
-            phase: node.phase,
-          };
-        });
-        return result;
-      },
-      canvasEditorApiConfig() {
-        return {
-          baseURL: '/api',
-          scopeData: {
-            scope_type: 'space',
-            scope_value: this.spaceId,
-          },
-        };
-      },
     },
     watch: {
       instanceFlow: {
@@ -682,7 +641,7 @@
         'getTaskInstanceData',
         'getBatchNodeOutput',
         'getBatchTaskPipeline',
-        'getBatchTaskStates'
+        'getBatchTaskStates',
       ]),
       ...mapActions('atomForm/', [
         'loadSingleAtomList',
@@ -857,7 +816,7 @@
           const outputDataList = batchOutputRes?.data || [];
           const nodeTaskMap = allSubCanvasNodes.map((nodeItem) => {
             const outputs = outputDataList.find(item => Object.prototype.hasOwnProperty.call(item, nodeItem.id));
-            const taskId = outputs?.[nodeItem.id] ? outputs[nodeItem.id][0]['task_id'] : null;
+            const taskId = outputs?.[nodeItem.id] ? outputs[nodeItem.id][0].task_id : null;
             if (taskId) {
               this.$set(this.pipelineData.activities[nodeItem.id], 'subcanvasTaskId', taskId);
             }
@@ -1224,10 +1183,8 @@
         }
       },
       findSubCanvasParentActivity(nodeId) {
-        return Object.values(this.pipelineData.activities).find(
-          act => act?.component?.code === 'subcanvas_plugin'
-            && act.pipeline?.location?.some(loc => loc.id === nodeId)
-        );
+        return Object.values(this.pipelineData.activities).find(act => act?.component?.code === 'subcanvas_plugin'
+            && act.pipeline?.location?.some(loc => loc.id === nodeId));
       },
       isNodeInSubCanvas(id) {
         return !!this.findSubCanvasParentActivity(id);
@@ -2122,18 +2079,6 @@
           window.parent.postMessage({ eventName: 'bk-flow-task-operation-click', actionType: action }, '*');
         }
         this[actionType]();
-      },
-      onCanvasEditorNodeClick(event) {
-        const { nodeId, condition } = event || {};
-        if (!nodeId) return;
-        if (condition) {
-          this.onNodeClick(nodeId, undefined, condition);
-          this.defaultActiveId = `${condition.name}-${condition.id}`;
-          return;
-        }
-        const location = this.instanceFlow.location?.find(item => item.id === nodeId);
-        const nodeType = location?.type;
-        this.onNodeClick(nodeId, nodeType);
       },
       // type表示第一个节点的类型
       async onNodeClick(id, type, conditionData) {
