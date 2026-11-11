@@ -67,6 +67,14 @@ def rollback_template(request, space_id, template_id):
     except TemplateSnapshot.DoesNotExist:
         return JsonResponse({"result": False, "message": f"版本 {version} 不存在", "code": err_code.VALIDATION_ERROR.code})
 
+    TemplateSnapshot.create_unpublished_snapshot(
+        pipeline_tree=snapshot.data,
+        username=request.user.username,
+        desc=f"基于v{version}",
+        draft=True,
+        template_id=instance.id,
+    )
+
     TemplateOperationRecord.objects.create(
         operate_source=TemplateOperationSource.api.name,
         operate_type=TemplateOperationType.rollback.name,
