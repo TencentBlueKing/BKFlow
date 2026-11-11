@@ -11,7 +11,10 @@ def test_dispatch_catalog_sync_covers_every_configured_source():
     with patch(
         "bkflow.plugin.tasks.OpenPluginCatalogService.iter_configured_sources",
         return_value=[(1, "sops"), (1, "sops"), (1, "other"), (3, "sops")],
-    ), patch("bkflow.plugin.tasks.sync_open_plugin_catalog_source.delay") as mock_delay:
+    ), patch("bkflow.plugin.tasks.sync_open_plugin_catalog_source.delay") as mock_delay, patch(
+        # 统一插件目录同步会遍历 ready 空间（要查库），此处不属于本用例的验证范围
+        "bkflow.plugin.tasks._dispatch_plugin_catalog_sync"
+    ):
         queued = dispatch_open_plugin_catalog_sync()
 
     assert queued == 3

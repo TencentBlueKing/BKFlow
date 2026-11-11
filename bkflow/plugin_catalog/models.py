@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from bkflow.contrib.operation_record.models import BaseOperateRecord
 from bkflow.utils.models import CommonModel
 
 
@@ -250,3 +251,82 @@ class TemplatePluginReference(models.Model):
 
     def __str__(self):
         return f"{self.template_id}:{self.role}:{self.node_id}"
+
+
+class CatalogChangeType:
+    """插件目录变更记录的操作类型。"""
+
+    INITIALIZE = "initialize"
+    UPDATE_ENTRY = "update_entry"
+    TRANSITION_STATUS = "transition_status"
+    UPDATE_DISABLE_CONFIG = "update_disable_config"
+    BATCH_CATEGORY = "batch_category"
+    BATCH_STATUS = "batch_status"
+    BATCH_CLEAN = "batch_clean"
+    RECOMMEND = "recommend"
+    CANCEL_RECOMMEND = "cancel_recommend"
+    DIRECTORY_SAVE = "directory_save"
+    DIRECTORY_DELETE = "directory_delete"
+
+    CHOICES = (
+        (INITIALIZE, _("初始化插件目录")),
+        (UPDATE_ENTRY, _("编辑插件条目")),
+        (TRANSITION_STATUS, _("插件状态流转")),
+        (UPDATE_DISABLE_CONFIG, _("编辑停用提示配置")),
+        (BATCH_CATEGORY, _("批量归类")),
+        (BATCH_STATUS, _("批量状态流转")),
+        (BATCH_CLEAN, _("批量清理失效记录")),
+        (RECOMMEND, _("设为空间推荐")),
+        (CANCEL_RECOMMEND, _("取消空间推荐")),
+        (DIRECTORY_SAVE, _("保存目录")),
+        (DIRECTORY_DELETE, _("删除目录")),
+    )
+
+
+class CatalogChangeSource:
+    """变更记录的操作来源：区分人工操作与系统命令，回退核对时便于区分责任。"""
+
+    WEB = "web"
+    APIGW = "apigw"
+    COMMAND = "command"
+
+    CHOICES = (
+        (WEB, _("管理前端")),
+        (APIGW, _("对外网关")),
+        (COMMAND, _("初始化命令")),
+    )
+
+
+class CatalogChangeRecord(BaseOperateRecord):
+    """
+    插件目录变更记录：谁在什么时候把什么改成了什么。
+
+    按设计文档要求「只写不读」：本期不提供查询接口、不新增审计页面
+    （文档明确"不新增审计页面"），数据用于排障追溯与上线回退时的差异核对，可直接查表消费。
+
+    与 `SpacePluginCatalogEntry` 上的 `updated_by` / `offline_by` 的区别：那些字段只保留
+    **最后一次**修改者，这里保留**每一次**变更的前后值（before_value / after_value）。
+    """
+
+    operate_type = models.CharField(_("操作类型"), max_length=64, choices=CatalogChangeType.CHOICES)
+    operate_source = models.CharField(_("操作来源"), max_length=64, choices=CatalogChangeSource.CHOICES)
+
+    space_id = models.IntegerField(_("空间ID"), db_index=True)
+
+    before_value = models.JSONField(_("变更前值"), default=dict, blank=True, null=True)
+    after_value = models.JSONField(_("变更后值"), default=dict, blank=True, null=True)
+
+    method = models.CharField(_("操作方法"), max_length=128, blank=True, default="")
+    reason = models.CharField(_("变更原因"), max_length=512, blank=True, default="")
+    request_id = models.CharField(_("请求ID"), max_length=128, blank=True, default="")
+
+    class Meta:
+        verbose_name = _("插件目录变更记录")
+        verbose_name_plural = _("插件目录变更记录")
+        app_label = "plugin_catalog"
+        indexes = [
+            models.Index(fields=["space_id", "instance_id", "operate_date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.space_id}:{self.operate_type}:{self.instance_id}:{self.operator}"

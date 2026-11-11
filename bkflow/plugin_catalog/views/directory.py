@@ -38,6 +38,11 @@ from bkflow.utils.views import SimpleGenericViewSet
 logger = logging.getLogger("root")
 
 
+def _request_id(request):
+    """取请求链路 ID，便于变更记录与网关/前端日志对齐；未启用时返回空串。"""
+    return getattr(request, "request_id", "") or ""
+
+
 class DirectoryManageViewSet(TenantScopeMixin, SimpleGenericViewSet):
     """目录批量管理：整页编辑副本模式下的目录树维护、删除预览与执行、AI 分类建议。"""
 
@@ -63,6 +68,7 @@ class DirectoryManageViewSet(TenantScopeMixin, SimpleGenericViewSet):
             deleted_plugin_ids=data["deleted_plugin_ids"],
             expected_revision=data["expected_revision"],
             operator=request.user.username,
+            request_id=_request_id(request),
         )
         return Response(result)
 
@@ -88,6 +94,7 @@ class DirectoryManageViewSet(TenantScopeMixin, SimpleGenericViewSet):
             strategy=data.get("strategy"),
             target_directory_id=data.get("target_directory_id"),
             operator=request.user.username,
+            request_id=_request_id(request),
         )
         return Response(result)
 

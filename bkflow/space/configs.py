@@ -869,7 +869,6 @@ class PluginAdmissionStrategyConfig(BaseSpaceConfig):
                 "assign_directory_id": "cate_id",
             }
         ],
-        "fallback": {"after_pass": "uncategorized"},
     }
     default_value = {"mode": Mode.REVIEW}
 
@@ -944,13 +943,6 @@ class PluginAdmissionStrategyConfig(BaseSpaceConfig):
                         "[validate plugin_admission_strategy error]: "
                         f"condition ai_scope must be one of {cls.AiScope.CHOICES} when after_pass is ai"
                     )
-
-            fallback = value.get("fallback")
-            if fallback is not None and fallback.get("after_pass") not in cls.ConditionAfterPass.CHOICES:
-                raise ValidationError(
-                    "[validate plugin_admission_strategy error]: "
-                    f"fallback.after_pass must be one of {cls.ConditionAfterPass.CHOICES}"
-                )
 
         return True
 

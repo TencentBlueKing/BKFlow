@@ -31,6 +31,7 @@ from rest_framework.exceptions import PermissionDenied
 from bkflow.apigw.decorators import return_json_response
 from bkflow.apigw.serializers.space import CreateSpaceSerializer
 from bkflow.apigw.utils import get_space_config_presentation
+from bkflow.plugin_catalog.models import CatalogChangeSource
 from bkflow.plugin_catalog.services.migration_service import PluginCatalogMigrationService
 from bkflow.space.models import Space, SpaceConfig, SpaceCreateType
 from bkflow.utils import err_code
@@ -83,7 +84,11 @@ def create_space(request):
         # `manage.py initialize_plugin_catalog --space-id <id>` 补做，
         # 避免把空间创建这条核心链路拖垮。
         try:
-            PluginCatalogMigrationService.initialize_space(space_id=space.id, operator=username)
+            PluginCatalogMigrationService.initialize_space(
+                space_id=space.id,
+                operator=username,
+                operate_source=CatalogChangeSource.APIGW,
+            )
         except Exception:
             logger.exception("新空间插件目录初始化失败，可由 initialize_plugin_catalog 命令补做: space_id=%s", space.id)
 

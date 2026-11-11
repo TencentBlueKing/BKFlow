@@ -24,8 +24,15 @@ from django.db.models import Max
 from django.utils import timezone
 
 from bkflow.exceptions import ValidationError
-from bkflow.plugin_catalog.models import PluginDirectory, PluginType, SpacePluginCatalogEntry
+from bkflow.plugin_catalog.models import (
+    CatalogChangeSource,
+    CatalogChangeType,
+    PluginDirectory,
+    PluginType,
+    SpacePluginCatalogEntry,
+)
 from bkflow.plugin_catalog.services.ai_classify_service import AiClassifyService
+from bkflow.plugin_catalog.services.change_record_service import CatalogChangeRecordService
 from bkflow.plugin_catalog.services.source_group_service import SourceGroupService
 from bkflow.space.configs import PluginCatalogRevisionConfig, SpaceConfigValueType
 from bkflow.space.models import SpaceConfig
@@ -105,7 +112,17 @@ class DirectoryService:
     # ---------------------------------------------------------------- 保存 ----
 
     @classmethod
-    def save_manage_data(cls, space_id, directories, assignments, deleted_plugin_ids, expected_revision, operator):
+    def save_manage_data(
+        cls,
+        space_id,
+        directories,
+        assignments,
+        deleted_plugin_ids,
+        expected_revision,
+        operator,
+        operate_source=CatalogChangeSource.WEB,
+        request_id="",
+    ):
         with transaction.atomic():
             config = cls._lock_revision_config(space_id)
             current_revision = (config.json_value or {}).get("directory_revision", 0)
@@ -113,6 +130,8 @@ class DirectoryService:
                 raise ValidationError(
                     f"插件目录数据已被修改(当前版本 {current_revision}，提交版本 {expected_revision})，请刷新后重试"
                 )
+
+            before_snapshot = cls._manage_snapshot(space_id)
 
             id_mapping = cls._upsert_directories(space_id, directories or {})
             if assignments:
@@ -122,7 +141,39 @@ class DirectoryService:
 
             cls._bump_revision(config, current_revision)
 
+            CatalogChangeRecordService.record(
+                space_id=space_id,
+                # 整页保存是空间级动作，没有单一目录对象，用 0 表示空间级
+                instance_id=0,
+                operate_type=CatalogChangeType.DIRECTORY_SAVE,
+                operator=operator,
+                before_value=before_snapshot,
+                after_value=cls._manage_snapshot(space_id),
+                method="directories/manage_save",
+                operate_source=operate_source,
+                request_id=request_id,
+            )
+
         return cls.get_manage_data(space_id)
+
+    @staticmethod
+    def _manage_snapshot(space_id):
+        """目录树 + 插件归属快照，作为目录保存变更记录的前后值。"""
+        directories = {
+            str(directory.id): {
+                "id": directory.id,
+                "parent_id": directory.parent_id,
+                "name": directory.name,
+                "order": directory.order,
+                "bindings": directory.bindings or [],
+            }
+            for directory in PluginDirectory.objects.filter(space_id=space_id).order_by("id")
+        }
+        assignments = {
+            str(entry.id): entry.directory_id
+            for entry in SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False).order_by("id")
+        }
+        return {"directories": directories, "assignments": assignments}
 
     @classmethod
     def _lock_revision_config(cls, space_id):
@@ -346,11 +397,23 @@ class DirectoryService:
         }
 
     @classmethod
-    def execute_delete(cls, space_id, directory_id, strategy=None, target_directory_id=None, operator=None):
+    def execute_delete(
+        cls,
+        space_id,
+        directory_id,
+        strategy=None,
+        target_directory_id=None,
+        operator=None,
+        operate_source=CatalogChangeSource.WEB,
+        request_id="",
+    ):
         with transaction.atomic():
             config = cls._lock_revision_config(space_id)
             current_revision = (config.json_value or {}).get("directory_revision", 0)
             directory = cls._get_directory_or_404(space_id, directory_id, for_update=True)
+            # directory.delete() 之后 Django 会把实例的 pk 置空，这里先留一份 id 用于写变更记录
+            deleted_directory_id = directory.id
+            before_snapshot = cls._delete_snapshot(space_id, directory)
 
             if directory.parent_id is not None:
                 # 二级目录：固定策略，插件与自身一并移到所属一级目录（二级目录恒无绑定来源）
@@ -369,7 +432,41 @@ class DirectoryService:
 
             cls._bump_revision(config, current_revision)
 
+            CatalogChangeRecordService.record(
+                space_id=space_id,
+                instance_id=deleted_directory_id,
+                operate_type=CatalogChangeType.DIRECTORY_DELETE,
+                operator=operator,
+                before_value=before_snapshot,
+                after_value={"strategy": strategy, "target_directory_id": target_directory_id},
+                method="directories/execute_delete",
+                operate_source=operate_source,
+                request_id=request_id,
+            )
+
         return cls.get_manage_data(space_id)
+
+    @staticmethod
+    def _delete_snapshot(space_id, directory):
+        """被删目录及其子目录、归属插件的快照，作为目录删除变更记录的变更前值。"""
+        child_ids = list(directory.children.values_list("id", flat=True))
+        scope_ids = [directory.id] + child_ids
+        return {
+            "directory": {
+                "id": directory.id,
+                "parent_id": directory.parent_id,
+                "name": directory.name,
+                "order": directory.order,
+                "bindings": directory.bindings or [],
+            },
+            "children": child_ids,
+            "entries": {
+                str(entry_id): directory_id
+                for entry_id, directory_id in SpacePluginCatalogEntry.objects.filter(
+                    space_id=space_id, directory_id__in=scope_ids
+                ).values_list("id", "directory_id")
+            },
+        }
 
     @classmethod
     def _execute_promote(cls, space_id, directory, operator):

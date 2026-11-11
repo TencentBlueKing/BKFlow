@@ -80,15 +80,10 @@ class PluginAdmissionStrategyService:
                         ai_scope=condition.get("ai_scope"),
                         assign_directory_id=condition.get("assign_directory_id"),
                     )
-            fallback = strategy.get("fallback")
-            if not fallback:
-                # fallback 未设置时兜底为待审核，更安全
-                return AdmissionDecision(status=PluginCatalogStatus.REVIEW)
-            return cls._decide_after_pass(
-                after_pass=fallback.get("after_pass"),
-                ai_scope=fallback.get("ai_scope"),
-                assign_directory_id=fallback.get("assign_directory_id"),
-            )
+            # 未命中任何条件组：固定兜底为待审核（更安全）。
+            # 接口契约里不提供可配置的兜底规则（设计稿 6.png 的"设条件自动通过"也没有兜底配置项），
+            # 前端无需也无法配置。
+            return AdmissionDecision(status=PluginCatalogStatus.REVIEW)
 
         # 未知 mode，兜底待审核，不放行未经校验的数据
         return AdmissionDecision(status=PluginCatalogStatus.REVIEW)
