@@ -28,6 +28,7 @@ from django.utils import timezone
 
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.pipeline_web.parser.format import classify_constants
+from bkflow.space.tenant import ensure_space_tenant
 from bkflow.template.debug.dependency import (
     build_dependency_graph,
     closure,
@@ -85,10 +86,11 @@ class DebugStateError(Exception):
 class DebugService:
     """调试编排服务（Interface 侧）。所有写操作以 DebugContext 为中心。"""
 
-    def __init__(self, template_id, space_id=None, pipeline_tree=None):
+    def __init__(self, template_id, space_id=None, pipeline_tree=None, request=None):
         self.template_id = template_id
         self._space_id = space_id
         self._pipeline_tree = pipeline_tree
+        self.request = request
 
     @property
     def space_id(self):
@@ -588,9 +590,11 @@ class DebugService:
                 self._freeze_debug_tree(ctx, operator)
 
             template = Template.objects.filter(id=self.template_id).first()
+            tenant_id = ensure_space_tenant(self.request, template.space_id)
             create_data = {
                 "template_id": self.template_id,
                 "space_id": self.space_id,
+                "tenant_id": tenant_id,
                 "scope_type": template.scope_type if template else None,
                 "scope_value": template.scope_value if template else None,
                 "pipeline_tree": self.pipeline_tree,
@@ -1313,10 +1317,12 @@ class DebugService:
             self._freeze_debug_tree(ctx, operator, ns.node_id, execution_mode="real")
             mini_tree = build_single_node_pipeline_tree(self.pipeline_tree, ns.node_id, var_values)
             template = Template.objects.filter(id=self.template_id).first()
+            tenant_id = ensure_space_tenant(self.request, template.space_id)
             create_result = client.create_task(
                 {
                     "template_id": self.template_id,
                     "space_id": self.space_id,
+                    "tenant_id": tenant_id,
                     "scope_type": template.scope_type if template else None,
                     "scope_value": template.scope_value if template else None,
                     "pipeline_tree": mini_tree,

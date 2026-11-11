@@ -82,7 +82,7 @@ class DebugViewSet(TenantScopeMixin, SimpleGenericViewSet):
     def global_run(self, request, *args, **kwargs):
         ser = GlobalRunSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
-        svc = DebugService(template_id=ser.validated_data["template_id"])
+        svc = DebugService(template_id=ser.validated_data["template_id"], request=request)
         try:
             data = svc.global_run(inputs=ser.validated_data["inputs"], operator=request.user.username)
         except DebugConflictError as e:
@@ -132,7 +132,7 @@ class DebugViewSet(TenantScopeMixin, SimpleGenericViewSet):
         ser = StepRunSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         vd = ser.validated_data
-        svc = DebugService(template_id=vd["template_id"])
+        svc = DebugService(template_id=vd["template_id"], request=request)
         try:
             data = svc.step_run(
                 node_id=vd["node_id"],
