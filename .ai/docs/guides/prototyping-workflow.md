@@ -175,6 +175,17 @@ npx -y @eclectic-ai/wiremd screens/04-xxx.md --format json -o xxx.json
    - 期望产出：高保真设计稿 / 交互稿，遵循蓝鲸 bk-magic-vue 设计系统。
 3. TAPD MCP 工具的具体用法见 `.ai/skills/tapd-workitem-sync/SKILL.md` 与其 `reference.md`。
 
+## 下一步：蓝鲸设计稿
+
+线框确认后，可用 `.ai/skills/prototype-design-mockup/SKILL.md` 按蓝鲸规范产出带红色交互标注的简易设计稿，落盘到同目录 `designs/*.png`。
+
+流程要点：
+
+1. **读通用约束**：`.ai/skills/prototype-design-mockup/design-constraints.md`（现网壳、遮罩、互斥、流转、入口、主旁路）
+2. **查现网截图索引**选参考图：`.ai/skills/prototype-design-mockup/visual-baseline-index.md`（源图在 `output/playwright/bkflow-engine-admin/`）
+3. 先出 1 屏确认视觉与**标注落点** → 再批量其余屏
+4. 标注引线必须指向文案对应控件；脱敏自检；改流转时同步 README/spec/TAPD
+
 ## 完整样例
 
-已跑通的参考：`prototypes/output/space-config-redesign/`（5 屏线框 + Mermaid 流程 + 截图 + 交互表）。
+已跑通的参考：`prototypes/output/space-config-redesign/`（5 屏线框 + Mermaid 流程 + 截图 + 交互表 + `designs/` 蓝鲸设计稿）。
