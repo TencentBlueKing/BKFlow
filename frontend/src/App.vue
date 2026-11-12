@@ -140,12 +140,13 @@
           });
         });
       };
-      this.getGlobalConfig();
+      // 注意：全局配置已在 main.js 的 bootstrap() 中预加载，此处不再重复调用
+      // this.getGlobalConfig();
     },
     methods: {
       ...mapActions([
         'getSpacePermission',
-        'getGlobalConfig',
+        // 'getGlobalConfig',  // 已在 main.js bootstrap() 中调用，此处不再需要
         'getBkPluginPermission',
       ]),
       ...mapMutations([

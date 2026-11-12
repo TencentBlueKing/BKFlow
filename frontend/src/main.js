@@ -240,15 +240,34 @@ if (store.state.isMultiTenantMode) {
   });
 }
 
-const app = new Vue({
-  el: '#app',
-  i18n,
-  router,
-  store,
-  components: {
-    App,
-  },
-  template: '<App/>',
-});
-app.$constInfo = {};
-window.app = app;
+/**
+ * 异步启动函数
+ * 在创建 Vue 实例前预加载平台配置
+ */
+async function bootstrap() {
+  try {
+    // 预加载平台配置
+    await store.dispatch('getGlobalConfig');
+    console.log('[Bootstrap] 平台配置加载完成');
+  } catch (err) {
+    console.error('[Bootstrap] 平台配置加载失败，使用默认配置:', err);
+    // 配置加载失败不阻断应用启动
+  }
+
+  // 创建 Vue 实例
+  const app = new Vue({
+    el: '#app',
+    i18n,
+    router,
+    store,
+    components: {
+      App,
+    },
+    template: '<App/>',
+  });
+  app.$constInfo = {};
+  window.app = app;
+}
+
+// 启动应用
+bootstrap();

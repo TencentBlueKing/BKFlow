@@ -87,8 +87,13 @@ const store = new Vuex.Store({
     platformInfo: { // 项目全局配置
       bkAppCode: window.APP_CODE,
       name: window.APP_NAME || 'BKFlow',
+      nameEn: 'BKFlow',
+      productName: '蓝鲸流程服务',
+      productNameEn: 'BK Flow',
       brandName: window.RUN_VER_NAME || i18n.t('蓝鲸智云'),
+      brandNameEn: 'Tencent BlueKing',
       favicon: `${window.SITE_URL}static/core/images/bkflow.png`,
+      version: '1.11.15', // 必需字段，用于 footerCopyright 的 {{version}} 占位符
       i18n: {},
     },
     isIframe: false,
@@ -328,15 +333,36 @@ const store = new Vuex.Store({
       // 默认配置
       const config = { ...state.platformInfo };
       let resp;
-      const bkRepoUrl = window.BK_PAAS_SHARED_RES_URL;
+      let bkRepoUrl = window.BK_PAAS_SHARED_RES_URL;
+
       if (bkRepoUrl) {
-        resp = await getPlatformConfig(`${bkRepoUrl}/bk_flow/base.js`, config);
+        // 如果当前页面是 HTTPS，自动将 HTTP 升级为 HTTPS（避免 Mixed Content 错误）
+        if (window.location.protocol === 'https:' && bkRepoUrl.startsWith('http://')) {
+          bkRepoUrl = bkRepoUrl.replace('http://', 'https://');
+          console.log('[PlatformConfig] 自动将 HTTP 升级为 HTTPS');
+        }
+
+        // 确保 URL 格式正确
+        const resUrl = bkRepoUrl.endsWith('/') ? bkRepoUrl : `${bkRepoUrl}/`;
+        const configUrl = `${resUrl}bk_flow_engine/base.js`;
+
+        try {
+          resp = await getPlatformConfig(configUrl, config);
+          console.log('[PlatformConfig] 远程配置加载成功', resp);
+        } catch (err) {
+          console.error('[PlatformConfig] 远程配置加载失败，使用默认配置:', err);
+          resp = await getPlatformConfig(config);
+        }
       } else {
+        console.log('[PlatformConfig] 未配置 BK_PAAS_SHARED_RES_URL，使用默认配置');
         resp = await getPlatformConfig(config);
       }
-      const { name, brandName, i18n } = config;
+
+      // 使用加载后的配置（resp），不是默认配置（config）
+      const { name, brandName, i18n } = resp;
       document.title = `${i18n.name || name} | ${i18n.brandName || brandName}`;
       setShortcutIcon(resp.favicon);
+
       commit('setPlatformInfo', resp);
       return resp;
     },
