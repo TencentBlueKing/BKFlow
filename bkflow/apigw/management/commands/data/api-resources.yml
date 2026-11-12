@@ -4041,6 +4041,19 @@ paths:
           type: string
         required: true
         description: ''
+      - in: query
+        name: creator
+        schema:
+          type: string
+          maxLength: 32
+        required: false
+        description: 创建人，模糊匹配
+      - in: query
+        name: updated_by
+        schema:
+          type: string
+        required: false
+        description: 更新人，模糊匹配
       x-bk-apigateway-resource:
         isPublic: true
         allowApplyPermission: true
