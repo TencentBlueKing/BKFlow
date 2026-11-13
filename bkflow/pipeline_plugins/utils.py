@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -29,6 +28,8 @@ logger = logging.getLogger("celery")
 
 
 def get_node_callback_url(space_id, task_id, node_id, node_version=""):
+    if not env.CALLBACK_KEY:
+        raise ValueError("BKFLOW_DEFAULT_CALLBACK_KEY 未配置，无法生成节点回调地址")
     f = Fernet(env.CALLBACK_KEY)
     callback_entry = BKAPP_INNER_CALLBACK_ENTRY + "callback/%s/"
     return (

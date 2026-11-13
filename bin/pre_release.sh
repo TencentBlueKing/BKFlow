@@ -22,6 +22,8 @@ run_cache_table() {
   echo "required release step failed: python manage.py createcachetable django_cache" >&2
   exit "$status"
 }
+# 先确认密钥已注入再迁移，缺失时不改动数据库。
+run_required python manage.py check_deploy_secrets
 run_required python manage.py migrate
 run_cache_table
 run_required python manage.py update_component_models

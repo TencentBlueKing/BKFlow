@@ -21,7 +21,7 @@ import logging
 from unittest.mock import MagicMock, Mock, patch
 
 from bamboo_engine.eri import ContextValue, ContextValueType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from pipeline.component_framework.test import (
     Call,
     CallAssertion,
@@ -33,6 +33,7 @@ from pipeline.component_framework.test import (
 
 from bkflow.pipeline_plugins.components.collections.python_code.executor import (
     ERROR_PHASE_EXECUTOR,
+    SUPPORTED_MODULES,
     PythonCodeExecutionResult,
 )
 from bkflow.pipeline_plugins.components.collections.python_code.v1_0_0 import (
@@ -40,7 +41,14 @@ from bkflow.pipeline_plugins.components.collections.python_code.v1_0_0 import (
     PythonCodeService,
 )
 
+# 组件行为用例按已开启节点、开放全部受支持模块的部署配置执行。
+ENABLED_PYTHON_CODE_SETTINGS = {
+    "PYTHON_CODE_PLUGIN_ENABLED": True,
+    "PYTHON_CODE_PLUGIN_ALLOWED_MODULES": list(SUPPORTED_MODULES),
+}
 
+
+@override_settings(**ENABLED_PYTHON_CODE_SETTINGS)
 class PythonCodeComponentTest(TestCase, ComponentTestMixin):
     def setUp(self):
         PythonCodeService.top_pipeline_id = "test_pipeline_id"
@@ -416,6 +424,7 @@ MISSING_OUTPUT_KEY_CASE = ComponentTestCase(
 )
 
 
+@override_settings(**ENABLED_PYTHON_CODE_SETTINGS)
 def test_large_result_log_is_bounded_without_changing_output(caplog):
     """大字符串和嵌套大结果仍完整输出，但成功日志不能包含完整内容。"""
     service = PythonCodeService()
@@ -439,3 +448,28 @@ def test_large_result_log_is_bounded_without_changing_output(caplog):
             assert len(outputs["output"]["payload"][0]) == 1024 * 1024
         else:
             assert outputs["output"].stop == 10**100
+
+
+@override_settings(PYTHON_CODE_PLUGIN_ENABLED=False)
+def test_disabled_plugin_fails_before_running_code():
+    """未开启 Python 代码节点时不启动子进程，并提示配置项。"""
+    service = PythonCodeService()
+    service.logger = Mock()
+    data = Mock()
+    data.outputs = Mock()
+    data.get_one_of_inputs.side_effect = {"bk_python_code": "def main():\n    return 1"}.get
+
+    with patch.object(service.executor, "execute_code") as execute_code:
+        assert service.plugin_execute(data, None) is False
+
+    execute_code.assert_not_called()
+    assert "PYTHON_CODE_PLUGIN_ENABLED" in data.outputs.ex_data
+
+
+@override_settings(PYTHON_CODE_PLUGIN_ENABLED=True, PYTHON_CODE_PLUGIN_ALLOWED_MODULES=["math", "os"])
+def test_service_passes_configured_modules_to_executor():
+    """节点只向执行器传入受支持的配置模块，并记录无法识别的名称。"""
+    service = PythonCodeService()
+
+    assert service.executor.allowed_modules == ["math"]
+    assert service.executor.unsupported_modules == ["os"]

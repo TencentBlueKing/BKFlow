@@ -28,10 +28,14 @@ import pytest
 from pipeline.eri.imp.serializer import SerializerMixin
 
 from bkflow.pipeline_plugins.components.collections.python_code.executor import (
+    SUPPORTED_MODULES,
     PythonCodeExecutor,
     _decode_wire_value,
     _encode_wire_value,
 )
+
+# 这些用例关注执行和存储兼容性，用到模块时显式开放全部受支持模块。
+ALL_MODULES = list(SUPPORTED_MODULES)
 
 TIMED_MAIN = """
 def main():
@@ -48,7 +52,7 @@ def test_queue_wait_does_not_reduce_execution_timeout():
     semaphore.acquire()
     timer = threading.Timer(0.7, semaphore.release)
     timer.start()
-    executor = PythonCodeExecutor(service=Mock(), timeout=1, process_semaphore=semaphore)
+    executor = PythonCodeExecutor(service=Mock(), timeout=1, process_semaphore=semaphore, allowed_modules=ALL_MODULES)
     try:
         result = executor.execute_code(TIMED_MAIN)
     finally:
@@ -70,7 +74,7 @@ while (datetime.datetime.now() - started).total_seconds() < 0.6:
 """
         + TIMED_MAIN
     )
-    result = PythonCodeExecutor(service=Mock(), timeout=1).execute_code(code)
+    result = PythonCodeExecutor(service=Mock(), timeout=1, allowed_modules=ALL_MODULES).execute_code(code)
 
     assert result.success is True, result.message
     assert result.result == "ok"
@@ -95,7 +99,7 @@ def test_queue_timeout_can_be_shorter_than_execution_timeout():
 @pytest.mark.parametrize("scratch", ["'x' * 2000", "itertools.count()"])
 def test_output_selection_precedes_serialization_and_size_limit(scratch):
     """未选择的字段不能因为超大或无法编码而阻断实际的小输出。"""
-    executor = PythonCodeExecutor(service=Mock(), timeout=2, max_response_size_bytes=512)
+    executor = PythonCodeExecutor(service=Mock(), timeout=2, max_response_size_bytes=512, allowed_modules=ALL_MODULES)
     result = executor.execute_code(
         "def main():\n    return {'selected': 'ok', 'scratch': " + scratch + "}",
         output_key="selected",
@@ -107,7 +111,7 @@ def test_output_selection_precedes_serialization_and_size_limit(scratch):
 
 def test_missing_output_key_is_reported_before_encoding_other_fields():
     """输出字段不存在时应保持原来的错误，而非报告其他字段无法编码。"""
-    result = PythonCodeExecutor(service=Mock()).execute_code(
+    result = PythonCodeExecutor(service=Mock(), allowed_modules=ALL_MODULES).execute_code(
         "def main():\n    return {'scratch': itertools.count()}", output_key="missing"
     )
 
@@ -157,7 +161,7 @@ def test_defaultdict_retains_its_default_factory(factory):
 
 def test_counter_survives_engine_storage_and_a_following_node():
     """元组键 Counter 经实际引擎序列化器保存后，后续节点仍能调用 most_common。"""
-    executor = PythonCodeExecutor(service=Mock(), timeout=2)
+    executor = PythonCodeExecutor(service=Mock(), timeout=2, allowed_modules=ALL_MODULES)
     first = executor.execute_code("def main():\n    return collections.Counter([(1, 2), (1, 2), (3, 4)])")
     assert first.success is True, first.message
     serializer = SerializerMixin()
