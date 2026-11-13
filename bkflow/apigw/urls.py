@@ -50,14 +50,17 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.get_label_list import get_label_list
     from bkflow.apigw.views.get_label_ref_count import get_label_ref_count
     from bkflow.apigw.views.get_label_tree import get_label_tree
+    from bkflow.apigw.views.get_node_outputs import get_node_outputs
     from bkflow.apigw.views.get_plugin_outputs import get_plugin_outputs
     from bkflow.apigw.views.get_plugin_schema import get_plugin_schema
     from bkflow.apigw.views.get_space_configs import get_space_configs
     from bkflow.apigw.views.get_task_detail import get_task_detail
     from bkflow.apigw.views.get_task_list import get_task_list
     from bkflow.apigw.views.get_task_node_detail import get_task_node_detail
+    from bkflow.apigw.views.get_task_operation_record import get_task_operation_record
     from bkflow.apigw.views.get_task_states import get_task_states
     from bkflow.apigw.views.get_task_states_by_app import get_task_states_by_app
+    from bkflow.apigw.views.get_tasks_pipeline import get_tasks_pipeline
     from bkflow.apigw.views.get_tasks_states import get_tasks_states
     from bkflow.apigw.views.get_template_detail import get_template_detail
     from bkflow.apigw.views.get_template_detail_by_app import get_template_detail_by_app
@@ -72,6 +75,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
     from bkflow.apigw.views.operate_task_by_app import operate_task_by_app
     from bkflow.apigw.views.operate_task_node import operate_task_node
     from bkflow.apigw.views.release_template import release_template
+    from bkflow.apigw.views.render_current_constants import render_current_constants
     from bkflow.apigw.views.renew_space_config import renew_space_config
     from bkflow.apigw.views.revoke_token import revoke_token
     from bkflow.apigw.views.rollback_template import rollback_template
@@ -147,4 +151,11 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         re_path(r"^task/(?P<task_id>\d+)/get_task_states_by_app/$", get_task_states_by_app),
         re_path(r"^space/(?P<space_id>\d+)/get_plugin_outputs/$", get_plugin_outputs),
         re_path(r"^space/(?P<space_id>\d+)/batch_delete_template/$", batch_delete_template),
+        re_path(
+            r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/get_task_operation_record/$",
+            get_task_operation_record,
+        ),
+        re_path(r"^space/(?P<space_id>\d+)/get_node_outputs/$", get_node_outputs),
+        re_path(r"^space/(?P<space_id>\d+)/get_tasks_pipeline/$", get_tasks_pipeline),
+        re_path(r"^space/(?P<space_id>\d+)/task/(?P<task_id>\d+)/render_current_constants/$", render_current_constants),
     ]
