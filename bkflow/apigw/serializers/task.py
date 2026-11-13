@@ -316,4 +316,4 @@ class GetTaskPipelineSerializer(serializers.Serializer):
         if not task_ids:
             raise serializers.ValidationError(_("task_ids 不能为空"))
 
-        return value
+        return ",".join(str(t) for t in task_ids)
