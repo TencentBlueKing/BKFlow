@@ -85,31 +85,26 @@ def apply_automatic_classification_task(space_id, plugin_keys, request_id, ai_sc
                 )
                 .first()
             )
-            if not entry or entry.status != PluginCatalogStatus.REVIEW:
-                # 记录不存在，或已被人工处理过（不再是 review），晚到结果不覆盖
+            if not entry or entry.status != PluginCatalogStatus.PENDING_REVIEW:
+                # 记录不存在，或已被人工处理过（不再是待审核），晚到结果不覆盖
                 skipped.append(plugin_key)
                 continue
-            if (entry.disable_config or {}).get("_meta", {}).get("applied_ai_request_id") == request_id:
+            if entry.applied_ai_request_id == request_id:
                 # 同一 request_id 已应用过一次，重复投递直接跳过
                 skipped.append(plugin_key)
                 continue
 
-            disable_config = dict(entry.disable_config or {})
-            meta = dict(disable_config.get("_meta", {}))
-            meta["applied_ai_request_id"] = request_id
-            disable_config["_meta"] = meta
-
-            entry.status = PluginCatalogStatus.VISIBLE
+            entry.applied_ai_request_id = request_id
+            entry.status = PluginCatalogStatus.ENABLE
             entry.directory_id = directory_id
             entry.ever_enabled = True
-            entry.disable_config = disable_config
             entry.updated_by = "system"
             entry.save(
                 update_fields=[
                     "status",
                     "directory_id",
                     "ever_enabled",
-                    "disable_config",
+                    "applied_ai_request_id",
                     "updated_by",
                     "update_at",
                 ]

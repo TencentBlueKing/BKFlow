@@ -411,6 +411,7 @@ class UniformApiConfig(BaseSpaceConfig):
         API_CATEGORIES = "api_categories"
         DISPLAY_NAME = "display_name"
         CATALOG_MODE = "catalog_mode"
+        SOURCE_KEY = "source_key"
         DEFAULT_DISPLAY_NAME = "API插件"
         DEFAULT_API_KEY = "default"
 
@@ -439,7 +440,32 @@ class UniformApiConfig(BaseSpaceConfig):
             raise ValidationError(f"[validate uniform api config error]: {str(e)} should have {str(cls.example)}")
         for obj in model.api.values():
             cls.check_url(obj)
+        cls._validate_source_key_unique(model)
         return True
+
+    @classmethod
+    def _validate_source_key_unique(cls, model):
+        """同一空间内 `source_key` 必须唯一。
+
+        `source_key` 同时是三个维度的标识：
+        1. 统一插件目录条目的来源维度（与 `plugin_code` 一起构成唯一键）；
+        2. 插件策略条件组的匹配键（`PluginAdmissionStrategyService._match_key`）；
+        3. 目录「来源绑定」的键。
+
+        两个接入配了相同 `source_key` 时，目录里这两个来源的插件会被合并成一份
+        （同 `plugin_code` 互相覆盖）、策略条件组无法区分是哪个来源、来源绑定也会撞车。
+        因此在配置入口就拒绝，而不是等到同步时静默丢数据。
+        """
+        seen = {}
+        for api_key, obj in model.api.items():
+            source_key = obj.get(cls.Keys.SOURCE_KEY.value) or api_key
+            if source_key in seen:
+                raise ValidationError(
+                    "[validate uniform_api config error]: "
+                    f"source_key '{source_key}' 重复（api_key: {seen[source_key]} 与 {api_key}），"
+                    "同一空间内 source_key 必须唯一"
+                )
+            seen[source_key] = api_key
 
     @classmethod
     def verify(cls, space_id=None, value=None, api_key=None, credential_name=None, operator=None, **kwargs):

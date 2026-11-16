@@ -99,7 +99,7 @@ class PluginSchemaService:
 
         return set(
             SpacePluginCatalogEntry.objects.filter(
-                space_id=self.space_id, status=PluginCatalogStatus.VISIBLE, is_deleted=False
+                space_id=self.space_id, status=PluginCatalogStatus.ENABLE, is_deleted=False
             ).values_list("plugin_type", "source_key", "plugin_code")
         )
 

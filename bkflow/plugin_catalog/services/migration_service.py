@@ -36,6 +36,7 @@ from bkflow.plugin_catalog.models import (
     TemplatePluginReferenceRole,
 )
 from bkflow.plugin_catalog.services.change_record_service import CatalogChangeRecordService
+from bkflow.plugin_catalog.services.source_group_service import SourceGroupService
 from bkflow.space.configs import PluginCatalogMigrationConfig, SpacePluginConfig
 from bkflow.space.models import SpaceConfig
 from bkflow.template.models import Template, TemplateSnapshot
@@ -66,6 +67,96 @@ class PluginCatalogMigrationService:
         status = cls.get_status(space_id) or {}
         return bool(status.get("ready"))
 
+    # ------------------------------------------------------ 迁移状态展示视图 ----
+
+    # 旧配置「过滤方式」的展示文案：与设计稿表格第一行的说明一致
+    FILTER_MODE_TEXTS = {
+        "allow_list": "仅显示名单中的插件",
+        "deny_list": "仅显示名单外的插件",
+        "allow_all": "显示所有插件",
+    }
+
+    # 快照行的固定说明（前半段「名称 + 时间」由后端拼好，见 build_legacy_snapshot_view）
+    SNAPSHOT_NOTE = "初始化插件目录时保存；如有改动，再次初始化插件分类目录时可以恢复此配置"
+
+    @classmethod
+    def get_status_view(cls, space_id):
+        """迁移状态 + **前端可直接展示**的旧配置快照。
+
+        设计稿「空间插件 - 引导」页的「迁移前的配置（只读）」表格：
+
+            过滤方式        仅显示名单中的插件
+            插件            HTTP 请求  Python 代码  审批  暂停
+            按 scope 覆盖   无
+            快照            admin 于 2026-09-10 00:00 初始化插件目录时保存；如有改动，……
+
+        加工放在**读取侧**而不是迁移写入侧：迁移是幂等的，已迁移空间的
+        `legacy_snapshot` 是存量数据（重跑不会重写），若只在写入侧加工，
+        存量空间永远拿不到新结构。
+        """
+        status = cls.get_status(space_id) or {"ready": False}
+        view = dict(status)
+        view["legacy_snapshot"] = cls.build_legacy_snapshot_view(
+            space_id,
+            status.get("legacy_snapshot") or {},
+            migrated_by=status.get("migrated_by") or "",
+            migrated_at=status.get("migrated_at") or "",
+        )
+        return view
+
+    @classmethod
+    def build_legacy_snapshot_view(cls, space_id, legacy_snapshot,migrated_by="admin",migrated_at=None):
+        """把迁移时存的旧配置快照原始结构，转成前端能直接渲染成表格的结构。
+
+        原始快照是内部结构（`space_plugin_config` 的原始 JSON），前端拿它
+        没法直接展示，这里补齐三部分：
+
+        - `filter_mode` / `filter_mode_text`：旧配置的过滤方式及其说明
+        - `operations`：旧配置里放行的插件（code + 中文展示名），对应「操作」行
+        - `scope_overrides`：旧配置里除 `default` 外的按 scope 覆盖项，对应「按 scope 覆盖」行
+        - `migrated_by`：迁移人
+        - `migrated_at`：迁移时间
+        """
+        plugin_config = legacy_snapshot.get("space_plugin_config") or {}
+        default_config = plugin_config.get("default") or {}
+        mode = default_config.get("mode") or ""
+
+        name_maps = {
+            "builtin": SourceGroupService.builtin_display_names(),
+            "bk_plugin": SourceGroupService.bk_plugin_display_names(space_id),
+        }
+
+        plugins = []
+        for code in default_config.get("plugin_codes") or []:
+            full_name = name_maps["builtin"].get(code) or name_maps["bk_plugin"].get(code) or code
+            plugins.append(
+                {
+                    "code": code,
+                    "name": full_name
+                }
+            )
+
+        scope_overrides = []
+        for scope_key, scope_config in plugin_config.items():
+            if scope_key == "default" or not isinstance(scope_config, dict):
+                continue
+            scope_overrides.append(
+                {
+                    "scope": scope_key,
+                    "mode": scope_config.get("mode") or "",
+                    "plugin_codes": scope_config.get("plugin_codes") or [],
+                }
+            )
+
+        return {
+            "filter_mode": mode,
+            "filter_mode_text": cls.FILTER_MODE_TEXTS.get(mode, ""),
+            "plugins": plugins,
+            "scope_overrides": scope_overrides,
+            "snapshot_note":f"{migrated_by} 于 {migrated_at} {cls.SNAPSHOT_NOTE}" ,
+            "open_plugin_enabled_count": legacy_snapshot.get("open_plugin_enabled_count", 0),
+        }
+
     @classmethod
     def initialize_space(
         cls,
@@ -90,7 +181,7 @@ class PluginCatalogMigrationService:
 
         preview = {
             "total": len(seeds),
-            "visible": sum(1 for item in seeds if item["status"] == PluginCatalogStatus.VISIBLE),
+            "enable": sum(1 for item in seeds if item["status"] == PluginCatalogStatus.ENABLE),
             # preview 的 key 与 status 枚举值保持一致（disabled = 本次生成的「已停用」条目数）
             "disabled": sum(1 for item in seeds if item["status"] == PluginCatalogStatus.DISABLED),
             "by_type": {
@@ -156,7 +247,7 @@ class PluginCatalogMigrationService:
                 "plugin_type": PluginType.BUILTIN,
                 "source_key": "",
                 "plugin_code": code,
-                "status": PluginCatalogStatus.VISIBLE if code in visible_codes else PluginCatalogStatus.DISABLED,
+                "status": PluginCatalogStatus.ENABLE if code in visible_codes else PluginCatalogStatus.DISABLED,
             }
             for code in codes
         ]
@@ -170,7 +261,7 @@ class PluginCatalogMigrationService:
                 "plugin_type": PluginType.BK_PLUGIN,
                 "source_key": "",
                 "plugin_code": code,
-                "status": PluginCatalogStatus.VISIBLE if code in authorized_codes else PluginCatalogStatus.DISABLED,
+                "status": PluginCatalogStatus.ENABLE if code in authorized_codes else PluginCatalogStatus.DISABLED,
             }
             for code in codes
         ]
@@ -193,7 +284,7 @@ class PluginCatalogMigrationService:
                 "plugin_type": PluginType.API,
                 "source_key": source_key,
                 "plugin_code": plugin_id,
-                "status": PluginCatalogStatus.VISIBLE if enabled else PluginCatalogStatus.DISABLED,
+                "status": PluginCatalogStatus.ENABLE if enabled else PluginCatalogStatus.DISABLED,
             }
             for (source_key, plugin_id), enabled in enabled_map.items()
         ]
@@ -213,8 +304,7 @@ class PluginCatalogMigrationService:
                 plugin_code=item["plugin_code"],
                 status=item["status"],
                 directory=None,
-                ever_enabled=item["status"] == PluginCatalogStatus.VISIBLE,
-                source_valid=True,
+                ever_enabled=item["status"] == PluginCatalogStatus.ENABLE,
                 last_synced_at=timezone.now(),
                 updated_by="system",
             )

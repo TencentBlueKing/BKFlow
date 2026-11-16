@@ -47,6 +47,16 @@ class PluginReferenceService:
     DEFAULT_PAGE_SIZE = 10
     MAX_PAGE_SIZE = 200
 
+    # 引用列表支持的排序列（设计稿 7.png 的「维护人」列带排序箭头）。
+    # 键是 ordering 参数去掉 `-` 前缀后的字段名，值是取排序键的函数。
+    #
+    # 只开放 maintainer：维护人一般是英文名/账号，Unicode 码位序与字母序一致；
+    # 流程名是中文，码位序 ≠ 拼音序（"部署"会排在"版本"前），结果反直觉，
+    # 要按拼音排需要引入 pypinyin 依赖——流程名排序建议由前端用 localeCompare 自行处理。
+    ORDERING_FIELDS = {
+        "maintainer": lambda item: item["maintainer"] or "",
+    }
+
     @classmethod
     def rebuild_template_references(cls, space_id, template_id, role, pipeline_tree):
         """
@@ -111,7 +121,7 @@ class PluginReferenceService:
         }
 
     @classmethod
-    def list_references(cls, space_id, entry_id, scope="all", keyword=None, page=1, page_size=None):
+    def list_references(cls, space_id, entry_id, scope="all", keyword=None, ordering="", page=1, page_size=None):
         entry = cls._get_entry_or_404(space_id, entry_id)
         _, items = cls._build_reference_items(space_id, entry)
 
@@ -127,6 +137,18 @@ class PluginReferenceService:
                 for item in items
                 if kw in (item["flow_name"] or "").lower() or kw in (item["maintainer"] or "").lower()
             ]
+
+        # 排序：`-` 前缀表示降序。放在筛选之后、分页之前——
+        # 分页前排才保证「第 2 页」也是排好序的第 2 页。
+        # 不支持的字段静默回落到默认顺序（与接口 1.2 的 ordering 行为一致）。
+        if ordering:
+            order_field = ordering.lstrip("-")
+            if order_field in cls.ORDERING_FIELDS:
+                key_func = cls.ORDERING_FIELDS[order_field]
+                items.sort(key=key_func, reverse=ordering.startswith("-"))
+                # 空维护人（流程已删除）统一排到末尾，不随升降序翻转。
+                # 第二次 sort 是稳定排序，不影响第一次排好的非空项相对顺序。
+                items.sort(key=lambda item: key_func(item) == "")
 
         total = len(items)
         page = page if page and page > 0 else 1

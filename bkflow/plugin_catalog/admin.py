@@ -42,7 +42,6 @@ class SpacePluginCatalogEntryAdmin(admin.ModelAdmin):
         "status",
         "directory",
         "recommended",
-        "recommend_order",
         "is_deleted",
         "update_at",
     )

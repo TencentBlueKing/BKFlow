@@ -49,10 +49,6 @@ class DirectoryService:
     记录版本号，保存前在同一事务内 select_for_update 加锁比对，不一致则拒绝本次保存。
     """
 
-    STRATEGY_PROMOTE = "promote"
-    STRATEGY_MERGE = "merge"
-    STRATEGY_UNCATEGORIZED = "uncategorized"
-
     REVISION_CONFIG = PluginCatalogRevisionConfig
 
     # ---------------------------------------------------------------- 查询 ----
@@ -67,7 +63,6 @@ class DirectoryService:
                 "parent_id": str(directory.parent_id) if directory.parent_id else "",
                 "name": directory.name,
                 "order": directory.order,
-                "bindings": directory.bindings or [],
             }
             for directory in directories
         }
@@ -96,7 +91,7 @@ class DirectoryService:
                 {
                     "id": entry.id,
                     "plugin_type": entry.plugin_type,
-                    "source_key": entry.source_key,
+                    "source_key": SourceGroupService.display_source_id(entry.plugin_type, entry.source_key),
                     "plugin_code": entry.plugin_code,
                     "plugin_name": plugin_name,
                     "directory_id": str(entry.directory_id) if entry.directory_id else "",
@@ -117,12 +112,13 @@ class DirectoryService:
         space_id,
         directories,
         assignments,
-        deleted_plugin_ids,
         expected_revision,
         operator,
         operate_source=CatalogChangeSource.WEB,
         request_id="",
     ):
+        """整页保存目录管理页的改动：目录树 + 插件归属。
+        """
         with transaction.atomic():
             config = cls._lock_revision_config(space_id)
             current_revision = (config.json_value or {}).get("directory_revision", 0)
@@ -136,8 +132,6 @@ class DirectoryService:
             id_mapping = cls._upsert_directories(space_id, directories or {})
             if assignments:
                 cls._apply_assignments(space_id, assignments, id_mapping, operator)
-            if deleted_plugin_ids:
-                cls._apply_deletions(space_id, deleted_plugin_ids, operator)
 
             cls._bump_revision(config, current_revision)
 
@@ -165,7 +159,6 @@ class DirectoryService:
                 "parent_id": directory.parent_id,
                 "name": directory.name,
                 "order": directory.order,
-                "bindings": directory.bindings or [],
             }
             for directory in PluginDirectory.objects.filter(space_id=space_id).order_by("id")
         }
@@ -201,7 +194,7 @@ class DirectoryService:
     @classmethod
     def _upsert_directories(cls, space_id, directories):
         """
-        directories: {提交id(str): {"id":..., "parent_id":..., "name":..., "order":..., "bindings":[...]}}
+        directories: {提交id(str): {"id":..., "parent_id":..., "name":..., "order":...}}
         返回 {提交id: 真实pk} 映射，供 `_apply_assignments` 解析 assignments 里可能引用的新建目录。
 
         只做 upsert，不把"文档里没出现 = 需要删除"当成推断依据——删除走独立的
@@ -232,16 +225,14 @@ class DirectoryService:
                 directory = existing[pk]
                 directory.name = item["name"]
                 directory.order = item.get("order", directory.order)
-                directory.bindings = item.get("bindings") or []
                 directory.parent = None
-                cls._save_directory(directory, update_fields=["name", "order", "bindings", "parent", "update_time"])
+                cls._save_directory(directory, update_fields=["name", "order", "parent", "update_time"])
             else:
                 directory = PluginDirectory(
                     space_id=space_id,
                     parent=None,
                     name=item["name"],
                     order=item.get("order", 0),
-                    bindings=item.get("bindings") or [],
                 )
                 cls._save_directory(directory)
             existing[directory.id] = directory
@@ -263,21 +254,18 @@ class DirectoryService:
                 directory.name = item["name"]
                 directory.order = item.get("order", directory.order)
                 directory.parent = parent_directory
-                directory.bindings = []  # 二级目录不允许绑定来源，强制清空
-                cls._save_directory(directory, update_fields=["name", "order", "bindings", "parent", "update_time"])
+                cls._save_directory(directory, update_fields=["name", "order", "parent", "update_time"])
             else:
                 directory = PluginDirectory(
                     space_id=space_id,
                     parent=parent_directory,
                     name=item["name"],
                     order=item.get("order", 0),
-                    bindings=[],
                 )
                 cls._save_directory(directory)
             existing[directory.id] = directory
             id_mapping[item["id"]] = directory.id
 
-        cls._validate_binding_uniqueness(space_id)
         return id_mapping
 
     @staticmethod
@@ -285,8 +273,6 @@ class DirectoryService:
         name = (item.get("name") or "").strip()
         if not name:
             raise ValidationError("目录名称不能为空")
-        if is_child and item.get("bindings"):
-            raise ValidationError(f"二级目录「{name}」不允许绑定来源")
 
     @staticmethod
     def _save_directory(directory, update_fields=None):
@@ -297,18 +283,6 @@ class DirectoryService:
                 directory.save()
         except IntegrityError:
             raise ValidationError(f"目录「{directory.name}」与同级目录重名")
-
-    @classmethod
-    def _validate_binding_uniqueness(cls, space_id):
-        """同一来源（source_key）在同一空间内只能绑定一个一级目录，校验保存后的最终状态。"""
-        owner_by_source = {}
-        queryset = PluginDirectory.objects.filter(space_id=space_id, parent__isnull=True).exclude(bindings=[])
-        for directory in queryset.only("id", "name", "bindings"):
-            for source_key in directory.bindings or []:
-                owner = owner_by_source.get(source_key)
-                if owner and owner.id != directory.id:
-                    raise ValidationError(f"来源「{source_key}」同时绑定了「{owner.name}」和「{directory.name}」两个一级目录")
-                owner_by_source[source_key] = directory
 
     @classmethod
     def _apply_assignments(cls, space_id, assignments, id_mapping, operator):
@@ -346,67 +320,90 @@ class DirectoryService:
         if to_update:
             SpacePluginCatalogEntry.objects.bulk_update(to_update, ["directory_id", "updated_by", "update_at"])
 
-    @classmethod
-    def _apply_deletions(cls, space_id, deleted_plugin_ids, operator):
-        """批量清理插件条目记录（软删除，与 04 失效记录的硬删除区分对待，保留误删恢复可能）。"""
-        try:
-            ids = [int(i) for i in deleted_plugin_ids]
-        except (TypeError, ValueError):
-            raise ValidationError("deleted_plugin_ids 必须是插件条目 id 列表")
-        SpacePluginCatalogEntry.objects.filter(space_id=space_id, id__in=ids).update(
-            is_deleted=True, updated_by=operator, update_at=timezone.now()
-        )
-
     # ---------------------------------------------------------------- 删除 ----
 
     @classmethod
     def preview_delete(cls, space_id, directory_id):
+        """删除目录前的影响预览（只读，不写正式数据）。
+
+        返回结构对齐设计稿 `8.png` 的确认弹窗表格——两行「子对象 / 删除后的改动」，
+        后端把结论算好，前端直接展示，不用自己推断：
+
+            4 个子目录   变成一级目录
+            8 个插件     移入「未分类插件」
+
+        二级目录没有子目录、目录里也没有插件时，对应行写 0 + 「无影响」。
+
+        `conflicts` 是提升为一级目录时会撞名的目录名（开发文档 02 L63 要求的
+        「冲突预览」）：一级目录名在库里对 NULL 父级不唯一（`unique_together`
+        遇到 NULL 不生效），所以重名不会被数据库拦下，必须由业务层提前发现。
+        """
         directory = cls._get_directory_or_404(space_id, directory_id)
         is_top_level = directory.parent_id is None
         children = list(directory.children.all().order_by("order", "id")) if is_top_level else []
-        scope_ids = [directory.id] + [child.id for child in children]
 
-        entries = SpacePluginCatalogEntry.objects.filter(
-            space_id=space_id, directory_id__in=scope_ids, is_deleted=False
-        )
-        status_distribution = {}
-        for status in entries.values_list("status", flat=True):
-            status_distribution[status] = status_distribution.get(status, 0) + 1
-
-        direct_count = SpacePluginCatalogEntry.objects.filter(
+        # 直接挂在本目录（不含子目录）的插件数——子目录的插件会跟着子目录走，不受影响
+        plugin_count = SpacePluginCatalogEntry.objects.filter(
             space_id=space_id, directory_id=directory.id, is_deleted=False
         ).count()
 
-        merge_candidates = []
-        if is_top_level:
-            merge_candidates = list(
-                PluginDirectory.objects.filter(space_id=space_id, parent__isnull=True)
-                .exclude(id=directory.id)
-                .values("id", "name")
-            )
+        conflicts = cls._detect_promote_conflicts(space_id, directory, children)
 
         return {
-            "level": 1 if is_top_level else 2,
             "name": directory.name,
-            "children": [{"id": child.id, "name": child.name} for child in children],
-            "total_plugin_count": entries.count(),
-            "status_distribution": status_distribution,
-            "direct_plugin_count": direct_count,
-            "bindings": directory.bindings if is_top_level else [],
-            "merge_candidates": merge_candidates,
+            "level": 1 if is_top_level else 2,
+            "children_count": len(children),
+            "children_effect": "变成一级目录" if children else "无影响",
+            "plugin_count": plugin_count,
+            "plugin_effect": "移入「未分类插件」" if plugin_count else "无影响",
+            "conflicts": conflicts,
         }
+
+    @classmethod
+    def _detect_promote_conflicts(cls, space_id, directory, children):
+        """子目录提升为一级目录时，会与空间里已有的一级目录重名的名称列表。
+
+        一级目录的 `unique_together = (space_id, parent, name)` 在 `parent` 为 NULL 时
+        不生效（SQL 里 NULL 不参与唯一性比较），所以重名不会被数据库拦下，
+        必须在业务层检测出来：重名时直接拒绝删除，让管理员先改名。
+        """
+        if not children:
+            return []
+        existing_names = set(
+            PluginDirectory.objects.filter(space_id=space_id, parent__isnull=True)
+            .exclude(id=directory.id)
+            .values_list("name", flat=True)
+        )
+        conflicts = []
+        for child in children:
+            if child.name in existing_names and child.name not in conflicts:
+                conflicts.append(child.name)
+        return conflicts
 
     @classmethod
     def execute_delete(
         cls,
         space_id,
         directory_id,
-        strategy=None,
-        target_directory_id=None,
         operator=None,
         operate_source=CatalogChangeSource.WEB,
         request_id="",
     ):
+        """删除目录：唯一一套行为，不让调用方选策略。
+
+        开发文档 04 L18：「删除后子目录提升、直接插件含未启用移未分类」，
+        设计稿 `8.png` 的确认弹窗也是这两行：
+
+            4 个子目录 → 变成一级目录
+            8 个插件   → 移入「未分类插件」
+
+        - 一级目录：子目录提升为一级目录（排在一级目录末尾）；**直接挂在本目录的插件**
+          （含未启用的）移到未分类；本目录删除。
+        - 二级目录：没有子目录，它自己的插件同样移到未分类；本目录删除。
+
+        提升后若与空间里已有的一级目录重名 → **直接报错拒绝删除**（改名是管理员的
+        决定，后端不静默改名），提示前端让用户先重命名。
+        """
         with transaction.atomic():
             config = cls._lock_revision_config(space_id)
             current_revision = (config.json_value or {}).get("directory_revision", 0)
@@ -415,20 +412,35 @@ class DirectoryService:
             deleted_directory_id = directory.id
             before_snapshot = cls._delete_snapshot(space_id, directory)
 
-            if directory.parent_id is not None:
-                # 二级目录：固定策略，插件与自身一并移到所属一级目录（二级目录恒无绑定来源）
-                SpacePluginCatalogEntry.objects.filter(space_id=space_id, directory_id=directory.id).update(
-                    directory_id=directory.parent_id, updated_by=operator, update_at=timezone.now()
+            is_top_level = directory.parent_id is None
+            children = list(directory.children.all().order_by("order", "id")) if is_top_level else []
+
+            conflicts = cls._detect_promote_conflicts(space_id, directory, children)
+            if conflicts:
+                raise ValidationError(
+                    f"子目录「{'」「'.join(conflicts)}」提升为一级目录后与已有的一级目录重名，"
+                    "请先重命名后再删除"
                 )
-                directory.delete()
-            elif strategy == cls.STRATEGY_PROMOTE:
-                cls._execute_promote(space_id, directory, operator)
-            elif strategy == cls.STRATEGY_MERGE:
-                cls._execute_merge(space_id, directory, target_directory_id, operator)
-            elif strategy == cls.STRATEGY_UNCATEGORIZED:
-                cls._execute_uncategorized(space_id, directory, operator)
-            else:
-                raise ValidationError(f"未知的删除策略: {strategy}")
+
+            if is_top_level and children:
+                # 子目录提升为一级目录，排在一级目录末尾
+                max_order = (
+                    PluginDirectory.objects.filter(space_id=space_id, parent__isnull=True)
+                    .exclude(id=directory.id)
+                    .aggregate(Max("order"))["order__max"]
+                    or 0
+                )
+                for offset, child in enumerate(children, start=1):
+                    child.parent = None
+                    child.order = max_order + offset
+                    child.save(update_fields=["parent", "order"])
+
+            # 直接挂在本目录的插件（含未启用的）移到未分类；
+            # 子目录里的插件跟着子目录走，不受影响。
+            SpacePluginCatalogEntry.objects.filter(space_id=space_id, directory_id=directory.id).update(
+                directory_id=None, updated_by=operator, update_at=timezone.now()
+            )
+            directory.delete()
 
             cls._bump_revision(config, current_revision)
 
@@ -438,7 +450,7 @@ class DirectoryService:
                 operate_type=CatalogChangeType.DIRECTORY_DELETE,
                 operator=operator,
                 before_value=before_snapshot,
-                after_value={"strategy": strategy, "target_directory_id": target_directory_id},
+                after_value={"level": 1 if is_top_level else 2},
                 method="directories/execute_delete",
                 operate_source=operate_source,
                 request_id=request_id,
@@ -457,7 +469,6 @@ class DirectoryService:
                 "parent_id": directory.parent_id,
                 "name": directory.name,
                 "order": directory.order,
-                "bindings": directory.bindings or [],
             },
             "children": child_ids,
             "entries": {
@@ -467,82 +478,6 @@ class DirectoryService:
                 ).values_list("id", "directory_id")
             },
         }
-
-    @classmethod
-    def _execute_promote(cls, space_id, directory, operator):
-        max_order = (
-            PluginDirectory.objects.filter(space_id=space_id, parent__isnull=True)
-            .exclude(id=directory.id)
-            .aggregate(Max("order"))["order__max"]
-            or 0
-        )
-        children = list(directory.children.all().order_by("order", "id"))
-        for offset, child in enumerate(children, start=1):
-            child.parent = None
-            child.order = max_order + offset
-            child.save(update_fields=["parent", "order"])
-
-        SpacePluginCatalogEntry.objects.filter(space_id=space_id, directory_id=directory.id).update(
-            directory_id=None, updated_by=operator, update_at=timezone.now()
-        )
-        directory.delete()
-
-    @classmethod
-    def _execute_merge(cls, space_id, directory, target_directory_id, operator):
-        if not target_directory_id:
-            raise ValidationError("合并策略需要指定目标一级目录 target_directory_id")
-        if str(target_directory_id) == str(directory.id):
-            raise ValidationError("不能合并到自身")
-        target = PluginDirectory.objects.filter(
-            space_id=space_id, pk=target_directory_id, parent__isnull=True
-        ).first()
-        if target is None:
-            raise ValidationError(f"目标目录 {target_directory_id} 不存在或不是一级目录")
-
-        existing_names = set(target.children.values_list("name", flat=True))
-        for child in directory.children.all().order_by("order", "id"):
-            new_name = child.name
-            suffix = 2
-            while new_name in existing_names:
-                new_name = f"{child.name}({suffix})"
-                suffix += 1
-            existing_names.add(new_name)
-            child.parent = target
-            child.name = new_name
-            child.save(update_fields=["parent", "name"])
-
-        # 来源绑定一并迁移到目标目录，冲突（已被其他一级目录绑定）时直接拒绝本次合并
-        owners = {
-            source_key: other
-            for other in PluginDirectory.objects.filter(space_id=space_id, parent__isnull=True).exclude(
-                id__in=[directory.id, target.id]
-            )
-            for source_key in (other.bindings or [])
-        }
-        merged_bindings = list(target.bindings or [])
-        for source_key in directory.bindings or []:
-            owner = owners.get(source_key)
-            if owner:
-                raise ValidationError(f"来源「{source_key}」已绑定到「{owner.name}」，无法随「{directory.name}」一并合并")
-            if source_key not in merged_bindings:
-                merged_bindings.append(source_key)
-        if merged_bindings != (target.bindings or []):
-            target.bindings = merged_bindings
-            target.save(update_fields=["bindings"])
-
-        SpacePluginCatalogEntry.objects.filter(space_id=space_id, directory_id=directory.id).update(
-            directory_id=target.id, updated_by=operator, update_at=timezone.now()
-        )
-        directory.delete()
-
-    @classmethod
-    def _execute_uncategorized(cls, space_id, directory, operator):
-        child_ids = list(directory.children.values_list("id", flat=True))
-        scope_ids = [directory.id] + child_ids
-        SpacePluginCatalogEntry.objects.filter(space_id=space_id, directory_id__in=scope_ids).update(
-            directory_id=None, updated_by=operator, update_at=timezone.now()
-        )
-        directory.delete()  # parent 外键 on_delete=CASCADE，子目录随之一并删除
 
     @staticmethod
     def _get_directory_or_404(space_id, directory_id, for_update=False):

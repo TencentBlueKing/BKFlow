@@ -108,8 +108,6 @@ class CatalogChangeRecordService:
             "status": entry.status,
             "directory_id": entry.directory_id,
             "recommended": entry.recommended,
-            "recommend_order": entry.recommend_order,
-            "disable_config": entry.disable_config or {},
-            "offline_reason": entry.offline_reason,
+            "disable_reason": entry.disable_reason,
             "replace_plugin_id": entry.replace_plugin_id,
         }

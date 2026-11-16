@@ -20,18 +20,18 @@ to the current version of the project delivered to anyone in the future.
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from bkflow.plugin_catalog.models import PluginCatalogStatus
+from bkflow.plugin_catalog.models import PluginCatalogStatus, PluginType
 
 
-class _MultiValueCharField(serializers.CharField):
-    """支持 `a,b,c` 或重复 query 参数两种多值写法，统一解析成 list[str]。"""
+class _MultiChoiceField(serializers.MultipleChoiceField):
+    """多选枚举。
+
+    DRF 的 `MultipleChoiceField` 返回 `set`，这里统一转成 `list`：
+    下游按 list 判断与序列化，且前端传参顺序在响应里可预期。
+    """
 
     def to_internal_value(self, data):
-        if isinstance(data, (list, tuple)):
-            values = data
-        else:
-            values = str(data).split(",")
-        return [v.strip() for v in values if v and v.strip()]
+        return list(super().to_internal_value(data))
 
 
 class SpaceIdQuerySerializer(serializers.Serializer):
@@ -39,14 +39,45 @@ class SpaceIdQuerySerializer(serializers.Serializer):
 
 
 class EntryListQuerySerializer(serializers.Serializer):
+    """插件列表查询参数。
+
+    **数组型参数统一用「重复传参」**：`?status=enable&status=disabled`。
+    不支持逗号分隔（`?status=enable,disabled`）、方括号（`?status[]=...`）、
+    JSON 字符串（`?status=["enable"]`）—— 这三种都会被当成单个字面量，导致查不到数据。
+    前端用 axios 时需配 `paramsSerializer: { indexes: null }`，否则 axios 默认
+    序列化成 `status[]=...`，参数会整体丢失。
+    """
+
     space_id = serializers.IntegerField(help_text=_("空间ID"))
     directory_id = serializers.CharField(
-        help_text=_("all/recommend/uncategorized/具体目录id"), required=False, default="all"
+        help_text=_("目录筛选：all(全部) / recommend(空间推荐) / uncategorized(未分类) / 具体目录 id"),
+        required=False,
+        default="all",
     )
-    status = _MultiValueCharField(help_text=_("all(默认,不含invalid)/六态任意组合"), required=False, default=list)
-    plugin_type = _MultiValueCharField(required=False, default=list)
-    source_key = _MultiValueCharField(required=False, default=list)
-    keyword = _MultiValueCharField(help_text=_("模糊匹配插件名称或最近修改人，OR 语义"), required=False, default=list)
+    status = _MultiChoiceField(
+        choices=[status for status, _label in PluginCatalogStatus.CHOICES] + ["all"],
+        required=False,
+        default=list,
+        help_text=_("状态筛选，可重复传参；不传或传 all = 全部。all 不能与其他值混传"),
+    )
+    plugin_type = _MultiChoiceField(
+        choices=[plugin_type for plugin_type, _label in PluginType.CHOICES],
+        required=False,
+        default=list,
+        help_text=_("插件类型筛选，可重复传参；多值 OR"),
+    )
+    source_key = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+        help_text=_("来源筛选，可重复传参；多值 OR。取值同接口 12 的来源 id"),
+    )
+    keyword = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+        help_text=_("关键词筛选，可重复传参；多值 OR，匹配插件名称或最近修改人"),
+    )
     ordering = serializers.ChoiceField(
         choices=["-update_at", "update_at", "-ref_count", "ref_count", "name", "-name"],
         required=False,
@@ -54,6 +85,12 @@ class EntryListQuerySerializer(serializers.Serializer):
     )
     page = serializers.IntegerField(required=False, default=1, min_value=1)
     page_size = serializers.IntegerField(required=False, default=20, min_value=1, max_value=200)
+
+    def validate_status(self, value):
+        # `all` 表示"全部"，不能与其他状态混传（混传语义无意义且容易误用）
+        if "all" in value and len(value) > 1:
+            raise serializers.ValidationError("status=all 不能与其他状态同时传入")
+        return value
 
 
 class EntryUpdateSerializer(serializers.Serializer):
@@ -66,16 +103,22 @@ class EntryUpdateSerializer(serializers.Serializer):
 
 class EntryStatusSerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
-    status = serializers.ChoiceField(
-        choices=[s for s, _label in PluginCatalogStatus.CHOICES if s != PluginCatalogStatus.INVALID]
-    )
+    status = serializers.ChoiceField(choices=[s for s, _label in PluginCatalogStatus.CHOICES])
     target_directory_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-    disable_config = serializers.DictField(required=False)
-    offline_reason = serializers.CharField(required=False, allow_blank=True, default="")
+    disable_reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=200,
+        help_text=_(
+            "未启用原因，选填：管理员停用时填用户填写的原因；"
+            "审核不通过时填固定文案「审核不通过」。不填时前端统一显示「该插件已被空间管理停用」"
+        ),
+    )
     replace_plugin_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate(self, attrs):
-        if attrs["status"] == PluginCatalogStatus.VISIBLE and "target_directory_id" not in self.initial_data:
+        if attrs["status"] == PluginCatalogStatus.ENABLE and "target_directory_id" not in self.initial_data:
             raise serializers.ValidationError("启用插件需要指定 target_directory_id（可为空表示未分类）")
         return attrs
 
@@ -92,13 +135,31 @@ class ReferenceListQuerySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
     scope = serializers.ChoiceField(choices=["all", "published", "draft"], required=False, default="all")
     keyword = serializers.CharField(required=False, allow_blank=True, default="")
+    ordering = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text=_(
+            "排序：maintainer / -maintainer（按维护人）；`-` 前缀为降序。"
+            "不传则按最近更新倒序。不支持的字段回落到默认顺序"
+        ),
+    )
     page = serializers.IntegerField(required=False, default=1, min_value=1)
     page_size = serializers.IntegerField(required=False, default=10, min_value=1, max_value=200)
 
 
-class DisableConfigSerializer(serializers.Serializer):
+class ReasonSerializer(serializers.Serializer):
+    """03 · 独立编辑「未启用配置」（未启用原因 + 建议替换插件），仅「未启用」态可改。"""
+
     space_id = serializers.IntegerField(help_text=_("空间ID"))
-    disable_config = serializers.DictField(help_text=_("停用提示文案/联系方式等自定义内容"))
+    reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=200,
+        help_text=_("未启用原因，选填；不填时前端统一显示「该插件已被空间管理停用」"),
+    )
+    replace_plugin_id = serializers.IntegerField(required=False, allow_null=True)
 
 
 class BatchCategorySerializer(serializers.Serializer):
@@ -115,13 +176,6 @@ class BatchStatusItemSerializer(serializers.Serializer):
 class BatchStatusSerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
     ids = serializers.ListField(child=serializers.IntegerField(), min_length=1)
-    status = serializers.ChoiceField(
-        choices=[s for s, _label in PluginCatalogStatus.CHOICES if s != PluginCatalogStatus.INVALID]
-    )
+    status = serializers.ChoiceField(choices=[s for s, _label in PluginCatalogStatus.CHOICES])
     target_directory_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     items = BatchStatusItemSerializer(many=True, required=False, default=list)
-
-
-class BatchCleanSerializer(serializers.Serializer):
-    space_id = serializers.IntegerField(help_text=_("空间ID"))
-    ids = serializers.ListField(child=serializers.IntegerField(), min_length=1)

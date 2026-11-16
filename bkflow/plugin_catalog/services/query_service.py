@@ -20,6 +20,7 @@ to the current version of the project delivered to anyone in the future.
 import logging
 
 from django.db.models import Count, Q
+from django.utils.timezone import is_naive, localtime
 
 from bkflow.plugin_catalog.models import (
     PluginCatalogStatus,
@@ -117,32 +118,70 @@ class PluginCatalogQueryService:
     def serialize_entries(cls, space_id, entries):
         name_maps = cls._name_resolvers(space_id)
         ref_stats = cls._reference_stats(space_id)
+        # 设计稿列表页的「类型 / 来源 / 目录」三列直接展示名称，这里一并下发，
+        # 免得前端再拿 id 反查一遍（反查同样要查库，且各页面口径容易不一致）
+        type_names = dict(PluginType.CHOICES)
+        source_names = SourceGroupService.source_display_names(space_id)
+        directory_paths = cls.directory_paths(space_id)
         result = []
         for entry in entries:
             key = (entry.plugin_type, entry.source_key, entry.plugin_code)
             stat = ref_stats.get(key, {"ref_count": 0, "node_count": 0})
+            source_id = cls._display_source_key(entry)
             result.append(
                 {
                     "id": entry.id,
                     "plugin_type": entry.plugin_type,
-                    "source_key": entry.source_key,
+                    "plugin_type_name": type_names.get(entry.plugin_type, entry.plugin_type),
+                    "source_key": cls._display_source_key(entry),
+                    "source_name": source_names.get(source_id, ""),
                     "plugin_code": entry.plugin_code,
                     "plugin_name": cls._resolve_name(entry, name_maps),
                     "directory_id": entry.directory_id,
+                    "directory_name": " / ".join(directory_paths.get(entry.directory_id, [])),
                     "status": entry.status,
                     "recommended": entry.recommended,
-                    "recommend_order": entry.recommend_order,
                     "ref_count": stat["ref_count"],
                     "node_count": stat["node_count"],
-                    "offline_reason": entry.offline_reason,
-                    "invalid_reason": entry.invalid_reason,
-                    "found_time": entry.found_time,
-                    "disable_config": {k: v for k, v in (entry.disable_config or {}).items() if k != "_meta"},
+                    "found_time": cls._format_time(entry.found_time),
+                    "disable_reason": entry.disable_reason,
                     "updated_by": entry.updated_by,
-                    "update_at": entry.update_at,
+                    "update_at": cls._format_time(entry.update_at),
                 }
             )
         return result
+
+    @staticmethod
+    def directory_paths(space_id):
+        """目录 id -> 目录路径数组（最多两级，如 `["主机与作业", "作业执行"]`）。
+
+        放在本类而不是 picker_service，是为了让画布选择器（接口 A5）复用同一份实现，
+        避免两个接口对「目录路径」的口径不一致。
+        """
+        directories = list(PluginDirectory.objects.filter(space_id=space_id).only("id", "parent_id", "name"))
+        name_map = {directory.id: directory.name for directory in directories}
+        paths = {}
+        for directory in directories:
+            if directory.parent_id and directory.parent_id in name_map:
+                paths[directory.id] = [name_map[directory.parent_id], directory.name]
+            else:
+                paths[directory.id] = [directory.name]
+        return paths
+
+    @staticmethod
+    def _format_time(dt):
+        """时间统一格式化为本地时区的 ``YYYY-MM-DD HH:MM:SS`` 字符串。
+
+        与项目既有做法一致（见 `bkflow/bk_plugin/models.py` 的 `status_update_time`）：
+        直接返回 datetime 对象会被 DRF 序列化成 ISO-8601 的 UTC 时间
+        （如 ``2026-11-11T02:31:32.549919Z``），前端直接渲染既不是本地时间、
+        也不是约定的字符串格式。空值统一给空串，避免前端判空出错。
+        """
+        if not dt:
+            return ""
+        if is_naive(dt):
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        return localtime(dt).strftime("%Y-%m-%d %H:%M:%S")
 
     # ------------------------------------------------------------------- 筛选 ----
 
@@ -169,21 +208,48 @@ class PluginCatalogQueryService:
         scope_ids = cls._directory_scope_ids(space_id, directory_id)
         return queryset.filter(directory_id__in=scope_ids) if scope_ids else queryset.none()
 
+    @staticmethod
+    def _display_source_key(entry):
+        """对外的「来源」标识，口径见 `SourceGroupService.display_source_id`。"""
+        return SourceGroupService.display_source_id(entry.plugin_type, entry.source_key)
+
+    @classmethod
+    def _apply_source_filter(cls, queryset, source_key):
+        """按对外的「来源 id」筛选（与 `_display_source_key` 同一口径）。
+
+        对外 id 是「来源匹配键」，而库里的 `source_key` 对 builtin / bk_plugin 恒为空串，
+        所以要把 `builtin` / `bk_plugin` 翻译成「plugin_type 匹配 + source_key 为空」，
+        其余（api 的具体来源）才按 `source_key` 精确匹配。
+        """
+        if not source_key:
+            return queryset
+
+        keys = list(source_key) if isinstance(source_key, (list, tuple)) else [source_key]
+        type_keys = [key for key in keys if key in (PluginType.BUILTIN, PluginType.BK_PLUGIN)]
+        exact_keys = [key for key in keys if key not in (PluginType.BUILTIN, PluginType.BK_PLUGIN)]
+
+        condition = Q()
+        if type_keys:
+            condition |= Q(plugin_type__in=type_keys, source_key="")
+        if exact_keys:
+            condition |= Q(source_key__in=exact_keys)
+        if not condition:
+            return queryset
+        return queryset.filter(condition)
+
     @classmethod
     def _base_queryset(cls, space_id, directory_id=None, status=None, plugin_type=None, source_key=None):
         queryset = SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
         queryset = cls._apply_directory_filter(queryset, space_id, directory_id)
 
-        status_list = status if isinstance(status, (list, tuple)) else ([status] if status else None)
-        if not status_list or status_list == ["all"]:
-            queryset = queryset.exclude(status=PluginCatalogStatus.INVALID)
-        else:
+        # status 由序列化器定死为 list：重复传参得到多值列表；不传（空列表）或传 all 表示全部
+        status_list = list(status or [])
+        if status_list and "all" not in status_list:
             queryset = queryset.filter(status__in=status_list)
 
         if plugin_type:
             queryset = queryset.filter(plugin_type__in=plugin_type)
-        if source_key:
-            queryset = queryset.filter(source_key__in=source_key)
+        queryset = cls._apply_source_filter(queryset, source_key)
         return queryset
 
     @classmethod
@@ -205,6 +271,7 @@ class PluginCatalogQueryService:
         serialized = cls.serialize_entries(space_id, list(queryset))
 
         if keyword:
+            # 模糊匹配「插件名称、最近修改人」，多关键词 OR
             keywords = keyword if isinstance(keyword, (list, tuple)) else [keyword]
             lowered = [kw.lower() for kw in keywords if kw]
             if lowered:
@@ -238,16 +305,17 @@ class PluginCatalogQueryService:
     @classmethod
     def get_status_counts(cls, space_id, directory_id=None, plugin_type=None, source_key=None, keyword=None):
         """
-        除 status 外其余条件过滤后，按六态分别计数（这里统计全部六态，含 invalid，供前端把
-        invalid 单独映射到"已失效" Tab；"全部"Tab 的 all 计数口径=六态求和-invalid，由本方法
-        的调用方/前端自行汇总，不在这里预先剔除）。
+        除 status 外其余条件过滤后，按四态分别计数（pending_review / enable / disabled / expired）。
+
+        额外返回两个聚合值：
+        - `all`：四态求和
+        - `not_enable`：`disabled + expired`，对应前端的「不启用」Tab
         """
         queryset = SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
         queryset = cls._apply_directory_filter(queryset, space_id, directory_id)
         if plugin_type:
             queryset = queryset.filter(plugin_type__in=plugin_type)
-        if source_key:
-            queryset = queryset.filter(source_key__in=source_key)
+        queryset = cls._apply_source_filter(queryset, source_key)
         if keyword:
             # 关键字命中插件名称无法下推 SQL（名称来自外部只读来源），Tab 计数场景退化为只按
             # updated_by 过滤；计数本身是粗粒度展示，精确结果以 list_entries 的内存过滤为准。
@@ -260,8 +328,9 @@ class PluginCatalogQueryService:
         counts = {status: 0 for status, _ in PluginCatalogStatus.CHOICES}
         for row in queryset.values("status").annotate(total=Count("id")):
             counts[row["status"]] = row["total"]
-        counts["all"] = sum(v for status, v in counts.items() if status != PluginCatalogStatus.INVALID)
-        counts["unused"] = sum(counts[status] for status in PluginCatalogStatus.UNUSED_GROUP)
+        counts["all"] = sum(counts[status] for status, _ in PluginCatalogStatus.CHOICES)
+        # 「不启用」聚合分组：对外是一个 Tab（已停用 + 已失效）
+        counts["not_enable"] = sum(counts[status] for status in PluginCatalogStatus.NOT_ENABLE_GROUP)
         return counts
 
     @classmethod
@@ -270,8 +339,7 @@ class PluginCatalogQueryService:
         插件目录侧边栏汇总：目录树（每个节点带插件数量）+ 三个虚拟节点的计数。
 
         计数口径与列表页默认过滤保持一致（排除"已失效"条目），保证侧边栏数字与
-        点进去看到的条数对得上；一级目录的 count 含其二级子目录，与 08 目录管理的
-        `total_plugin_count` 口径一致。
+        点进去看到的条数对得上；一级目录的 count 含其二级子目录。
         """
         directories = PluginDirectory.objects.filter(space_id=space_id).order_by("parent_id", "order", "id")
         nodes, top_level = {}, []
@@ -288,9 +356,7 @@ class PluginCatalogQueryService:
         for directory_id, node in nodes.items():
             node["count"] = directory_counts.get(directory_id, 0)
 
-        entries = SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False).exclude(
-            status=PluginCatalogStatus.INVALID
-        )
+        entries = SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
 
         strategy = PluginAdmissionStrategyService.get_strategy(space_id) or {}
         recommend_count = SpacePluginCatalogEntry.objects.filter(
@@ -313,11 +379,10 @@ class PluginCatalogQueryService:
         """各目录的插件数量。
 
         二级目录 = 直接归属该目录的条目数；一级目录 = 自身 + 其二级子目录的条目数。
-        与列表页默认口径一致（排除"已失效"条目）。
+        与列表页默认口径一致（含「已失效」条目——已失效属于「不启用」这一类）。
         """
         rows = (
             SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
-            .exclude(status=PluginCatalogStatus.INVALID)
             .exclude(directory__isnull=True)
             .values("directory_id")
             .annotate(total=Count("id"))

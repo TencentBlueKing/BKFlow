@@ -28,6 +28,9 @@ from bkflow.plugin_catalog.services.source_group_service import SourceGroupServi
 
 logger = logging.getLogger(__name__)
 
+# 失效是来源事实（源头里已找不到该插件），原因固定，不占用人工填写的原因字段
+EXPIRED_REASON = "来源中已不存在该插件"
+
 
 class PluginCatalogGuardService:
     """
@@ -165,11 +168,11 @@ class PluginCatalogGuardService:
         """
         12 · 批量查询插件当前状态（节点配置面板打开时，对画布内全部节点引用的插件身份批量查一次）。
 
-        查不到的身份（目录里没有这条记录，例如迁移前的老空间或边缘情况）按 `visible` 兜底——
+        查不到的身份（目录里没有这条记录，例如迁移前的老空间或边缘情况）按 `enable` 兜底——
         保守方向是"宁可不提示，也不要误报停用"，不阻塞节点正常展示。
 
         :param identities: [{"plugin_type","source_key","plugin_code"}, ...]
-        :return: [{"plugin_type","source_key","plugin_code","status","offline_reason","replace_plugin"}, ...]
+        :return: [{"plugin_type","source_key","plugin_code","status","reason","replace_plugin"}, ...]
         """
         identities = list(identities or [])
         if not identities:
@@ -197,10 +200,10 @@ class PluginCatalogGuardService:
                 results.append(
                     {
                         "plugin_type": key[0],
-                        "source_key": key[1],
+                        "source_key": SourceGroupService.display_source_id(key[0], key[1]),
                         "plugin_code": key[2],
-                        "status": PluginCatalogStatus.VISIBLE,
-                        "offline_reason": "",
+                        "status": PluginCatalogStatus.ENABLE,
+                        "reason": "",
                         "replace_plugin": None,
                     }
                 )
@@ -212,7 +215,9 @@ class PluginCatalogGuardService:
                 if replace_entry is not None:
                     replace_plugin = {
                         "plugin_type": replace_entry.plugin_type,
-                        "source_key": replace_entry.source_key,
+                        "source_key": SourceGroupService.display_source_id(
+                            replace_entry.plugin_type, replace_entry.source_key
+                        ),
                         "plugin_code": replace_entry.plugin_code,
                         "name": name_resolver(
                             replace_entry.plugin_type, replace_entry.source_key, replace_entry.plugin_code
@@ -222,14 +227,28 @@ class PluginCatalogGuardService:
             results.append(
                 {
                     "plugin_type": key[0],
-                    "source_key": key[1],
+                    "source_key": SourceGroupService.display_source_id(key[0], key[1]),
                     "plugin_code": key[2],
                     "status": entry.status,
-                    "offline_reason": entry.offline_reason,
+                    # 「不启用」提示条只需要一行文案，前端不用按状态分支取字段：
+                    #   disabled → 管理员填的原因（或审核不通过的固定文案）
+                    #   expired  → 失效是来源事实，文案固定，不占用人工填写的原因字段
+                    "reason": cls._display_reason(entry),
                     "replace_plugin": replace_plugin,
                 }
             )
         return results
+
+    @staticmethod
+    def _display_reason(entry):
+        """未启用提示条要展示的原因文案。
+
+        - 已停用：管理员填写的原因（可能是审核不通过的固定文案）
+        - 已失效：来源里已不存在该插件，文案固定；人工填写的原因不覆盖
+        """
+        if entry.status == PluginCatalogStatus.EXPIRED:
+            return EXPIRED_REASON
+        return entry.disable_reason or ""
 
     @classmethod
     def get_baseline_pipeline_tree(cls, template):
@@ -259,13 +278,17 @@ class PluginCatalogGuardService:
 
     @staticmethod
     def _get_offline_entries(space_id, newly_added):
-        """批量查出新增节点里命中的"已下架"插件条目，按身份三元组做 key。"""
+        """批量查出新增节点里命中的「未启用」插件条目，按身份三元组做 key。
+
+        「未启用」包含已停用（管理员停用/审核不通过）与已失效两种情形，
+        都不允许在流程里新增使用；存量节点不受影响，仍可编辑运行。
+        """
         identities = {PluginCatalogGuardService._identity_key(identity) for _, identity in newly_added}
         if not identities:
             return {}
         entries = SpacePluginCatalogEntry.objects.filter(
             space_id=space_id,
-            status=PluginCatalogStatus.OFFLINE,
+            status__in=PluginCatalogStatus.NOT_ENABLE_GROUP,
             plugin_type__in={item[0] for item in identities},
         )
         return {
@@ -313,6 +336,6 @@ class PluginCatalogGuardService:
             ),
             "node_id": node_id,
             "node_name": identity["node_name"],
-            "offline_reason": entry.offline_reason,
+            "reason": cls._display_reason(entry),
             "replace_plugin": replace_plugin,
         }

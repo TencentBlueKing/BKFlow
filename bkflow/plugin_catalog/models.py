@@ -51,28 +51,32 @@ class PluginType:
 
 class PluginCatalogStatus:
     """
-    插件目录状态机（六态）：待审核 / 启用 / 已停用 / 已下架 / 已失效 / 未启用(不启用)。
-    流转规则由各处服务层按场景校验（编辑、停用、下架、失效分别对应不同入口）。
+    插件目录状态机（四值）：待审核 / 启用 / 已停用 / 已失效。
+
+    对外是三大类，「不启用」是一类、内部含两个状态值：
+      - `DISABLED` 已停用：管理员下架，或审核不通过。两者只体现在 `disable_reason`
+        的文案上——用户停用由用户填写；审核不通过写固定文案「审核不通过」。
+      - `EXPIRED`  已失效：来源里已经找不到该插件，由来源同步判定，原因固定，
+        **不写入** `disable_reason`（失效属于来源事实，不得占用人工填写的原因字段，
+        也不得覆盖人工填写的停用原因）。
+
+    `SpacePluginCatalogEntry.pre_invalid_status` 记住失效前的状态，来源重新出现后唤醒回该状态。
     """
 
-    REVIEW = "review"
-    VISIBLE = "visible"
+    PENDING_REVIEW = "pending_review"
+    ENABLE = "enable"
     DISABLED = "disabled"
-    OFFLINE = "offline"
-    INVALID = "invalid"
-    NOT_ENABLED = "not_enabled"
+    EXPIRED = "expired"
 
     CHOICES = (
-        (REVIEW, _("待审核")),
-        (VISIBLE, _("启用")),
+        (PENDING_REVIEW, _("待审核")),
+        (ENABLE, _("启用")),
         (DISABLED, _("已停用")),
-        (OFFLINE, _("已下架")),
-        (INVALID, _("已失效")),
-        (NOT_ENABLED, _("未启用(不启用)")),
+        (EXPIRED, _("已失效")),
     )
 
-    # 未启用大 Tab 下聚合的三个子状态，供列表/查询层复用
-    UNUSED_GROUP = (DISABLED, OFFLINE, NOT_ENABLED)
+    # 「不启用」聚合分组：对外是一个 Tab，内部含已停用与已失效两个状态值
+    NOT_ENABLE_GROUP = (DISABLED, EXPIRED)
 
 
 class TemplatePluginReferenceRole:
@@ -93,6 +97,8 @@ class PluginDirectory(models.Model):
     SpacePluginCatalogEntry.directory 为空即表示未分类。
     不继承 CommonModel：目录是纯结构数据，删除为真实 DELETE，不保留软删痕迹，
     具体删除策略（提升子目录/并入其他一级目录/全部回到未分类）见目录管理服务。
+
+    排序语义：`order` 是**目录之间**的排序（同一父目录下的同级目录），不是目录内插件的排序。
     """
 
     space_id = models.IntegerField(_("空间ID"), db_index=True)
@@ -106,14 +112,13 @@ class PluginDirectory(models.Model):
     )
     name = models.CharField(_("目录名称"), max_length=64)
     desc = models.CharField(_("目录描述"), max_length=256, blank=True, default="")
-    order = models.IntegerField(_("同级排序"), default=0)
-    bindings = models.JSONField(
-        _("绑定来源"),
-        default=list,
-        blank=True,
+    order = models.IntegerField(
+        _("同级目录排序号"),
+        default=0,
         help_text=_(
-            "仅一级目录可绑定来源 source_key 列表；该来源下未单独指定分类的插件自动归入本目录；"
-            "同一来源在同一空间内只能绑定一个一级目录"
+            "目录之间的排序号：同一个父目录下的同级目录按本字段升序排列，越小越靠前。"
+            "只影响目录本身的先后（设计稿 8.png 的拖拽排序），"
+            "与目录内插件的排列顺序无关——插件在目录内的展示顺序不由本字段决定。"
         ),
     )
     create_time = models.DateTimeField(_("创建时间"), auto_now_add=True)
@@ -124,6 +129,7 @@ class PluginDirectory(models.Model):
         verbose_name_plural = _("空间插件目录")
         app_label = "plugin_catalog"
         unique_together = ("space_id", "parent", "name")
+        # 同级目录先按 order 升序；order 相同时按 id 兜底，保证顺序稳定
         ordering = ["space_id", "parent_id", "order", "id"]
         indexes = [
             models.Index(fields=["space_id", "parent"]),
@@ -163,18 +169,23 @@ class SpacePluginCatalogEntry(CommonModel):
         _("状态"),
         max_length=16,
         choices=PluginCatalogStatus.CHOICES,
-        default=PluginCatalogStatus.REVIEW,
+        default=PluginCatalogStatus.PENDING_REVIEW,
         db_index=True,
     )
 
     recommended = models.BooleanField(_("是否空间推荐"), default=False)
-    recommend_order = models.IntegerField(_("推荐顺序"), null=True, blank=True)
 
-    disable_config = models.JSONField(
-        _("停用提示配置"),
-        default=dict,
+    disable_reason = models.CharField(
+        _("停用原因"),
+        max_length=200,
         blank=True,
-        help_text=_("停用提示文案/联系方式等自定义内容，内部约定字段放在 _meta 命名空间下，如 _meta.pre_invalid_status"),
+        default="",
+        help_text=_(
+            "停用原因：管理员停用（下架）时由用户填写；审核不通过时写固定文案「审核不通过」。"
+            "展示在画布节点的「已停用」提示条与流程保存拦截提示中。"
+            "选填，不填时前端统一显示「该插件已被空间管理停用」。"
+            "注意：失效（来源里已找不到该插件）不写入本字段"
+        ),
     )
 
     replace_plugin = models.ForeignKey(
@@ -185,16 +196,33 @@ class SpacePluginCatalogEntry(CommonModel):
         on_delete=models.SET_NULL,
         related_name="replaced_by_set",
     )
-    offline_reason = models.CharField(_("下架原因"), max_length=512, blank=True, default="")
-    offline_by = models.CharField(_("下架操作人"), max_length=32, blank=True, default="")
-    offline_time = models.DateTimeField(_("下架时间"), null=True, blank=True)
 
-    invalid_reason = models.CharField(_("失效原因"), max_length=512, blank=True, default="")
     found_time = models.DateTimeField(_("失效发现时间"), null=True, blank=True)
 
-    source_valid = models.BooleanField(_("来源当前是否仍存在"), default=True)
     last_synced_at = models.DateTimeField(_("最近一次来源同步时间"), null=True, blank=True)
     ever_enabled = models.BooleanField(_("是否曾经进入过可用状态"), default=False)
+
+    pre_invalid_status = models.CharField(
+        _("失效前状态"),
+        max_length=16,
+        blank=True,
+        default="",
+        help_text=_(
+            "来源同步标记失效时记下的原状态（enable/pending_review/not_enable），"
+            "来源重新出现后唤醒回该状态，避免恢复时被打回待审核。"
+            "一次性使用：唤醒后即清空。取值为 PluginCatalogStatus 枚举，空串表示无记忆"
+        ),
+    )
+    applied_ai_request_id = models.CharField(
+        _("已应用的 AI 分类请求 ID"),
+        max_length=128,
+        blank=True,
+        default="",
+        help_text=_(
+            "AI 自动分类的幂等标记：同一 request_id 的结果重复投递时直接跳过，"
+            "不覆盖人工已处理的记录。长期保留"
+        ),
+    )
 
     class Meta:
         verbose_name = _("空间插件目录条目")
@@ -204,7 +232,7 @@ class SpacePluginCatalogEntry(CommonModel):
         indexes = [
             models.Index(fields=["space_id", "status"]),
             models.Index(fields=["space_id", "directory"]),
-            models.Index(fields=["space_id", "recommended", "recommend_order"]),
+            models.Index(fields=["space_id", "recommended"]),
         ]
 
     def __str__(self):
@@ -259,10 +287,9 @@ class CatalogChangeType:
     INITIALIZE = "initialize"
     UPDATE_ENTRY = "update_entry"
     TRANSITION_STATUS = "transition_status"
-    UPDATE_DISABLE_CONFIG = "update_disable_config"
+    UPDATE_REASON = "update_reason"
     BATCH_CATEGORY = "batch_category"
     BATCH_STATUS = "batch_status"
-    BATCH_CLEAN = "batch_clean"
     RECOMMEND = "recommend"
     CANCEL_RECOMMEND = "cancel_recommend"
     DIRECTORY_SAVE = "directory_save"
@@ -272,10 +299,9 @@ class CatalogChangeType:
         (INITIALIZE, _("初始化插件目录")),
         (UPDATE_ENTRY, _("编辑插件条目")),
         (TRANSITION_STATUS, _("插件状态流转")),
-        (UPDATE_DISABLE_CONFIG, _("编辑停用提示配置")),
+        (UPDATE_REASON, _("编辑停用/下架原因")),
         (BATCH_CATEGORY, _("批量归类")),
         (BATCH_STATUS, _("批量状态流转")),
-        (BATCH_CLEAN, _("批量清理失效记录")),
         (RECOMMEND, _("设为空间推荐")),
         (CANCEL_RECOMMEND, _("取消空间推荐")),
         (DIRECTORY_SAVE, _("保存目录")),
@@ -304,7 +330,7 @@ class CatalogChangeRecord(BaseOperateRecord):
     按设计文档要求「只写不读」：本期不提供查询接口、不新增审计页面
     （文档明确"不新增审计页面"），数据用于排障追溯与上线回退时的差异核对，可直接查表消费。
 
-    与 `SpacePluginCatalogEntry` 上的 `updated_by` / `offline_by` 的区别：那些字段只保留
+    与 `SpacePluginCatalogEntry` 上的 `updated_by` 的区别：那些字段只保留
     **最后一次**修改者，这里保留**每一次**变更的前后值（before_value / after_value）。
     """
 

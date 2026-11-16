@@ -25,13 +25,12 @@ from bkflow.plugin_catalog.models import SpacePluginCatalogEntry
 from bkflow.plugin_catalog.permissions import PLUGIN_CATALOG_ADMIN_PERMISSIONS
 from bkflow.plugin_catalog.serializers.catalog import (
     BatchCategorySerializer,
-    BatchCleanSerializer,
     BatchStatusSerializer,
-    DisableConfigSerializer,
     EntryListQuerySerializer,
     EntryStatusSerializer,
     EntryUpdateSerializer,
     PluginDetailQuerySerializer,
+    ReasonSerializer,
     ReferenceListQuerySerializer,
     SpaceIdQuerySerializer,
     SuggestDirectoryQuerySerializer,
@@ -120,8 +119,7 @@ class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
             entry_id=pk,
             target_status=data["status"],
             operator=request.user.username,
-            disable_config=data.get("disable_config"),
-            offline_reason=data.get("offline_reason", ""),
+            disable_reason=data.get("disable_reason", ""),
             replace_plugin_id=data.get("replace_plugin_id"),
             request_id=_request_id(request),
             **extra,
@@ -151,19 +149,22 @@ class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
             entry_id=pk,
             scope=data["scope"],
             keyword=data.get("keyword"),
+            ordering=data.get("ordering", ""),
             page=data["page"],
             page_size=data["page_size"],
         )
         return Response(result)
 
-    def disable_config(self, request, pk=None):
-        ser = DisableConfigSerializer(data=request.data)
+    def reason(self, request, pk=None):
+        """03 · 独立编辑「未启用配置」：未启用原因 + 建议替换插件。"""
+        ser = ReasonSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
-        entry = PluginCatalogService.update_disable_config(
+        entry = PluginCatalogService.update_reason(
             space_id=data["space_id"],
             entry_id=pk,
-            disable_config=data["disable_config"],
+            reason=data.get("reason", ""),
+            replace_plugin_id=data.get("replace_plugin_id"),
             operator=request.user.username,
             request_id=_request_id(request),
         )
@@ -194,18 +195,6 @@ class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
             status=data["status"],
             target_directory_id=data.get("target_directory_id"),
             items=data.get("items"),
-            operator=request.user.username,
-            request_id=_request_id(request),
-        )
-        return Response(result)
-
-    def batch_clean(self, request, *args, **kwargs):
-        ser = BatchCleanSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        data = ser.validated_data
-        result = PluginCatalogService.batch_clean(
-            space_id=data["space_id"],
-            ids=data["ids"],
             operator=request.user.username,
             request_id=_request_id(request),
         )

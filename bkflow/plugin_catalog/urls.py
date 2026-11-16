@@ -59,11 +59,6 @@ plugin_entry_urlpatterns = [
         name="plugin_catalog_entry-batch-status",
     ),
     re_path(
-        r"^plugins/batch_clean/$",
-        _entry_views({"delete": "batch_clean"}, basename=_PLUGIN_CATALOG_ENTRY_BASENAME),
-        name="plugin_catalog_entry-batch-clean",
-    ),
-    re_path(
         r"^plugins/picker/$",
         PluginPickerViewSet.as_view({"get": "list"}, basename="plugin_catalog_picker"),
         name="plugin_catalog_picker-list",
@@ -111,9 +106,9 @@ plugin_entry_urlpatterns = [
         name="plugin_catalog_entry-status",
     ),
     re_path(
-        r"^plugins/(?P<pk>\d+)/disable_config/$",
-        _entry_views({"post": "disable_config"}, basename=_PLUGIN_CATALOG_ENTRY_BASENAME),
-        name="plugin_catalog_entry-disable-config",
+        r"^plugins/(?P<pk>\d+)/reason/$",
+        _entry_views({"post": "reason"}, basename=_PLUGIN_CATALOG_ENTRY_BASENAME),
+        name="plugin_catalog_entry-reason",
     ),
     re_path(
         r"^plugins/(?P<pk>\d+)/recommend/$",
