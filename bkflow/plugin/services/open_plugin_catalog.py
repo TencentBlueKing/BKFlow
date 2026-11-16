@@ -28,6 +28,7 @@ from bkflow.plugin.models import (
     OpenPluginCatalogIndex,
     SpaceOpenPluginAvailability,
 )
+from bkflow.utils.admin import get_admin_username
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
     UniformApiConfig,
@@ -47,7 +48,9 @@ class OpenPluginCatalogService:
         return catalog_qs.exists()
 
     @classmethod
-    def sync_space_plugins(cls, space_id, source_key=None, username="admin"):
+    def sync_space_plugins(cls, space_id, source_key=None, username=None):
+        if username is None:
+            username = get_admin_username()
         source_plugins = {}
         for api_key, api_entry in cls._get_sources(space_id=space_id, source_key=source_key).items():
             current_source_key = cls._effective_source_key(api_key=api_key, api_entry=api_entry)

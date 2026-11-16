@@ -418,7 +418,10 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
 
 # 初始化管理员列表，列表中的人员将拥有预发布环境和正式环境的管理员权限
 # 注意：请在首次提测和上线前修改，之后的修改将不会生效
-INIT_SUPERUSER = ["admin"]
+INIT_SUPERUSER = [env.BK_ADMIN_USERNAME]
+
+# 系统管理员用户名
+BK_ADMIN_USERNAME = env.BK_ADMIN_USERNAME
 
 # AJAX 请求弹窗续期登陆设置
 IS_AJAX_PLAIN_MODE = True

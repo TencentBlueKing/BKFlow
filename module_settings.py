@@ -135,6 +135,9 @@ def check_engine_admin_permission(request, *args, **kwargs):
 
 BKFLOW_MODULE = BKFLOWModule.get_module()
 
+# 系统管理员用户名
+BK_ADMIN_USERNAME = env.BK_ADMIN_USERNAME
+
 # Python 代码节点子进程执行限制
 PYTHON_CODE_PLUGIN_TIMEOUT = env.PYTHON_CODE_PLUGIN_TIMEOUT
 PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT = env.PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT
