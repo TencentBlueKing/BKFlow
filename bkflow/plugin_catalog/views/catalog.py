@@ -38,6 +38,7 @@ from bkflow.plugin_catalog.serializers.catalog import (
 from bkflow.plugin_catalog.services.catalog_service import PluginCatalogService
 from bkflow.plugin_catalog.services.query_service import PluginCatalogQueryService
 from bkflow.plugin_catalog.services.reference_service import PluginReferenceService
+from bkflow.plugin_catalog.views.base import PluginCatalogErrorMixin
 from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.views import SimpleGenericViewSet
 
@@ -49,7 +50,7 @@ def _request_id(request):
     return getattr(request, "request_id", "") or ""
 
 
-class PluginCatalogAdminViewSet(TenantScopeMixin, SimpleGenericViewSet):
+class PluginCatalogAdminViewSet(PluginCatalogErrorMixin, TenantScopeMixin, SimpleGenericViewSet):
     """
     插件列表管理：状态 Tab 查询与计数、单条编辑、状态流转、批量操作、空间推荐位维护。
 

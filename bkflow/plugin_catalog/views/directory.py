@@ -32,6 +32,7 @@ from bkflow.plugin_catalog.serializers.directory import (
     SpaceIdQuerySerializer,
 )
 from bkflow.plugin_catalog.services.directory_service import DirectoryService
+from bkflow.plugin_catalog.views.base import PluginCatalogErrorMixin
 from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.views import SimpleGenericViewSet
 
@@ -43,7 +44,7 @@ def _request_id(request):
     return getattr(request, "request_id", "") or ""
 
 
-class DirectoryManageViewSet(TenantScopeMixin, SimpleGenericViewSet):
+class DirectoryManageViewSet(PluginCatalogErrorMixin, TenantScopeMixin, SimpleGenericViewSet):
     """目录批量管理：整页编辑副本模式下的目录树维护、删除预览与执行、AI 分类建议。"""
 
     permission_classes = PLUGIN_CATALOG_ADMIN_PERMISSIONS
@@ -78,7 +79,7 @@ class DirectoryManageViewSet(TenantScopeMixin, SimpleGenericViewSet):
         ser.is_valid(raise_exception=True)
         data = ser.validated_data
         return Response(
-            DirectoryService.preview_delete(space_id=data["space_id"], directory_id=data["directory_id"])
+            DirectoryService.preview_delete(space_id=data["space_id"], directory_ids=data["directory_ids"])
         )
 
     @swagger_auto_schema(method="post", operation_summary="执行删除目录", request_body=ExecuteDeleteSerializer)
@@ -89,7 +90,7 @@ class DirectoryManageViewSet(TenantScopeMixin, SimpleGenericViewSet):
         data = ser.validated_data
         result = DirectoryService.execute_delete(
             space_id=data["space_id"],
-            directory_id=data["directory_id"],
+            directory_ids=data["directory_ids"],
             operator=request.user.username,
             request_id=_request_id(request),
         )

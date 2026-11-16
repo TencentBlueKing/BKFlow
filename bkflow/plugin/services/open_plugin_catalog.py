@@ -57,7 +57,7 @@ class OpenPluginCatalogService:
         同步开放插件目录（仅 V4 协议，`_refresh_catalog_index` 内部过滤），
         供画布"缓存优先"展示路径使用，详见 bkflow/pipeline_plugins/query/uniform_api/uniform_api.py。
         返回值契约（`list(来源 key)`）保持不变，被现有测试 `test_sync_space_plugins_aggregates_*`
-        直接断言，不要改成返回原始数据，若需要原始数据请用 `fetch_all_source_plugins`。
+        直接断言，不要改成返回原始数据，若需要原始数据请用 `sync_space_plugins_with_meta`。
         """
         source_plugins = cls._collect_source_plugins(space_id=space_id, source_key=source_key, username=username)
 
@@ -70,25 +70,44 @@ class OpenPluginCatalogService:
         return list(source_plugins.keys())
 
     @classmethod
-    def fetch_all_source_plugins(cls, space_id, source_key=None, username="admin"):
+    def sync_space_plugins_with_meta(cls, space_id, source_key=None, username="admin"):
         """
-        返回每个已配置来源**当前完整**的插件 id 列表，不按 `wrapper_version` 过滤（V2/V3/V4 一视同仁）。
+        一次请求同时完成两件事：
 
-        供 `bkflow.plugin_catalog.services.sync_service.PluginCatalogSyncService.sync_api` 直接消费，
-        把结果喂给统一插件目录（`SpacePluginCatalogEntry`），不经过只服务于 V4 展示缓存的
-        `OpenPluginCatalogIndex` 中间表。
+        1. 刷新开放插件目录缓存（`OpenPluginCatalogIndex`，仅 V4 协议），供画布"缓存优先"展示路径使用；
+        2. 返回每个已配置来源**当前完整**的插件元信息（`name` / `description`），
+           不按 `wrapper_version` 过滤（V2/V3/V4 一视同仁），供统一插件目录
+           （`SpacePluginCatalogEntry`）直接写入元信息。
 
-        :return: {source_key: [plugin_id, ...]}
+        两件事共用同一份现场拉取结果，避免同一个来源在一次同步周期里被重复请求两次；
+        元信息直接来自来源响应，不再回查只收录 V4 的缓存表——否则 V2/V3 协议插件的
+        名称与描述会永远取不到（响应 schema 里 `name` 是所有版本都有的必填字段）。
+
+        :return: {source_key: {plugin_id: (name, description)}}
         """
         source_plugins = cls._collect_source_plugins(space_id=space_id, source_key=source_key, username=username)
-        return {src: list(plugins_by_id.keys()) for src, plugins_by_id in source_plugins.items()}
+
+        for current_source_key, plugins_by_id in source_plugins.items():
+            cls._refresh_catalog_index(
+                space_id=space_id,
+                source_key=current_source_key,
+                api_list=list(plugins_by_id.values()),
+            )
+
+        return {
+            src: {
+                plugin_id: (api_item.get("name") or "", api_item.get("description") or "")
+                for plugin_id, api_item in plugins_by_id.items()
+            }
+            for src, plugins_by_id in source_plugins.items()
+        }
 
     @classmethod
     def _collect_source_plugins(cls, space_id, source_key=None, username="admin"):
         """实际发请求拉取每个已配置来源的完整插件清单，按"执行来源"聚合去重。
 
-        `sync_space_plugins`（只服务 V4 缓存）与 `fetch_all_source_plugins`（服务统一插件目录，
-        全版本不过滤）共用这一个方法，避免同一个来源在一次同步周期里被重复请求两次。
+        `sync_space_plugins`（只服务 V4 缓存）与 `sync_space_plugins_with_meta`（服务统一插件目录，
+        全版本不过滤并直接带回元信息）共用这一个方法，避免同一个来源在一次同步周期里被重复请求两次。
         """
         source_plugins = {}
         for api_key, api_entry in cls._get_sources(space_id=space_id, source_key=source_key).items():

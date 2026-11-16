@@ -32,6 +32,7 @@ from bkflow.plugin_catalog.models import (
 from bkflow.plugin_catalog.services.migration_service import PluginCatalogMigrationService
 from bkflow.plugin_catalog.services.source_group_service import SourceGroupService
 from bkflow.plugin_catalog.services.strategy_service import PluginAdmissionStrategyService
+from bkflow.utils.strings import pinyin_sort_key
 
 logger = logging.getLogger(__name__)
 
@@ -52,20 +53,6 @@ class PluginCatalogQueryService:
     MAX_PAGE_SIZE = 200
 
     # ------------------------------------------------------- 展示名 / 引用计数 ----
-
-    @classmethod
-    def _name_resolvers(cls, space_id):
-        return {
-            PluginType.BUILTIN: SourceGroupService.builtin_display_names(),
-            PluginType.BK_PLUGIN: SourceGroupService.bk_plugin_display_names(space_id),
-            PluginType.API: SourceGroupService.api_display_names(space_id),
-        }
-
-    @classmethod
-    def _resolve_name(cls, entry, name_maps):
-        if entry.plugin_type == PluginType.API:
-            return name_maps[PluginType.API].get((entry.source_key, entry.plugin_code), entry.plugin_code)
-        return name_maps[entry.plugin_type].get(entry.plugin_code, entry.plugin_code)
 
     @classmethod
     def bulk_get_ref_counts(cls, space_id, identities=None):
@@ -116,7 +103,6 @@ class PluginCatalogQueryService:
 
     @classmethod
     def serialize_entries(cls, space_id, entries):
-        name_maps = cls._name_resolvers(space_id)
         ref_stats = cls._reference_stats(space_id)
         # 设计稿列表页的「类型 / 来源 / 目录」三列直接展示名称，这里一并下发，
         # 免得前端再拿 id 反查一遍（反查同样要查库，且各页面口径容易不一致）
@@ -136,11 +122,15 @@ class PluginCatalogQueryService:
                     "source_key": cls._display_source_key(entry),
                     "source_name": source_names.get(source_id, ""),
                     "plugin_code": entry.plugin_code,
-                    "plugin_name": cls._resolve_name(entry, name_maps),
+                    # 插件名 / 描述取自目录条目表（来源同步写入的副本），不再实时查外部只读表
+                    "plugin_name": entry.plugin_name or entry.plugin_code,
+                    "plugin_desc": entry.plugin_desc or "",
                     "directory_id": entry.directory_id,
                     "directory_name": " / ".join(directory_paths.get(entry.directory_id, [])),
                     "status": entry.status,
                     "recommended": entry.recommended,
+                    # 建议替换插件：只给 id，前端按需回查或直接跳转到该插件
+                    "replace_plugin_id": entry.replace_plugin_id,
                     "ref_count": stat["ref_count"],
                     "node_count": stat["node_count"],
                     "found_time": cls._format_time(entry.found_time),
@@ -213,6 +203,31 @@ class PluginCatalogQueryService:
         """对外的「来源」标识，口径见 `SourceGroupService.display_source_id`。"""
         return SourceGroupService.display_source_id(entry.plugin_type, entry.source_key)
 
+    @staticmethod
+    def _apply_keyword_filter(queryset, keyword):
+        """按关键词过滤，**下推 SQL**（插件名 / 描述 / 最近修改人，多关键词 OR）。
+
+        这三个字段都落在目录条目表里（插件名与描述由来源同步写入），所以可以直接
+        `icontains`，不用把全量条目捞到内存再筛——列表接口与 Tab 计数接口共用本方法，
+        两边口径完全一致。
+
+        > 插件的「类型 / 来源 / 目录」按中文名搜索暂未纳入：类型/来源的展示名要额外映射，
+        > 目录名要 join 目录表，与前三者的匹配成本差一个量级，需要时再单独补。
+        """
+        if not keyword:
+            return queryset
+        keywords = keyword if isinstance(keyword, (list, tuple)) else [keyword]
+        condition = Q()
+        for kw in keywords:
+            if not kw:
+                continue
+            condition |= (
+                Q(plugin_name__icontains=kw)
+                | Q(plugin_desc__icontains=kw)
+                | Q(updated_by__icontains=kw)
+            )
+        return queryset.filter(condition) if condition else queryset
+
     @classmethod
     def _apply_source_filter(cls, queryset, source_key):
         """按对外的「来源 id」筛选（与 `_display_source_key` 同一口径）。
@@ -268,24 +283,17 @@ class PluginCatalogQueryService:
         queryset = cls._base_queryset(
             space_id, directory_id=directory_id, status=status, plugin_type=plugin_type, source_key=source_key
         )
-        serialized = cls.serialize_entries(space_id, list(queryset))
+        # 关键词过滤下推 SQL：插件名 / 描述 / 最近修改人都落在目录条目表里，
+        # 可以直接用 icontains 过滤，不用把全量条目捞到内存再筛。
+        queryset = cls._apply_keyword_filter(queryset, keyword)
 
-        if keyword:
-            # 模糊匹配「插件名称、最近修改人」，多关键词 OR
-            keywords = keyword if isinstance(keyword, (list, tuple)) else [keyword]
-            lowered = [kw.lower() for kw in keywords if kw]
-            if lowered:
-                serialized = [
-                    item
-                    for item in serialized
-                    if any(kw in (item["plugin_name"] or "").lower() for kw in lowered)
-                    or any(kw in (item["updated_by"] or "").lower() for kw in lowered)
-                ]
+        serialized = cls.serialize_entries(space_id, list(queryset))
 
         reverse = ordering.startswith("-") if ordering else False
         order_field = (ordering or "-update_at").lstrip("-")
         if order_field == "name":
-            serialized.sort(key=lambda item: item["plugin_name"] or "", reverse=reverse)
+            # 中文按拼音排（设计稿「中文名称 A-Z」），不是 Unicode 码位序
+            serialized.sort(key=lambda item: pinyin_sort_key(item["plugin_name"]), reverse=reverse)
         elif order_field == "ref_count":
             serialized.sort(key=lambda item: item["ref_count"], reverse=reverse)
         else:
@@ -316,14 +324,8 @@ class PluginCatalogQueryService:
         if plugin_type:
             queryset = queryset.filter(plugin_type__in=plugin_type)
         queryset = cls._apply_source_filter(queryset, source_key)
-        if keyword:
-            # 关键字命中插件名称无法下推 SQL（名称来自外部只读来源），Tab 计数场景退化为只按
-            # updated_by 过滤；计数本身是粗粒度展示，精确结果以 list_entries 的内存过滤为准。
-            keywords = keyword if isinstance(keyword, (list, tuple)) else [keyword]
-            condition = Q()
-            for kw in keywords:
-                condition |= Q(updated_by__icontains=kw)
-            queryset = queryset.filter(condition)
+        # 与 list_entries 用同一个关键词过滤器 → Tab 计数与列表结果口径一致
+        queryset = cls._apply_keyword_filter(queryset, keyword)
 
         counts = {status: 0 for status, _ in PluginCatalogStatus.CHOICES}
         for row in queryset.values("status").annotate(total=Count("id")):
@@ -341,6 +343,34 @@ class PluginCatalogQueryService:
         计数口径与列表页默认过滤保持一致（排除"已失效"条目），保证侧边栏数字与
         点进去看到的条数对得上；一级目录的 count 含其二级子目录。
         """
+        tree = cls.get_directory_tree(space_id)
+
+        strategy = PluginAdmissionStrategyService.get_strategy(space_id) or {}
+
+        return {
+            "directory_tree": tree["tree"],
+            # 虚拟节点计数：「全部插件」/「未分类插件」；「空间推荐」用 recommend_count
+            "total_count": tree["total_count"],
+            "uncategorized_count": tree["uncategorized_count"],
+            "recommend_count": tree["recommend_count"],
+            "recommend_max": MAX_RECOMMEND,
+            "strategy_summary": {"mode": strategy.get("mode", "review")},
+            "ready": PluginCatalogMigrationService.is_ready(space_id),
+        }
+
+    @classmethod
+    def get_directory_tree(cls, space_id, status=None):
+        """目录树 + 各目录插件数 + 三个虚拟节点计数。
+
+        `status` 给定时**只统计该状态**的条目（画布「选择插件」面板传 `enable`，
+        让左侧目录计数与右侧列表总数口径一致）；不给则统计全部条目。
+
+        一级目录的 count = 自身 + 其二级子目录；二级目录 = 直接归属该目录的条目数。
+        """
+        base = SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
+        if status:
+            base = base.filter(status=status)
+
         directories = PluginDirectory.objects.filter(space_id=space_id).order_by("parent_id", "order", "id")
         nodes, top_level = {}, []
         for directory in directories:
@@ -352,41 +382,28 @@ class PluginCatalogQueryService:
             if directory.parent_id is not None and directory.parent_id in nodes:
                 nodes[directory.parent_id]["children"].append(nodes[directory.id])
 
-        directory_counts = cls._get_directory_plugin_counts(space_id)
+        directory_counts = cls._get_directory_plugin_counts(space_id, status=status)
         for directory_id, node in nodes.items():
             node["count"] = directory_counts.get(directory_id, 0)
 
-        entries = SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
-
-        strategy = PluginAdmissionStrategyService.get_strategy(space_id) or {}
-        recommend_count = SpacePluginCatalogEntry.objects.filter(
-            space_id=space_id, recommended=True, is_deleted=False
-        ).count()
-
         return {
-            "directory_tree": top_level,
-            # 虚拟节点计数：「全部插件」/「未分类插件」；「空间推荐」用 recommend_count
-            "total_count": entries.count(),
-            "uncategorized_count": entries.filter(directory__isnull=True).count(),
-            "recommend_count": recommend_count,
-            "recommend_max": MAX_RECOMMEND,
-            "strategy_summary": {"mode": strategy.get("mode", "review")},
-            "ready": PluginCatalogMigrationService.is_ready(space_id),
+            "tree": top_level,
+            "total_count": base.count(),
+            "uncategorized_count": base.filter(directory__isnull=True).count(),
+            "recommend_count": base.filter(recommended=True).count(),
         }
 
     @classmethod
-    def _get_directory_plugin_counts(cls, space_id):
+    def _get_directory_plugin_counts(cls, space_id, status=None):
         """各目录的插件数量。
 
         二级目录 = 直接归属该目录的条目数；一级目录 = 自身 + 其二级子目录的条目数。
-        与列表页默认口径一致（含「已失效」条目——已失效属于「不启用」这一类）。
+        `status` 给定时只统计该状态的条目（画布选择面板用 enable 口径）。
         """
-        rows = (
-            SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
-            .exclude(directory__isnull=True)
-            .values("directory_id")
-            .annotate(total=Count("id"))
-        )
+        queryset = SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
+        if status:
+            queryset = queryset.filter(status=status)
+        rows = queryset.exclude(directory__isnull=True).values("directory_id").annotate(total=Count("id"))
         counts = {row["directory_id"]: row["total"] for row in rows}
 
         # 目录最多两级：一级目录的 count 需叠加其二级子目录

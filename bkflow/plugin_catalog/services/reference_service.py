@@ -31,6 +31,7 @@ from bkflow.plugin_catalog.models import (
 )
 from bkflow.plugin_catalog.services.guard_service import PluginCatalogGuardService
 from bkflow.plugin_catalog.services.query_service import PluginCatalogQueryService
+from bkflow.utils.strings import pinyin_sort_key
 from bkflow.template.models import Template, TemplateSnapshot
 
 logger = logging.getLogger(__name__)
@@ -50,11 +51,11 @@ class PluginReferenceService:
     # 引用列表支持的排序列（设计稿 7.png 的「维护人」列带排序箭头）。
     # 键是 ordering 参数去掉 `-` 前缀后的字段名，值是取排序键的函数。
     #
-    # 只开放 maintainer：维护人一般是英文名/账号，Unicode 码位序与字母序一致；
-    # 流程名是中文，码位序 ≠ 拼音序（"部署"会排在"版本"前），结果反直觉，
-    # 要按拼音排需要引入 pypinyin 依赖——流程名排序建议由前端用 localeCompare 自行处理。
+    # `maintainer` 一般是英文名/账号，Unicode 码位序与字母序一致；
+    # `flow_name` 是中文，改用拼音序（见 `pinyin_sort_key`）。
     ORDERING_FIELDS = {
         "maintainer": lambda item: item["maintainer"] or "",
+        "flow_name": lambda item: pinyin_sort_key(item["flow_name"]),
     }
 
     @classmethod
@@ -188,6 +189,12 @@ class PluginReferenceService:
         ):
             draft_names_by_template.setdefault(template_id, []).append(node_name)
 
+        published_names_by_template = {}
+        for template_id, node_name in base_qs.filter(role=TemplatePluginReferenceRole.PUBLISHED).values_list(
+            "template_id", "node_name"
+        ):
+            published_names_by_template.setdefault(template_id, []).append(node_name)
+
         template_ids = list(counts_by_template.keys())
         draft_snapshot_ids = set(
             TemplateSnapshot.objects.filter(template_id__in=template_ids, draft=True).values_list(
@@ -212,6 +219,7 @@ class PluginReferenceService:
                 draft_only_flow_count += 1
 
             published_node_count = counts.get(TemplatePluginReferenceRole.PUBLISHED, 0)
+            published_node_names = published_names_by_template.get(template_id, [])
             if template_id in draft_snapshot_ids:
                 draft_node_count = counts.get(TemplatePluginReferenceRole.DRAFT, 0)
                 draft_node_names = draft_names_by_template.get(template_id, [])
@@ -232,6 +240,7 @@ class PluginReferenceService:
                     "flow_name": template.name if template else f"#{template_id}",
                     "maintainer": (template.updated_by or template.creator) if template else "",
                     "published_node_count": published_node_count,
+                    "published_node_names": published_node_names,
                     "published_version": published_version,
                     "draft_node_count": draft_node_count,
                     "draft_node_names": draft_node_names,

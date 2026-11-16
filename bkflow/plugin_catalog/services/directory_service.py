@@ -28,7 +28,6 @@ from bkflow.plugin_catalog.models import (
     CatalogChangeSource,
     CatalogChangeType,
     PluginDirectory,
-    PluginType,
     SpacePluginCatalogEntry,
 )
 from bkflow.plugin_catalog.services.ai_classify_service import AiClassifyService
@@ -75,25 +74,18 @@ class DirectoryService:
     @classmethod
     def _list_entries(cls, space_id):
         entries = SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
-        builtin_names = SourceGroupService.builtin_display_names()
-        bk_plugin_names = SourceGroupService.bk_plugin_display_names(space_id)
-        api_names = SourceGroupService.api_display_names(space_id)
 
         result = []
         for entry in entries:
-            if entry.plugin_type == PluginType.API:
-                plugin_name = api_names.get((entry.source_key, entry.plugin_code), entry.plugin_code)
-            elif entry.plugin_type == PluginType.BK_PLUGIN:
-                plugin_name = bk_plugin_names.get(entry.plugin_code, entry.plugin_code)
-            else:
-                plugin_name = builtin_names.get(entry.plugin_code, entry.plugin_code)
             result.append(
                 {
                     "id": entry.id,
                     "plugin_type": entry.plugin_type,
                     "source_key": SourceGroupService.display_source_id(entry.plugin_type, entry.source_key),
                     "plugin_code": entry.plugin_code,
-                    "plugin_name": plugin_name,
+                    # 插件名 / 描述取自目录条目表（来源同步写入的副本），不再实时查外部只读表
+                    "plugin_name": entry.plugin_name or entry.plugin_code,
+                    "plugin_desc": entry.plugin_desc or "",
                     "directory_id": str(entry.directory_id) if entry.directory_id else "",
                     "status": entry.status,
                 }
@@ -323,8 +315,8 @@ class DirectoryService:
     # ---------------------------------------------------------------- 删除 ----
 
     @classmethod
-    def preview_delete(cls, space_id, directory_id):
-        """删除目录前的影响预览（只读，不写正式数据）。
+    def preview_delete(cls, space_id, directory_ids):
+        """删除目录前的影响预览（只读，不写正式数据），支持批量。
 
         返回结构对齐设计稿 `8.png` 的确认弹窗表格——两行「子对象 / 删除后的改动」，
         后端把结论算好，前端直接展示，不用自己推断：
@@ -334,48 +326,131 @@ class DirectoryService:
 
         二级目录没有子目录、目录里也没有插件时，对应行写 0 + 「无影响」。
 
+        `items` 逐个目录给出一份结论（前端可逐行展示），顶层再给合计。
+
         `conflicts` 是提升为一级目录时会撞名的目录名（开发文档 02 L63 要求的
         「冲突预览」）：一级目录名在库里对 NULL 父级不唯一（`unique_together`
         遇到 NULL 不生效），所以重名不会被数据库拦下，必须由业务层提前发现。
+        批量时冲突要**跨目录**一起算：A 的子目录和 B 的子目录可能互相撞名，
+        所以一次性把整批待提升的子目录都算进来，结果与请求顺序无关。
         """
-        directory = cls._get_directory_or_404(space_id, directory_id)
-        is_top_level = directory.parent_id is None
-        children = list(directory.children.all().order_by("order", "id")) if is_top_level else []
+        directories = cls._get_directories_for_delete(space_id, directory_ids)
+        plan = cls._build_delete_plan(space_id, directories)
 
-        # 直接挂在本目录（不含子目录）的插件数——子目录的插件会跟着子目录走，不受影响
-        plugin_count = SpacePluginCatalogEntry.objects.filter(
-            space_id=space_id, directory_id=directory.id, is_deleted=False
-        ).count()
-
-        conflicts = cls._detect_promote_conflicts(space_id, directory, children)
+        items = []
+        for directory in directories:
+            children = plan["children_by_directory"].get(directory.id, [])
+            plugin_count = plan["plugin_count_by_directory"].get(directory.id, 0)
+            items.append(
+                {
+                    "id": directory.id,
+                    "name": directory.name,
+                    "level": 1 if directory.parent_id is None else 2,
+                    "children_count": len(children),
+                    "children_effect": "变成一级目录" if children else "无影响",
+                    "plugin_count": plugin_count,
+                    "plugin_effect": "移入「未分类插件」" if plugin_count else "无影响",
+                    "conflicts": [name for name in plan["conflicts"] if name in {c.name for c in children}],
+                }
+            )
 
         return {
-            "name": directory.name,
-            "level": 1 if is_top_level else 2,
-            "children_count": len(children),
-            "children_effect": "变成一级目录" if children else "无影响",
-            "plugin_count": plugin_count,
-            "plugin_effect": "移入「未分类插件」" if plugin_count else "无影响",
+            "items": items,
+            "total": len(items),
+            "total_children_count": len(plan["promoted_children"]),
+            "total_plugin_count": plan["total_plugin_count"],
+            "conflicts": plan["conflicts"],
+        }
+
+    @classmethod
+    def _get_directories_for_delete(cls, space_id, directory_ids):
+        """取待删除的目录列表，任何一个不存在就直接报错（整体拒绝，不做部分删除）。"""
+        directory_ids = list(directory_ids or [])
+        if not directory_ids:
+            raise ValidationError("至少要指定一个待删除目录")
+        found = {
+            directory.id: directory
+            for directory in PluginDirectory.objects.filter(space_id=space_id, id__in=directory_ids)
+        }
+        missing = [str(directory_id) for directory_id in directory_ids if directory_id not in found]
+        if missing:
+            raise ValidationError(f"目录 {', '.join(missing)} 不存在")
+        # 保持请求顺序
+        return [found[directory_id] for directory_id in directory_ids]
+
+    @classmethod
+    def _build_delete_plan(cls, space_id, directories):
+        """算清这一批删除的最终结果（与请求顺序无关）。
+
+        - `children_by_directory`：每个待删目录删除后，有哪些子目录会提升为一级目录。
+          只提升**直接子目录**，且排除掉"本身也在这一批待删集合里"的子目录
+          （那种情况它会被直接删掉，不需要提升）。
+        - `plugin_count_by_directory`：每个待删目录里直接挂着的插件数（会移未分类）。
+        - `promoted_children`：整批待提升为一级目录的子目录。
+        - `conflicts`：待提升的子目录名里，与空间现有一级目录、或彼此之间重名的。
+        """
+        delete_ids = {directory.id for directory in directories}
+        children_by_directory = {}
+        for directory in directories:
+            children_by_directory[directory.id] = [
+                child
+                for child in directory.children.all().order_by("order", "id")
+                if child.id not in delete_ids
+            ]
+
+        plugin_count_by_directory = {
+            directory.id: SpacePluginCatalogEntry.objects.filter(
+                space_id=space_id, directory_id=directory.id, is_deleted=False
+            ).count()
+            for directory in directories
+        }
+
+        promoted_children = []
+        for children in children_by_directory.values():
+            promoted_children.extend(children)
+
+        conflicts = cls._detect_promote_conflicts(space_id, directories, promoted_children)
+
+        return {
+            "children_by_directory": children_by_directory,
+            "plugin_count_by_directory": plugin_count_by_directory,
+            "promoted_children": promoted_children,
+            "total_plugin_count": sum(plugin_count_by_directory.values()),
             "conflicts": conflicts,
         }
 
     @classmethod
-    def _detect_promote_conflicts(cls, space_id, directory, children):
-        """子目录提升为一级目录时，会与空间里已有的一级目录重名的名称列表。
+    def _detect_promote_conflicts(cls, space_id, directories, promoted_children):
+        """子目录提升为一级目录时，会重名的名称列表。
 
         一级目录的 `unique_together = (space_id, parent, name)` 在 `parent` 为 NULL 时
         不生效（SQL 里 NULL 不参与唯一性比较），所以重名不会被数据库拦下，
         必须在业务层检测出来：重名时直接拒绝删除，让管理员先改名。
+
+        批量删除时有两类冲突：
+        1. 待提升的子目录 与 空间里已有的一级目录重名；
+        2. 待提升的子目录**彼此之间**重名（删 A 和删 B，A、B 的子目录同名）。
         """
-        if not children:
+        if not promoted_children:
             return []
+
+        # 这批待删目录本身也在删除中，不算"已有的一级目录"
+        deleting_ids = {directory.id for directory in directories}
         existing_names = set(
             PluginDirectory.objects.filter(space_id=space_id, parent__isnull=True)
-            .exclude(id=directory.id)
+            .exclude(id__in=deleting_ids)
             .values_list("name", flat=True)
         )
+
         conflicts = []
-        for child in children:
+        seen = set()
+        for child in promoted_children:
+            # 彼此之间重名：同名出现第二次就是冲突
+            if child.name in seen:
+                if child.name not in conflicts:
+                    conflicts.append(child.name)
+                continue
+            seen.add(child.name)
             if child.name in existing_names and child.name not in conflicts:
                 conflicts.append(child.name)
         return conflicts
@@ -384,12 +459,12 @@ class DirectoryService:
     def execute_delete(
         cls,
         space_id,
-        directory_id,
+        directory_ids,
         operator=None,
         operate_source=CatalogChangeSource.WEB,
         request_id="",
     ):
-        """删除目录：唯一一套行为，不让调用方选策略。
+        """批量删除目录：唯一一套行为，不让调用方选策略。
 
         开发文档 04 L18：「删除后子目录提升、直接插件含未启用移未分类」，
         设计稿 `8.png` 的确认弹窗也是这两行：
@@ -401,62 +476,81 @@ class DirectoryService:
           （含未启用的）移到未分类；本目录删除。
         - 二级目录：没有子目录，它自己的插件同样移到未分类；本目录删除。
 
-        提升后若与空间里已有的一级目录重名 → **直接报错拒绝删除**（改名是管理员的
-        决定，后端不静默改名），提示前端让用户先重命名。
+        批量时：
+        - 冲突检测**一次性跨目录**做完（待提升的子目录之间也可能重名），
+          与请求顺序无关；有冲突则整批拒绝，不做部分删除。
+        - 同时删了父目录和它的子目录时，子目录直接被删、不需要提升。
+        - 整批只 bump 一次 revision（一次操作 = 一次版本变更）。
+        - 每个目录留一条变更记录，便于逐个回溯。
         """
         with transaction.atomic():
             config = cls._lock_revision_config(space_id)
             current_revision = (config.json_value or {}).get("directory_revision", 0)
-            directory = cls._get_directory_or_404(space_id, directory_id, for_update=True)
-            # directory.delete() 之后 Django 会把实例的 pk 置空，这里先留一份 id 用于写变更记录
-            deleted_directory_id = directory.id
-            before_snapshot = cls._delete_snapshot(space_id, directory)
 
-            is_top_level = directory.parent_id is None
-            children = list(directory.children.all().order_by("order", "id")) if is_top_level else []
+            directories = cls._get_directories_for_delete(space_id, directory_ids)
+            # 加锁重查，保证并发删除时不会互相踩
+            directories = [
+                PluginDirectory.objects.select_for_update().get(pk=directory.id) for directory in directories
+            ]
 
-            conflicts = cls._detect_promote_conflicts(space_id, directory, children)
-            if conflicts:
+            plan = cls._build_delete_plan(space_id, directories)
+            if plan["conflicts"]:
                 raise ValidationError(
-                    f"子目录「{'」「'.join(conflicts)}」提升为一级目录后与已有的一级目录重名，"
+                    f"子目录「{'」「'.join(plan['conflicts'])}」提升为一级目录后与已有的一级目录重名，"
                     "请先重命名后再删除"
                 )
 
-            if is_top_level and children:
-                # 子目录提升为一级目录，排在一级目录末尾
-                max_order = (
-                    PluginDirectory.objects.filter(space_id=space_id, parent__isnull=True)
-                    .exclude(id=directory.id)
-                    .aggregate(Max("order"))["order__max"]
-                    or 0
-                )
-                for offset, child in enumerate(children, start=1):
-                    child.parent = None
-                    child.order = max_order + offset
-                    child.save(update_fields=["parent", "order"])
+            delete_ids = {directory.id for directory in directories}
+            promoted_total = 0
+            uncategorized_total = 0
 
-            # 直接挂在本目录的插件（含未启用的）移到未分类；
-            # 子目录里的插件跟着子目录走，不受影响。
-            SpacePluginCatalogEntry.objects.filter(space_id=space_id, directory_id=directory.id).update(
-                directory_id=None, updated_by=operator, update_at=timezone.now()
-            )
-            directory.delete()
+            for directory in directories:
+                # directory.delete() 之后 Django 会把实例的 pk 置空，这里先留一份 id 用于写变更记录
+                deleted_directory_id = directory.id
+                before_snapshot = cls._delete_snapshot(space_id, directory)
+                is_top_level = directory.parent_id is None
+                children = plan["children_by_directory"].get(directory.id, [])
+
+                if is_top_level and children:
+                    # 子目录提升为一级目录，排在一级目录末尾
+                    max_order = (
+                        PluginDirectory.objects.filter(space_id=space_id, parent__isnull=True)
+                        .exclude(id__in=delete_ids)
+                        .aggregate(Max("order"))["order__max"]
+                        or 0
+                    )
+                    for offset, child in enumerate(children, start=1):
+                        child.parent = None
+                        child.order = max_order + offset
+                        child.save(update_fields=["parent", "order"])
+                    promoted_total += len(children)
+
+                # 直接挂在本目录的插件（含未启用的）移到未分类；
+                # 子目录里的插件跟着子目录走，不受影响。
+                uncategorized_total += SpacePluginCatalogEntry.objects.filter(
+                    space_id=space_id, directory_id=directory.id
+                ).update(directory_id=None, updated_by=operator, update_at=timezone.now())
+                directory.delete()
+
+                CatalogChangeRecordService.record(
+                    space_id=space_id,
+                    instance_id=deleted_directory_id,
+                    operate_type=CatalogChangeType.DIRECTORY_DELETE,
+                    operator=operator,
+                    before_value=before_snapshot,
+                    after_value={"level": 1 if is_top_level else 2},
+                    method="directories/execute_delete",
+                    operate_source=operate_source,
+                    request_id=request_id,
+                )
 
             cls._bump_revision(config, current_revision)
 
-            CatalogChangeRecordService.record(
-                space_id=space_id,
-                instance_id=deleted_directory_id,
-                operate_type=CatalogChangeType.DIRECTORY_DELETE,
-                operator=operator,
-                before_value=before_snapshot,
-                after_value={"level": 1 if is_top_level else 2},
-                method="directories/execute_delete",
-                operate_source=operate_source,
-                request_id=request_id,
-            )
-
-        return cls.get_manage_data(space_id)
+        result = cls.get_manage_data(space_id)
+        result["deleted"] = len(directories)
+        result["promoted"] = promoted_total
+        result["uncategorized"] = uncategorized_total
+        return result
 
     @staticmethod
     def _delete_snapshot(space_id, directory):

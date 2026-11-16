@@ -31,13 +31,14 @@ from bkflow.plugin_catalog.serializers.strategy import (
 )
 from bkflow.plugin_catalog.services.source_group_service import SourceGroupService
 from bkflow.plugin_catalog.services.strategy_service import PluginAdmissionStrategyService
+from bkflow.plugin_catalog.views.base import PluginCatalogErrorMixin
 from bkflow.space.tenant import TenantScopeMixin
 from bkflow.utils.views import SimpleGenericViewSet
 
 logger = logging.getLogger("root")
 
 
-class StrategyViewSet(TenantScopeMixin, SimpleGenericViewSet):
+class StrategyViewSet(PluginCatalogErrorMixin, TenantScopeMixin, SimpleGenericViewSet):
     """新插件接入策略：查询与保存当前空间的插件接入策略配置。"""
 
     permission_classes = PLUGIN_CATALOG_ADMIN_PERMISSIONS
