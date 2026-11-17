@@ -249,13 +249,23 @@ class TaskInstanceViewSet(
         ser.is_valid(raise_exception=True)
         validated_params = ser.validated_data
         label_ids = validated_params["label_ids"].split(",")
-        queryset = (
-            TaskLabelRelation.objects.filter(label_id__in=label_ids).values("label_id").annotate(count=Count("id"))
+        space_id = validated_params["space_id"]
+
+        # 仅统计属于当前空间的任务，避免统计到其他空间的同名/共享任务
+        space_task_ids = TaskInstance.objects.filter(space_id=space_id).values_list("id", flat=True)
+
+        # 获取任务引用数量
+        aggregation_qs = (
+            TaskLabelRelation.objects.filter(label_id__in=label_ids)
+            .filter(task_id__in=space_task_ids)
+            .values("label_id")
+            .annotate(count=Count("id"))
         )
-        label_template_count_map = {item["label_id"]: item["count"] for item in queryset}
+        label_task_count_map = {item["label_id"]: item["count"] for item in aggregation_qs}
+
         result = {}
         for label_id in label_ids:
-            result[label_id] = label_template_count_map.get(int(label_id), 0)
+            result[label_id] = label_task_count_map.get(int(label_id), 0)
 
         return Response(result)
 
