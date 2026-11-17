@@ -33,7 +33,7 @@ class PluginType:
     两种协议世代，但统一用 API 这一个 plugin_type 值表示，不按协议版本拆分类型。两者的区别
     只影响"画布展示时走缓存读还是现场请求"（见 bkflow/pipeline_plugins/query/uniform_api/
     uniform_api.py 的 catalog_mode 分支），**不影响**是否能被本插件目录精细化管理——
-    PluginCatalogSyncService.sync_api 通过 OpenPluginCatalogService.fetch_all_source_plugins
+    PluginCatalogSyncService.sync_api 通过 OpenPluginCatalogService.sync_space_plugins_with_meta
     现场拉取每个来源的完整插件清单（不按 wrapper_version 过滤），统一为 V2/V3/V4 生成
     SpacePluginCatalogEntry 记录。
     """
@@ -54,7 +54,7 @@ class PluginCatalogStatus:
     插件目录状态机（四值）：待审核 / 启用 / 已停用 / 已失效。
 
     对外是三大类，「不启用」是一类、内部含两个状态值：
-      - `DISABLED` 已停用：管理员下架，或审核不通过。两者只体现在 `disable_reason`
+      - `DISABLED` 已停用：管理员停用，或审核不通过。两者只体现在 `disable_reason`
         的文案上——用户停用由用户填写；审核不通过写固定文案「审核不通过」。
       - `EXPIRED`  已失效：来源里已经找不到该插件，由来源同步判定，原因固定，
         **不写入** `disable_reason`（失效属于来源事实，不得占用人工填写的原因字段，
@@ -155,6 +155,26 @@ class SpacePluginCatalogEntry(CommonModel):
     source_key = models.CharField(_("来源标识"), max_length=64, blank=True, default="")
     plugin_code = models.CharField(_("插件标识"), max_length=128)
 
+    plugin_name = models.CharField(
+        _("插件名称"),
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=_(
+            "来源侧的插件展示名，由来源同步写入并在每次同步时刷新；"
+            "为空时对外回退展示 plugin_code"
+        ),
+    )
+    plugin_desc = models.TextField(
+        _("插件描述"),
+        blank=True,
+        default="",
+        help_text=_(
+            "来源侧的插件描述（用途说明），由来源同步写入并在每次同步时刷新；"
+            "内置插件取自 pipeline 组件的 desc，蓝鲸插件取 introduction，API 插件取 description"
+        ),
+    )
+
     directory = models.ForeignKey(
         PluginDirectory,
         verbose_name=_("所属目录"),
@@ -181,7 +201,7 @@ class SpacePluginCatalogEntry(CommonModel):
         blank=True,
         default="",
         help_text=_(
-            "停用原因：管理员停用（下架）时由用户填写；审核不通过时写固定文案「审核不通过」。"
+            "停用原因：管理员停用时由用户填写；审核不通过时写固定文案「审核不通过」。"
             "展示在画布节点的「已停用」提示条与流程保存拦截提示中。"
             "选填，不填时前端统一显示「该插件已被空间管理停用」。"
             "注意：失效（来源里已找不到该插件）不写入本字段"

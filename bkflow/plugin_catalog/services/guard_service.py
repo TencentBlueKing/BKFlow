@@ -34,15 +34,15 @@ EXPIRED_REASON = "来源中已不存在该插件"
 
 class PluginCatalogGuardService:
     """
-    流程保存拦截：校验本次保存是否新增了「已下架」插件的节点。
+    流程保存拦截：校验本次保存是否新增了「已停用」插件的节点。
 
     判定规则：
     - 判定时机：相对基线（原草稿 / 当前已发布版本）**新增**的节点才拦截，
-      原本就存在的已下架节点保持原样放行。
+      原本就存在的已停用节点保持原样放行。
     - 判定依据：按 (插件身份, node_id) **二元组**做差集，而不是只比插件身份集合。
       这样才能同时覆盖两种场景：
-        a) node_id 没变但插件被换成另一个已下架插件 -> 身份变了，拦截；
-        b) 复制一个已下架插件节点（node_id 变了、身份相同）-> node_id 是新的，拦截。
+        a) node_id 没变但插件被换成另一个已停用插件 -> 身份变了，拦截；
+        b) 复制一个已停用插件节点（node_id 变了、身份相同）-> node_id 是新的，拦截。
       若只按身份集合做差集，场景 b 会漏判。
     """
 
@@ -108,7 +108,7 @@ class PluginCatalogGuardService:
     @classmethod
     def check_newly_added_offline_plugins(cls, space_id, pipeline_tree, baseline_pipeline_tree=None):
         """
-        校验本次保存是否新增了"已下架"插件的节点，命中则抛结构化错误。
+        校验本次保存是否新增了"已停用"插件的节点，命中则抛结构化错误。
 
         :param space_id: 空间 ID
         :param pipeline_tree: 本次保存的流程树
@@ -146,19 +146,18 @@ class PluginCatalogGuardService:
         if not offline_entries:
             return
 
-        name_resolver = cls._build_name_resolver(space_id)
         blocked_nodes = []
         for node_id, identity in newly_added:
             entry = offline_entries.get(cls._identity_key(identity))
             if entry is None:
                 continue
-            blocked_nodes.append(cls._build_blocked_node(node_id, identity, entry, name_resolver))
+            blocked_nodes.append(cls._build_blocked_node(node_id, identity, entry))
         if not blocked_nodes:
             return
 
         raise serializers.ValidationError(
             {
-                "detail": "流程中新增了已下架的插件，请移除或替换后再保存",
+                "detail": "流程中新增了已停用的插件，请移除或替换后再保存",
                 "blocked_nodes": blocked_nodes,
             }
         )
@@ -191,7 +190,6 @@ class PluginCatalogGuardService:
                 if key in keys:
                     entries[key] = entry
 
-        name_resolver = cls._build_name_resolver(space_id)
         results = []
         for item in identities:
             key = (item.get("plugin_type"), item.get("source_key") or "", item.get("plugin_code"))
@@ -219,9 +217,7 @@ class PluginCatalogGuardService:
                             replace_entry.plugin_type, replace_entry.source_key
                         ),
                         "plugin_code": replace_entry.plugin_code,
-                        "name": name_resolver(
-                            replace_entry.plugin_type, replace_entry.source_key, replace_entry.plugin_code
-                        ),
+                        "name": replace_entry.plugin_name or replace_entry.plugin_code,
                         "status": replace_entry.status,
                     }
             results.append(
@@ -297,24 +293,8 @@ class PluginCatalogGuardService:
             if (entry.plugin_type, entry.source_key, entry.plugin_code) in identities
         }
 
-    @staticmethod
-    def _build_name_resolver(space_id):
-        """一次性拿全三类插件的展示名，避免逐节点查库。"""
-        builtin_names = SourceGroupService.builtin_display_names()
-        bk_plugin_names = SourceGroupService.bk_plugin_display_names(space_id)
-        api_names = SourceGroupService.api_display_names(space_id)
-
-        def resolve(plugin_type, source_key, plugin_code):
-            if plugin_type == PluginType.API:
-                return api_names.get((source_key, plugin_code), plugin_code)
-            if plugin_type == PluginType.BK_PLUGIN:
-                return bk_plugin_names.get(plugin_code, plugin_code)
-            return builtin_names.get(plugin_code, plugin_code)
-
-        return resolve
-
     @classmethod
-    def _build_blocked_node(cls, node_id, identity, entry, name_resolver):
+    def _build_blocked_node(cls, node_id, identity, entry):
         replace_plugin = None
         if entry.replace_plugin_id:
             replace_entry = SpacePluginCatalogEntry.objects.filter(pk=entry.replace_plugin_id).first()
@@ -323,17 +303,14 @@ class PluginCatalogGuardService:
                     "plugin_type": replace_entry.plugin_type,
                     "source_key": replace_entry.source_key,
                     "plugin_code": replace_entry.plugin_code,
-                    "name": name_resolver(
-                        replace_entry.plugin_type, replace_entry.source_key, replace_entry.plugin_code
-                    ),
+                    "name": replace_entry.plugin_name or replace_entry.plugin_code,
                 }
         return {
             "plugin_type": identity["plugin_type"],
             "source_key": identity["source_key"],
             "plugin_code": identity["plugin_code"],
-            "plugin_name": name_resolver(
-                identity["plugin_type"], identity["source_key"], identity["plugin_code"]
-            ),
+            # 插件名取自目录条目表（来源同步写入的副本）
+            "plugin_name": entry.plugin_name or entry.plugin_code,
             "node_id": node_id,
             "node_name": identity["node_name"],
             "reason": cls._display_reason(entry),

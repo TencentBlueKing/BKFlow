@@ -70,14 +70,33 @@ class ManageSaveSerializer(serializers.Serializer):
         return value
 
 
+class _CommaSeparatedIdsField(serializers.CharField):
+    """目录 id 列表：**逗号分隔**，如 `"12,15,18"`。"""
+
+    def to_internal_value(self, data):
+        value = super().to_internal_value(data)
+        ids = []
+        for part in value.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if not part.lstrip("-").isdigit():
+                raise serializers.ValidationError(f"目录 id {part} 不是合法的整数")
+            ids.append(int(part))
+        if not ids:
+            raise serializers.ValidationError("至少要传一个目录 id")
+        # 去重但保持顺序
+        return list(dict.fromkeys(ids))
+
+
 class PreviewDeleteSerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
-    directory_id = serializers.IntegerField(help_text=_("目录ID"))
+    directory_ids = _CommaSeparatedIdsField(help_text=_("待删除目录 id 列表，逗号分隔，如 12,15,18"))
 
 
 class ExecuteDeleteSerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
-    directory_id = serializers.IntegerField(help_text=_("待删除目录 id"))
+    directory_ids = _CommaSeparatedIdsField(help_text=_("待删除目录 id 列表，逗号分隔，如 12,15,18"))
 
 
 class AiClassifySerializer(serializers.Serializer):

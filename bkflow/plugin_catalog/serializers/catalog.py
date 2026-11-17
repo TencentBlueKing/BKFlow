@@ -23,15 +23,43 @@ from rest_framework import serializers
 from bkflow.plugin_catalog.models import PluginCatalogStatus, PluginType
 
 
-class _MultiChoiceField(serializers.MultipleChoiceField):
-    """多选枚举。
+class _CommaSeparatedListMixin:
+    """多值参数：**只支持逗号分隔**，如 `?status=enable,disabled`。
 
-    DRF 的 `MultipleChoiceField` 返回 `set`，这里统一转成 `list`：
-    下游按 list 判断与序列化，且前端传参顺序在响应里可预期。
+    不兼容旧的「重复传参」写法（`?status=enable&status=disabled`）：DRF 取参数用
+    `QueryDict.get()`，同名参数只取最后一个，重复传参时前一个值会静默丢失，
+    与其让人踩坑，不如只支持一种明确的写法。
     """
 
     def to_internal_value(self, data):
-        return list(super().to_internal_value(data))
+        if isinstance(data, str):
+            data = [data]
+        if isinstance(data, list):
+            items = []
+            for item in data:
+                if isinstance(item, str):
+                    items.extend([part.strip() for part in item.split(",") if part.strip()])
+                else:
+                    items.append(item)
+            data = items
+        return super().to_internal_value(data)
+
+
+class _MultiChoiceField(_CommaSeparatedListMixin, serializers.ListField):
+    """多选枚举：逐项校验取值合法性，并保持前端传参顺序。
+
+    DRF 的 `MultipleChoiceField` 内部用 `set` 去重、返回顺序不保证（同样的
+    `builtin,api` 两次解析可能得到不同顺序）。这里改用
+    `ListField(child=ChoiceField(...))` 等价实现：校验规则一致，但顺序稳定。
+    """
+
+    def __init__(self, choices, **kwargs):
+        kwargs.setdefault("child", serializers.ChoiceField(choices=choices))
+        super().__init__(**kwargs)
+
+
+class _StringListField(_CommaSeparatedListMixin, serializers.ListField):
+    """多值字符串列表（来源 / 关键词等无固定枚举的筛选项）。"""
 
 
 class SpaceIdQuerySerializer(serializers.Serializer):
@@ -41,8 +69,8 @@ class SpaceIdQuerySerializer(serializers.Serializer):
 class EntryListQuerySerializer(serializers.Serializer):
     """插件列表查询参数。
 
-    **数组型参数统一用「重复传参」**：`?status=enable&status=disabled`。
-    不支持逗号分隔（`?status=enable,disabled`）、方括号（`?status[]=...`）、
+    **数组型参数统一用「逗号分隔」**：`?status=enable,disabled`。
+    不支持重复传参（`?status=enable&status=disabled`）、方括号（`?status[]=...`）、
     JSON 字符串（`?status=["enable"]`）—— 这三种都会被当成单个字面量，导致查不到数据。
     前端用 axios 时需配 `paramsSerializer: { indexes: null }`，否则 axios 默认
     序列化成 `status[]=...`，参数会整体丢失。
@@ -58,25 +86,25 @@ class EntryListQuerySerializer(serializers.Serializer):
         choices=[status for status, _label in PluginCatalogStatus.CHOICES] + ["all"],
         required=False,
         default=list,
-        help_text=_("状态筛选，可重复传参；不传或传 all = 全部。all 不能与其他值混传"),
+        help_text=_("状态筛选，多值用逗号分隔；不传或传 all = 全部。all 不能与其他值混传"),
     )
     plugin_type = _MultiChoiceField(
         choices=[plugin_type for plugin_type, _label in PluginType.CHOICES],
         required=False,
         default=list,
-        help_text=_("插件类型筛选，可重复传参；多值 OR"),
+        help_text=_("插件类型筛选，多值用逗号分隔；多值 OR"),
     )
-    source_key = serializers.ListField(
+    source_key = _StringListField(
         child=serializers.CharField(),
         required=False,
         default=list,
-        help_text=_("来源筛选，可重复传参；多值 OR。取值同接口 12 的来源 id"),
+        help_text=_("来源筛选，多值用逗号分隔；多值 OR。取值同接口 12 的来源 id"),
     )
-    keyword = serializers.ListField(
+    keyword = _StringListField(
         child=serializers.CharField(),
         required=False,
         default=list,
-        help_text=_("关键词筛选，可重复传参；多值 OR，匹配插件名称或最近修改人"),
+        help_text=_("关键词筛选，多值用逗号分隔；多值 OR，匹配插件名称或最近修改人"),
     )
     ordering = serializers.ChoiceField(
         choices=["-update_at", "update_at", "-ref_count", "ref_count", "name", "-name"],

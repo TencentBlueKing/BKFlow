@@ -19,11 +19,11 @@ to the current version of the project delivered to anyone in the future.
 
 import logging
 
+from pipeline.component_framework.library import ComponentLibrary
 from pipeline.component_framework.models import ComponentModel
 
 from bkflow.bk_plugin.models import BKPlugin
-from bkflow.plugin.constants import WRAPPER_CODES
-from bkflow.plugin.models import OpenPluginCatalogIndex
+from bkflow.plugin.constants import CATALOG_EXCLUDED_BUILTIN_CODES, WRAPPER_CODES
 from bkflow.plugin_catalog.models import PluginDirectory, PluginType
 from bkflow.space.configs import UniformApiConfig, UniformAPIConfigHandler
 from bkflow.space.models import SpaceConfig
@@ -168,6 +168,49 @@ class SourceGroupService:
         return names
 
     @classmethod
+    def collect_builtin_metadata(cls):
+        """采集内置插件的 `(name, desc)`，返回 `{plugin_code: (name, desc)}`。
+
+        `desc` 取自 pipeline 组件类的 `desc` 属性（组件类在进程启动时已注册进
+        `ComponentLibrary.components`，取 desc 不需要实例化，开销可忽略），
+        定位组件类需要 `code + version`，所以一次查询把三个字段一起取回，
+        避免"先查 code 列表、再查 name、再查 version"的三次重复查询。
+
+        不纳入目录管理的功能性内置插件（`CATALOG_EXCLUDED_BUILTIN_CODES`，如子画布插件）
+        在这里就被排除掉——它们由画布自己的入口单独选择，不写入目录条目表。
+        """
+        result = {}
+        for code, name, version in (
+            ComponentModel.objects.filter(status=True)
+            .exclude(code__in=WRAPPER_CODES | CATALOG_EXCLUDED_BUILTIN_CODES)
+            .values_list("code", "name", "version")
+        ):
+            result[code] = (name, cls._builtin_component_desc(code, version))
+        return result
+
+    @classmethod
+    def collect_bk_plugin_metadata(cls, space_id):
+        """采集蓝鲸插件的 `(name, desc)`，返回 `{plugin_code: (name, desc)}`（一次查询）。"""
+        return {
+            code: (name, introduction or "")
+            for code, name, introduction in BKPlugin.objects.for_space(space_id).values_list(
+                "code", "name", "introduction"
+            )
+        }
+
+    @staticmethod
+    def _builtin_component_desc(code, version):
+        """内置插件的描述（pipeline 组件类的 desc 属性）；组件类没注册或取不到时返回空串。"""
+        if not code or not version:
+            return ""
+        try:
+            component_cls = ComponentLibrary.get_component_class(code, version)
+        except Exception:
+            logger.warning("获取内置插件 %s v%s 的组件类失败，描述留空", code, version)
+            return ""
+        return getattr(component_cls, "desc", "") or ""
+
+    @classmethod
     def bk_plugin_display_names(cls, space_id):
         return dict(BKPlugin.objects.for_space(space_id).values_list("code", "name"))
 
@@ -186,19 +229,3 @@ class SourceGroupService:
         for child in cls._api_group(space_id)["children"]:
             names[child["id"]] = child["name"]
         return names
-
-    @classmethod
-    def api_display_names(cls, space_id):
-        """
-        API 插件 (source_key, plugin_code) -> 展示名称，供 08 目录批量管理等列表场景展示插件名。
-
-        仅覆盖已被 V4 展示缓存（OpenPluginCatalogIndex）收录的插件；V2/V3 协议插件未被该表缓存，
-        查不到时由调用方回退展示 plugin_code 本身。
-        用 (source_key, plugin_code) 二元组做 key，避免不同来源下插件 id 碰巧同名时互相覆盖。
-        """
-        return {
-            (item.source_key, item.plugin_id): item.plugin_name
-            for item in OpenPluginCatalogIndex.objects.filter(space_id=space_id).only(
-                "source_key", "plugin_id", "plugin_name"
-            )
-        }

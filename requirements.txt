@@ -55,6 +55,9 @@ bkflow-django-webhook==2.0.1
 # pytimeparse
 pytimeparse==1.1.8
 
+# 中文拼音排序（插件名/流程名按拼音 A-Z 排序，Unicode 码位序不符合预期）
+pypinyin==0.53.0
+
 # opentelemetry
 protobuf==5.29.6
 opentelemetry-api==1.29.0

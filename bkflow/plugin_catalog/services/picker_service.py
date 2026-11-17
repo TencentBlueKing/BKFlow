@@ -19,11 +19,10 @@ to the current version of the project delivered to anyone in the future.
 
 import logging
 
-from bkflow.bk_plugin.models import BKPlugin, BKPluginAuthorization
-from bkflow.plugin.models import OpenPluginCatalogIndex
+from bkflow.bk_plugin.models import BKPluginAuthorization
 from bkflow.plugin_catalog.models import PluginCatalogStatus, PluginDirectory, PluginType, SpacePluginCatalogEntry
 from bkflow.plugin_catalog.services.query_service import PluginCatalogQueryService
-from bkflow.plugin_catalog.services.source_group_service import SourceGroupService
+from bkflow.utils.strings import pinyin_sort_key
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +57,14 @@ class PluginPickerService:
     ):
         entries = cls._list_visible_entries(space_id, directory_id=directory_id, plugin_type=plugin_type)
 
-        metadata = cls._load_metadata(space_id)
         directory_paths = cls._load_directory_paths(space_id)
         ref_stats = PluginCatalogQueryService.bulk_get_ref_counts(space_id)
 
         results = []
         for entry in entries:
-            name, desc = cls._resolve_display(entry, metadata)
+            # 插件名 / 描述取自目录条目表（来源同步写入的副本），不再实时查外部只读表
+            name = entry.plugin_name or entry.plugin_code
+            desc = entry.plugin_desc or ""
             if keyword:
                 kw = keyword.lower()
                 if kw not in (name or "").lower() and kw not in (desc or "").lower():
@@ -75,8 +75,8 @@ class PluginPickerService:
                     "plugin_type": entry.plugin_type,
                     "source_key": entry.source_key,
                     "plugin_code": entry.plugin_code,
-                    "name": name,
-                    "desc": desc,
+                    "plugin_name": name,
+                    "plugin_desc": desc,
                     "recommended": entry.recommended,
                     "directory_path": directory_paths.get(entry.directory_id, []),
                     "usage_count": stat.get("ref_count", 0),
@@ -100,6 +100,11 @@ class PluginPickerService:
             "page": page,
             "page_size": page_size,
             "results": results[start : start + page_size],
+            # 左侧目录树 + 计数：口径与右侧列表一致（只算 enable），
+            # 避免前端再调接口 1.1 拿到「含已失效」的全量计数，导致两处数字对不上。
+            "directories": PluginCatalogQueryService.get_directory_tree(
+                space_id, status=PluginCatalogStatus.ENABLE
+            ),
         }
 
     # ------------------------------------------------------------------ 数据装配 ----
@@ -142,36 +147,6 @@ class PluginPickerService:
         )
         return queryset.filter(directory_id__in=[pk] + child_ids)
 
-    @classmethod
-    def _load_metadata(cls, space_id):
-        """一次查询拿到三类插件的展示名与描述，避免逐插件查库。"""
-        bk_rows = {
-            code: (name, introduction or "")
-            for code, name, introduction in BKPlugin.objects.for_space(space_id).values_list(
-                "code", "name", "introduction"
-            )
-        }
-        api_rows = {
-            (item.source_key, item.plugin_id): (item.plugin_name, item.description or "")
-            for item in OpenPluginCatalogIndex.objects.filter(space_id=space_id).only(
-                "source_key", "plugin_id", "plugin_name", "description"
-            )
-        }
-        return {
-            PluginType.BUILTIN: {
-                code: (name, "") for code, name in SourceGroupService.builtin_display_names().items()
-            },
-            PluginType.BK_PLUGIN: bk_rows,
-            PluginType.API: api_rows,
-        }
-
-    @staticmethod
-    def _resolve_display(entry, metadata):
-        rows = metadata.get(entry.plugin_type, {})
-        if entry.plugin_type == PluginType.API:
-            return rows.get((entry.source_key, entry.plugin_code), (entry.plugin_code, ""))
-        return rows.get(entry.plugin_code, (entry.plugin_code, ""))
-
     @staticmethod
     def _load_directory_paths(space_id):
         """目录最多两级，直接拼父子 name；未分类返回空数组。
@@ -184,7 +159,8 @@ class PluginPickerService:
     def _sort_results(results, ordering):
         ordering = ordering or "recommend"
         if ordering == "name":
-            results.sort(key=lambda item: item["name"] or "")
+            # 中文按拼音排（设计稿「中文名称 ↑ A-Z」），不是 Unicode 码位序
+            results.sort(key=lambda item: pinyin_sort_key(item["name"]))
         elif ordering in ("-usage_count", "usage_count"):
             results.sort(key=lambda item: item["usage_count"], reverse=ordering.startswith("-"))
         elif ordering in ("-publish_time", "publish_time"):

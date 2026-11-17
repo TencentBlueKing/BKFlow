@@ -21,16 +21,13 @@ import logging
 
 from django.db import transaction
 from django.utils import timezone
-from pipeline.component_framework.models import ComponentModel
-
-from bkflow.bk_plugin.models import BKPlugin
-from bkflow.plugin.constants import WRAPPER_CODES
 from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
 from bkflow.plugin_catalog.models import (
     PluginCatalogStatus,
     PluginType,
     SpacePluginCatalogEntry,
 )
+from bkflow.plugin_catalog.services.source_group_service import SourceGroupService
 from bkflow.plugin_catalog.services.strategy_service import PluginAdmissionStrategyService
 from bkflow.space.configs import PluginCatalogMigrationConfig
 from bkflow.space.models import SpaceConfig
@@ -57,18 +54,19 @@ class PluginCatalogSyncService:
 
     @classmethod
     def sync_builtin(cls, space_id):
-        current_codes = set(
-            ComponentModel.objects.filter(status=True).exclude(code__in=WRAPPER_CODES).values_list("code", flat=True)
-        )
+        # 元信息跟数据一次取回：code / name / version 一次查询，避免同一个来源查两遍表。
+        # 功能性内置插件（子画布等）不参与目录管理，在采集阶段就排除，不会写进目录条目表。
+        plugins = SourceGroupService.collect_builtin_metadata()
         return cls._sync_plugin_type(
-            space_id=space_id, plugin_type=PluginType.BUILTIN, source_key="", current_codes=current_codes
+            space_id=space_id, plugin_type=PluginType.BUILTIN, source_key="", plugins=plugins
         )
 
     @classmethod
     def sync_bk_plugin(cls, space_id):
-        current_codes = set(BKPlugin.objects.for_space(space_id).values_list("code", flat=True))
+        # 元信息跟数据一次取回：code / name / introduction 一次查询
+        plugins = SourceGroupService.collect_bk_plugin_metadata(space_id)
         return cls._sync_plugin_type(
-            space_id=space_id, plugin_type=PluginType.BK_PLUGIN, source_key="", current_codes=current_codes
+            space_id=space_id, plugin_type=PluginType.BK_PLUGIN, source_key="", plugins=plugins
         )
 
     @classmethod
@@ -76,35 +74,31 @@ class PluginCatalogSyncService:
         """
         API 插件同步，覆盖 V2/V3/V4 全部协议版本，统一写入 SpacePluginCatalogEntry：
 
-        1. 调用既有 `OpenPluginCatalogService.sync_space_plugins` 刷新 `OpenPluginCatalogIndex`——
-           那张表只服务于画布"缓存优先"展示路径、只收录 V4 协议插件，跟下面的统一目录同步逻辑
-           完全独立，互不影响；这一步失败只记日志，不阻断下面的同步。
-        2. 调用 `OpenPluginCatalogService.fetch_all_source_plugins` 现场拉取每个已配置来源的
-           **完整**插件清单（已修复为真正的全量分页，不再受限于首页 200 条），不按协议版本
-           过滤，直接作为 `current_codes` 喂给 `_sync_plugin_type`，不需要再为 V2/V3 单独建
-           缓存表——V2/V3 协议插件同样纳入目录管理，不再按协议版本过滤。
-        3. 若某来源的配置已被整体删除（不再出现在 `fetch_all_source_plugins` 的返回结果里），
-           但本空间此前已经为该来源生成过 `SpacePluginCatalogEntry` 记录，强制按
-           `current_codes=空集合` 处理，级联将其下全部插件标记为失效——这里不能只依赖
-           `OpenPluginCatalogIndex` 里的陈旧数据来判断"当前是否还存在"，那张表在来源配置被
-           整体删除后不会自动清理（现有代码行为，不是本次引入的问题，但会误导失效判定，
-           所以必须以"当前是否仍在 UniformApiConfig 里配置着"为准，而不是看缓存表里还剩什么）。
+        1. 调用 `OpenPluginCatalogService.sync_space_plugins_with_meta` **一次**请求完成两件事：
+           刷新 `OpenPluginCatalogIndex`（只服务画布"缓存优先"展示路径、只收录 V4 协议插件，
+           与下面的统一目录同步逻辑完全独立，互不影响），同时返回每个已配置来源的**完整**
+           插件元信息（name + description，V2/V3/V4 都有）——现场拉取已修复为真正的全量分页，
+           不再受限于首页 200 条；不按协议版本过滤，直接作为统一目录的写入依据，不需要再为
+           V2/V3 单独建缓存表——V2/V3 协议插件同样纳入目录管理，不再按协议版本过滤。
+        2. 若某来源的配置已被整体删除（不再出现在返回结果里），但本空间此前已经为该来源
+           生成过 `SpacePluginCatalogEntry` 记录，强制按"空集合"处理，级联将其下全部插件
+           标记为失效——这里不能只依赖 `OpenPluginCatalogIndex` 里的陈旧数据来判断"当前是否
+           还存在"，那张表在来源配置被整体删除后不会自动清理（现有代码行为，不是本次引入的
+           问题，但会误导失效判定，所以必须以"当前是否仍在 UniformApiConfig 里配置着"为准，
+           而不是看缓存表里还剩什么）。
 
-        第 2 步本身请求失败（网络/凭证问题）时，直接跳过本次目录条目生成/失效判定，保留现状，
+        第 1 步本身请求失败（网络/凭证问题）时，直接跳过本次目录条目生成/失效判定，保留现状，
         避免把"这一轮没拉到"误判为"插件已被下架"。
         """
         try:
-            OpenPluginCatalogService.sync_space_plugins(space_id=space_id, username=username)
-        except Exception:
-            logger.exception("开放插件目录(V4展示缓存)刷新失败，不影响下面的统一插件目录同步: space_id=%s", space_id)
-
-        try:
-            codes_by_source = OpenPluginCatalogService.fetch_all_source_plugins(space_id=space_id, username=username)
+            plugins_by_source = OpenPluginCatalogService.sync_space_plugins_with_meta(
+                space_id=space_id, username=username
+            )
         except Exception:
             logger.exception("API 插件来源拉取失败，跳过本次目录条目生成: space_id=%s", space_id)
             return {"created": 0, "invalidated": 0, "skipped": True}
 
-        configured_sources = set(codes_by_source.keys())
+        configured_sources = set(plugins_by_source.keys())
         existing_sources = set(
             SpacePluginCatalogEntry.objects.filter(space_id=space_id, plugin_type=PluginType.API)
             .values_list("source_key", flat=True)
@@ -115,19 +109,26 @@ class PluginCatalogSyncService:
         # 并集：当前仍配置的来源（可能有新增来源/新增插件）
         #     + 本空间已有记录的来源（可能对应的配置已被整体删除，需要级联失效）
         for source_key in configured_sources | existing_sources:
-            current_codes = set(codes_by_source.get(source_key, []))
+            plugins = plugins_by_source.get(source_key, {})
             stat = cls._sync_plugin_type(
                 space_id=space_id,
                 plugin_type=PluginType.API,
                 source_key=source_key,
-                current_codes=current_codes,
+                plugins=plugins,
             )
             total_created += stat["created"]
             total_invalidated += stat["invalidated"]
         return {"created": total_created, "invalidated": total_invalidated, "skipped": False}
 
     @classmethod
-    def _sync_plugin_type(cls, space_id, plugin_type, source_key, current_codes):
+    def _sync_plugin_type(cls, space_id, plugin_type, source_key, plugins):
+        """
+        同步单一来源类型的插件目录条目。
+
+        :param plugins: `{plugin_code: (name, desc)}`——由调用方（各来源的采集逻辑）准备好。
+            元信息跟着数据一次取回，本方法不再自己去外部只读表补查，避免同一份数据查两遍；
+            API 插件的元信息直接来自现场响应（V2/V3/V4 都有），不依赖只收录 V4 的缓存表。
+        """
         existing = {
             entry.plugin_code: entry
             for entry in SpacePluginCatalogEntry.objects.filter(
@@ -135,10 +136,15 @@ class PluginCatalogSyncService:
             )
         }
         now = timezone.now()
+        current_codes = set(plugins.keys())
+
+        # 来源元信息（插件名 + 描述）：创建时写入，已存在的条目每次同步都刷新，
+        # 这样插件在来源侧改名/改描述后，下一次同步就能带过来。
+        metadata = plugins
 
         created = 0
         for code in current_codes - set(existing.keys()):
-            cls._create_entry(space_id, plugin_type, source_key, code, now)
+            cls._create_entry(space_id, plugin_type, source_key, code, now, metadata.get(code, ("", "")))
             created += 1
 
         # 之前失效、这一轮又重新出现的插件，唤醒回失效前的状态
@@ -156,29 +162,55 @@ class PluginCatalogSyncService:
             cls._mark_invalid(entry, now)
             invalidated += 1
 
-        # 仍然存在、本来就不是失效态的条目，刷新一下同步水位，不改其他字段
-        still_present_ids = [
-            existing[code].id
-            for code in current_codes & set(existing.keys())
+        # 仍然存在、本来就不是失效态的条目，刷新同步水位 + 刷新来源元信息
+        still_present = [
+            existing[code] for code in current_codes & set(existing.keys())
             if existing[code].status != PluginCatalogStatus.EXPIRED
         ]
-        if still_present_ids:
-            SpacePluginCatalogEntry.objects.filter(id__in=still_present_ids).update(
+        if still_present:
+            SpacePluginCatalogEntry.objects.filter(id__in=[entry.id for entry in still_present]).update(
                 last_synced_at=now
             )
+            cls._refresh_metadata(still_present, metadata)
 
         return {"created": created, "invalidated": invalidated}
 
     @classmethod
-    def _create_entry(cls, space_id, plugin_type, source_key, plugin_code, now):
+    def _refresh_metadata(cls, entries, metadata):
+        """刷新已存在条目的来源元信息（插件名 + 描述）。
+
+        只更新变化的行，避免每次同步都把所有条目重写一遍。
+        """
+        to_update = []
+        for entry in entries:
+            name, desc = metadata.get(entry.plugin_code, (None, None))
+            if name is None and desc is None:
+                continue
+            changed = []
+            if name is not None and entry.plugin_name != name:
+                entry.plugin_name = name
+                changed.append("plugin_name")
+            if desc is not None and entry.plugin_desc != desc:
+                entry.plugin_desc = desc
+                changed.append("plugin_desc")
+            if changed:
+                to_update.append(entry)
+        if to_update:
+            SpacePluginCatalogEntry.objects.bulk_update(to_update, ["plugin_name", "plugin_desc"])
+
+    @classmethod
+    def _create_entry(cls, space_id, plugin_type, source_key, plugin_code, now, metadata=("", "")):
         decision = PluginAdmissionStrategyService.decide(
             space_id=space_id, plugin_type=plugin_type, source_key=source_key
         )
+        plugin_name, plugin_desc = metadata
         entry = SpacePluginCatalogEntry.objects.create(
             space_id=space_id,
             plugin_type=plugin_type,
             source_key=source_key,
             plugin_code=plugin_code,
+            plugin_name=plugin_name or "",
+            plugin_desc=plugin_desc or "",
             status=decision.status,
             directory_id=decision.directory_id,
             ever_enabled=decision.status == PluginCatalogStatus.ENABLE,

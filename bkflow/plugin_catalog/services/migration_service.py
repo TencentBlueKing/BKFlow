@@ -21,11 +21,8 @@ import logging
 
 from django.db import transaction
 from django.utils import timezone
-from pipeline.component_framework.models import ComponentModel
-
-from bkflow.bk_plugin.models import BKPlugin, BKPluginAuthorization
-from bkflow.plugin.constants import WRAPPER_CODES
-from bkflow.plugin.models import SpaceOpenPluginAvailability
+from bkflow.bk_plugin.models import BKPluginAuthorization
+from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
 from bkflow.plugin.space_plugin_config_parser import SpacePluginConfigParser
 from bkflow.plugin_catalog.models import (
     CatalogChangeSource,
@@ -235,9 +232,9 @@ class PluginCatalogMigrationService:
     def _seed_builtin(cls, space_id):
         plugin_config = SpaceConfig.get_config(space_id=space_id, config_name=SpacePluginConfig.name)
         parser = SpacePluginConfigParser(config=plugin_config) if plugin_config else None
-        codes = list(
-            ComponentModel.objects.filter(status=True).exclude(code__in=WRAPPER_CODES).values_list("code", flat=True)
-        )
+        # 元信息与插件清单一次取回（code / name / version 同一次查询）
+        metadata = SourceGroupService.collect_builtin_metadata()
+        codes = list(metadata.keys())
         if parser:
             visible_codes = parser.get_filtered_plugins("default", codes)
         else:
@@ -247,6 +244,8 @@ class PluginCatalogMigrationService:
                 "plugin_type": PluginType.BUILTIN,
                 "source_key": "",
                 "plugin_code": code,
+                "plugin_name": metadata[code][0],
+                "plugin_desc": metadata[code][1],
                 "status": PluginCatalogStatus.ENABLE if code in visible_codes else PluginCatalogStatus.DISABLED,
             }
             for code in codes
@@ -255,23 +254,39 @@ class PluginCatalogMigrationService:
     @classmethod
     def _seed_bk_plugin(cls, space_id):
         authorized_codes = set(BKPluginAuthorization.objects.get_codes_by_space_id(space_id))
-        codes = list(BKPlugin.objects.for_space(space_id).values_list("code", flat=True))
+        # 元信息与插件清单一次取回（code / name / introduction 同一次查询）
+        metadata = SourceGroupService.collect_bk_plugin_metadata(space_id)
         return [
             {
                 "plugin_type": PluginType.BK_PLUGIN,
                 "source_key": "",
                 "plugin_code": code,
+                "plugin_name": metadata[code][0],
+                "plugin_desc": metadata[code][1],
                 "status": PluginCatalogStatus.ENABLE if code in authorized_codes else PluginCatalogStatus.DISABLED,
             }
-            for code in codes
+            for code in metadata
         ]
 
     @classmethod
     def _seed_api(cls, space_id):
         """
-        仅覆盖已被 V4 展示缓存（OpenPluginCatalogIndex）收录、且已有 `SpaceOpenPluginAvailability`
-        启用记录的插件；未缓存的 V2/V3 协议插件留给迁移后的首轮 `sync_space_plugin_catalog_task`
-        正常发现流程处理（按新插件策略判定初始状态），不在迁移这一步强行现场请求远端。
+        API 插件的种子数据，两张表各司其职：
+
+        - `SpaceOpenPluginAvailability`（**范围**）：这个空间主动启用/关闭了哪些 API 插件，
+          它承载的就是**迁移前的旧配置状态**——迁移要翻译的正是这个开关状态。
+        - `OpenPluginCatalogIndex`（**元信息**）：这些插件叫什么、描述是什么。迁移这一步
+          不现场请求远端，元信息只能从这张来源目录缓存里读。
+
+        V2/V3 协议插件不会出现在这里：`SpaceOpenPluginAvailability` 的记录来自开放插件目录
+        缓存刷新与前端开关操作，而缓存只收录 V4 协议插件，前端开关列表也读的是这张缓存表，
+        所以迁移前 V2/V3 就没有开关记录、无从翻译，交给迁移后的首轮
+        `sync_space_plugin_catalog_task` 按新插件策略正常发现（不在迁移这一步强行请求远端）。
+
+        `OpenPluginCatalogIndex.status` 为 unavailable（来源侧已下架但开关还开着）的插件
+        仍然会被 seed：这样它在目录里保留"存量身份"，首轮同步只把它标记为失效、记住原状态，
+        来源重新出现时唤醒回启用态，而不会因为漏了种子被当成新插件重新审核
+        （开发文档 04 L23「存量不重审」）。
         """
         enabled_map = {
             (item.source_key, item.plugin_id): item.enabled
@@ -279,15 +294,32 @@ class PluginCatalogMigrationService:
                 "source_key", "plugin_id", "enabled"
             )
         }
-        return [
-            {
-                "plugin_type": PluginType.API,
-                "source_key": source_key,
-                "plugin_code": plugin_id,
-                "status": PluginCatalogStatus.ENABLE if enabled else PluginCatalogStatus.DISABLED,
-            }
-            for (source_key, plugin_id), enabled in enabled_map.items()
-        ]
+        metadata = {
+            (item.source_key, item.plugin_id): (item.plugin_name, item.description or "")
+            for item in OpenPluginCatalogIndex.objects.filter(space_id=space_id).only(
+                "source_key", "plugin_id", "plugin_name", "description"
+            )
+        }
+        seeds = []
+        for source_key, plugin_id in enabled_map:
+            # 元信息取不到时用 plugin_id 兜底，与对外「plugin_name 为空回退展示 plugin_code」一致，
+            # 避免目录里出现一个没有名字的条目
+            plugin_name, plugin_desc = metadata.get((source_key, plugin_id), (plugin_id, ""))
+            seeds.append(
+                {
+                    "plugin_type": PluginType.API,
+                    "source_key": source_key,
+                    "plugin_code": plugin_id,
+                    "plugin_name": plugin_name,
+                    "plugin_desc": plugin_desc,
+                    "status": (
+                        PluginCatalogStatus.ENABLE
+                        if enabled_map[(source_key, plugin_id)]
+                        else PluginCatalogStatus.DISABLED
+                    ),
+                }
+            )
+        return seeds
 
     @classmethod
     def _bulk_create_entries(cls, space_id, seeds):
@@ -302,6 +334,8 @@ class PluginCatalogMigrationService:
                 plugin_type=item["plugin_type"],
                 source_key=item["source_key"],
                 plugin_code=item["plugin_code"],
+                plugin_name=item.get("plugin_name", ""),
+                plugin_desc=item.get("plugin_desc", ""),
                 status=item["status"],
                 directory=None,
                 ever_enabled=item["status"] == PluginCatalogStatus.ENABLE,
