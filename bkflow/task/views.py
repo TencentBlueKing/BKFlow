@@ -250,9 +250,15 @@ class TaskInstanceViewSet(
         validated_params = ser.validated_data
         label_ids = validated_params["label_ids"].split(",")
         space_id = validated_params["space_id"]
+        scope_type = validated_params.get("scope_type")
+        scope_value = validated_params.get("scope_value")
 
-        # 仅统计属于当前空间的任务，避免统计到其他空间的同名/共享任务
-        space_task_ids = TaskInstance.objects.filter(space_id=space_id).values_list("id", flat=True)
+        # 仅统计属于当前空间、且流程作用域匹配的任务，避免统计到其他空间或作用域的引用
+        space_task_filter = {"space_id": space_id}
+        if scope_type is not None and scope_value is not None:
+            space_task_filter["scope_type"] = scope_type
+            space_task_filter["scope_value"] = scope_value
+        space_task_ids = TaskInstance.objects.filter(**space_task_filter).values_list("id", flat=True)
 
         # 获取任务引用数量
         aggregation_qs = (
