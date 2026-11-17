@@ -18,29 +18,28 @@ export const CATEGORY_ICONS = {
 export function createDefaultStrategy() {
   return {
     mode: 'review',
-    visibleAfterPass: 'uncategorized',
-    visibleAiScope: 'increment',
-    conditions: [],
   };
+}
+
+export function normalizePluginStatus(status) {
+  return ['disabled', 'expired'].includes(status) ? 'not_enable' : status;
 }
 
 // 插件状态文案与图标
 export function getStatusMap(t) {
   return {
-    visible: { label: t('可用'), icon: 'commonicon-icon common-icon-yuan-dui' },
-    review: { label: t('待审核'), icon: 'commonicon-icon common-icon-daishenhe' },
-    invalid: { label: t('已失效'), icon: 'commonicon-icon common-icon-yuan-jinggao' },
-    rejected: { label: t('未启用'), icon: 'commonicon-icon common-icon-shixiao' },
+    enable: { label: t('启用'), icon: 'commonicon-icon common-icon-yuan-dui' },
+    pending_review: { label: t('待审核'), icon: 'commonicon-icon common-icon-daishenhe' },
+    not_enable: { label: t('未启用'), icon: 'commonicon-icon common-icon-shixiao' },
   };
 }
 
 export function getStatusTabs(counts = {}, t) {
   return [
-    { value: 'visible', label: t('启用'), icon: 'commonicon-icon common-icon-yuan-dui', count: counts.visible || 0, badgeClass: 'is-active' },
-    { value: 'invalid', label: t('已失效'), icon: 'commonicon-icon common-icon-yuan-jinggao', count: counts.invalid || 0, badgeClass: 'is-active' },
+    { value: 'enable', label: t('启用'), icon: 'commonicon-icon common-icon-yuan-dui', count: counts.enable || 0, badgeClass: 'is-active' },
     { divider: true },
-    { value: 'review', label: t('待审核'), icon: 'commonicon-icon common-icon-daishenhe', count: counts.review || 0, badgeClass: 'is-warn' },
-    { value: 'rejected', label: t('未启用'), icon: 'commonicon-icon common-icon-shixiao', count: counts.rejected || 0, badgeClass: 'is-active' },
+    { value: 'pending_review', label: t('待审核'), icon: 'commonicon-icon common-icon-daishenhe', count: counts.pending_review || 0, badgeClass: 'is-warn' },
+    { value: 'not_enable', label: t('未启用'), icon: 'commonicon-icon common-icon-shixiao', count: counts.not_enable || 0, badgeClass: 'is-active' },
   ];
 }
 
@@ -50,8 +49,7 @@ export function getTypeOptions(t) {
     { value: 'all', label: t('全部') },
     { value: 'api', label: t('API 插件') },
     { value: 'bk_plugin', label: t('蓝鲸插件') },
-    { value: 'builtin', label: t('内置') },
-    { value: 'remote_api', label: t('远程 API 来源') },
+    { value: 'builtin', label: t('内置插件') },
   ];
 }
 
@@ -60,44 +58,59 @@ export function getTypeText(type, t) {
   const map = {
     api: t('API 插件'),
     bk_plugin: t('蓝鲸插件'),
-    builtin: t('内置'),
-    remote_api: t('远程 API 来源'),
+    builtin: t('内置插件'),
   };
   return map[type] || '--';
 }
 
-// 插件来源下拉选项
+// 插件来源下拉选项（来源即插件类型：内置 / 蓝鲸 / API 三种）
 export function getSourceOptions(t) {
   return [
     { value: 'all', label: t('全部') },
-    { value: 'job', label: t('作业平台(JOB)') },
-    { value: 'message', label: t('消息通知') },
-    { value: 'bk', label: t('蓝鲸服务(BK)') },
-    { value: 'ticket', label: t('工单') },
-    { value: 'monitor', label: t('蓝鲸监控') },
+    { value: 'api', label: t('API 插件') },
+    { value: 'bk_plugin', label: 'PaaS' },
+    { value: 'builtin', label: 'BKflow' },
   ];
 }
 
 // 插件来源文案
-export function getSourceText(source, t) {
+export function getSourceText(sourceKey, t) {
+  if (!sourceKey) return '--';
+  const key = String(sourceKey);
+  if (key.includes('/')) return key;
   const map = {
-    job: t('作业平台(JOB)'),
-    message: t('消息通知'),
-    bk: t('蓝鲸服务(BK)'),
-    ticket: t('工单'),
-    monitor: t('蓝鲸监控'),
+    api: t('API 插件'),
+    bk_plugin: 'PaaS',
+    builtin: 'BKflow',
   };
-  return source ? (map[source] || '--') : '--';
+  return map[key] || key;
+}
+
+// 来源筛选匹配
+export function matchPluginSource(sourceKey, value) {
+  const key = String(sourceKey || '');
+  if (value === 'api') {
+    return key !== 'bk_plugin' && key !== 'builtin';
+  }
+  return key === value;
 }
 
 // 状态变更成功提示文案
 export function getStatusChangeMessage(status, t) {
   const map = {
-    visible: t('上架成功'),
-    review: t('已通过审核'),
-    rejected: t('已忽略'),
+    enable: t('已启用'),
+    pending_review: t('已转入待审核'),
+    disabled: t('已停用'),
+    not_enable: t('已停用'),
   };
   return map[status] || t('操作成功');
+}
+
+export function mapBackendStatus(fromStatus, status) {
+  if (status === 'not_enable') {
+    return 'disabled';
+  }
+  return status;
 }
 
 // 扁平化分类（下拉选择、分类计数用），子级名称带父级前缀
@@ -128,35 +141,36 @@ export function buildCategoryNameMap(categories = []) {
 export function matchPluginCategory(row, category, categories = []) {
   if (!category || category === 'all') return true;
   if (category === 'recommend') return !!row.recommended;
-  if (category === 'uncategorized') return !row.category;
-  const group = categories.find(item => item.id === category);
+  if (category === 'uncategorized') return !row.directory_id;
+  const directoryId = String(row.directory_id);
+  const group = categories.find(item => String(item.id) === String(category));
   if (group) {
-    const childIds = (group.children || []).map(child => child.id);
-    return row.category === group.id || childIds.includes(row.category);
+    const childIds = (group.children || []).map(child => String(child.id));
+    return directoryId === String(group.id) || childIds.includes(directoryId);
   }
-  return row.category === category;
+  return directoryId === String(category);
 }
 
 // 所属分类名称（找不到时回落 '--'）
 export function getCategoryPath(categories, categoryId) {
-  const cate = (categories || []).find(item => item.id === categoryId);
+  const id = String(categoryId);
+  const cate = (categories || []).find(item => String(item.id) === id);
   return cate ? cate.name : '--';
 }
 
-// 行内操作：按当前状态推导可执行动作
+// 行内操作
 export function getRowActions(row, t) {
   const actionMap = {
-    visible: [
+    enable: [
       { label: t('编辑'), type: 'edit' },
-      // 停用与「忽略」共用 rejected 状态
-      { label: t('停用'), type: 'status', status: 'rejected', message: t('已停用') },
+      { label: t('停用'), type: 'status', status: 'disabled' },
     ],
-    review: [
-      { label: t('通过'), type: 'status', status: 'visible', message: t('已通过审核') },
-      { label: t('忽略'), type: 'status', status: 'rejected' },
+    pending_review: [
+      { label: t('启用'), type: 'status', status: 'enable', message: t('已启用') },
+      { label: t('不启用'), type: 'status', status: 'disabled' },
     ],
-    rejected: [
-      { label: t('通过'), type: 'status', status: 'visible', message: t('已通过审核') },
+    disabled: [
+      { label: t('启用'), type: 'status', status: 'enable', message: t('已启用') },
     ],
   };
   return actionMap[row.status] || [];

@@ -12,7 +12,8 @@
 <template>
   <div class="plugin-manage">
     <plugin-manage-header
-      :strategy="strategy"
+      ref="manageHeaderRef"
+      :space-id="spaceId"
       :categories="categories"
       @save="handleStrategySave" />
     <div class="page-body">
@@ -20,9 +21,9 @@
         :categories="categories"
         :counts="counts"
         :selected="selectedCategory"
+        :loading="categoriesLoading"
         @select="handleCategorySelect"
-        @init="handleInitCategory"
-        @batch-manage="handleBatchManage" />
+        @batchManage="handleBatchManage" />
       <PluginList
         ref="pluginListRef"
         :category="selectedCategory"
@@ -33,14 +34,14 @@
         :space-id="spaceId"
         :plugins="plugins"
         :recommend-total="counts.recommend || 0"
-        @edit-saved="handleEditSaved"
-        @recommend-changed="handleRecommendChanged"
-        @status-change="handleStatusChange"
-        @category-change="handleCategoryQuickChange"
-        @batch-category-change="handleBatchCategoryChange"
-        @batch-status-change="handleBatchStatusChange"
-        @delete="handleDeletePlugins"
-        @clean="handleCleanPlugins" />
+        :strategy-mode="strategyMode"
+        @editSaved="handleEditSaved"
+        @recommendChanged="handleRecommendChanged"
+        @statusChange="handleStatusChange"
+        @categoryChange="handleCategoryQuickChange"
+        @batchCategoryChange="handleBatchCategoryChange"
+        @batchStatusChange="handleBatchStatusChange"
+        @openStrategy="handleOpenStrategy" />
     </div>
   </div>
 </template>
@@ -49,18 +50,8 @@
 import CategorySidebar from './CategorySidebar.vue';
 import PluginList from './PluginList.vue';
 import PluginManageHeader from './PluginManageHeader.vue';
-import { CATEGORY_ICONS, buildCategoryNameMap, createDefaultStrategy, flattenCategories, getStatusChangeMessage } from './shared';
-import {
-  getPluginSummary,
-  updatePlugin,
-  updatePluginStatus,
-  batchUpdatePluginStatus,
-  batchUpdatePluginCategory,
-  deletePlugins,
-  cleanPlugins,
-  savePluginStrategy,
-  initCategories,
-} from './api';
+import { CATEGORY_ICONS, buildCategoryNameMap, flattenCategories, getStatusChangeMessage, mapBackendStatus } from './shared';
+import { mapActions } from 'vuex';
 
 export default {
   name: 'PluginManage',
@@ -76,9 +67,10 @@ export default {
     return {
       categories: [],
       counts: {},
-      strategy: createDefaultStrategy(),
       plugins: [],
+      strategyMode: 'review',
       selectedCategory: 'all',
+      categoriesLoading: false,
     };
   },
   computed: {
@@ -99,21 +91,87 @@ export default {
         || { title: this.categoryNameMap[this.selectedCategory] || this.$t('全部插件'), icon: '' };
     },
   },
+  watch: {
+    spaceId() {
+      this.selectedCategory = 'all';
+      this.$nextTick(() => {
+        this.loadSummary();
+        this.reloadPluginList();
+      });
+    },
+  },
   created() {
     this.loadSummary();
   },
   methods: {
+      ...mapActions('pluginManage', [
+        'getPluginSummary',
+        'getPluginList',
+      'updatePlugin',
+      'updateDisableConfig',
+      'updatePluginStatus',
+      'batchUpdatePluginStatus',
+      'batchUpdatePluginCategory',
+      'savePluginStrategy',
+      'getDirectoryManagePage',
+      'saveDirectoryManage',
+    ]),
+    // summary + 全量插件
     async loadSummary() {
-      const { categories, counts, strategy, plugins } = await getPluginSummary({
-        spaceId: this.spaceId,
+      this.categoriesLoading = true;
+      try {
+        const [summary, allPlugins] = await Promise.all([
+        // 插件概要：目录树 / 三态计数 / 策略摘要 / 推荐计数
+        this.getPluginSummary({ space_id: this.spaceId }),
+        this.getPluginList({
+          space_id: this.spaceId,
+          page: 1,
+          page_size: 200,
+         }),
+      ]);
+      // ready=false：该空间尚未启用插件目录，避免把空数据展示成「没有插件」
+      if (summary.ready === false) {
+        this.categories = [];
+        this.counts = { all: 0, recommend: 0, uncategorized: 0, tree: {} };
+        this.plugins = [];
+        this.$bkMessage({
+          message: this.$t('本空间尚未启用插件目录，请联系负责人执行初始化命令'),
+          theme: 'warning',
+        });
+        return;
+      }
+      const plugins = allPlugins.results || [];
+      const treeCounts = {};
+      const normalizeTree = nodes => (nodes || []).map((node) => {
+        treeCounts[String(node.id)] = node.count || 0;
+        return {
+          ...node,
+          id: String(node.id),
+          children: normalizeTree(node.children),
+        };
       });
-      this.categories = categories;
-      this.counts = counts;
-      this.strategy = strategy;
+      this.categories = normalizeTree(summary.directory_tree || []);
+      this.strategyMode = (summary.strategy_summary || {}).mode || 'review';
+      this.counts = {
+        all: summary.total_count || plugins.length,
+        recommend: summary.recommend_count || 0,
+        uncategorized: summary.uncategorized_count || 0,
+        tree: treeCounts,
+      };
       this.plugins = plugins;
+      } catch (e) {
+        console.log(e);
+      } finally {
+        this.categoriesLoading = false;
+      }
     },
     handleCategorySelect(id) {
       this.selectedCategory = id;
+    },
+    handleOpenStrategy() {
+      if (this.$refs.manageHeaderRef) {
+        this.$refs.manageHeaderRef.openStrategy();
+      }
     },
     reloadPluginList() {
       if (this.$refs.pluginListRef) {
@@ -126,18 +184,13 @@ export default {
     handleEditSaved() {
       this.loadSummary();
     },
-    async handleCategoryQuickChange({ row, categoryId, followSource }) {
+    async handleCategoryQuickChange({ row, categoryId, followSource: _followSource }) {
       try {
-        await updatePlugin({
-          spaceId: this.spaceId,
-          pluginId: row.id,
-          data: {
-            category: categoryId,
-            followSource: !!followSource,
-            recommended: !!row.recommended,
-            offlineReason: row.offlineReason || '',
-            replacePluginId: row.replacePluginId || '',
-          },
+        await this.updatePlugin({
+          plugin_id: row.id,
+          space_id: this.spaceId,
+          directory_id: categoryId,
+          recommended: !!row.recommended,
         });
         await this.loadSummary();
         this.reloadPluginList();
@@ -151,11 +204,10 @@ export default {
     },
     async handleBatchCategoryChange({ rows, categoryId, followSource }) {
       try {
-        await batchUpdatePluginCategory({
-          spaceId: this.spaceId,
+        await this.batchUpdatePluginCategory({
+          space_id: this.spaceId,
           ids: rows.map(item => item.id),
-          category: categoryId,
-          followSource: !!followSource,
+          directory_id: followSource ? '' : categoryId,
         });
         await this.loadSummary();
         this.reloadPluginList();
@@ -167,17 +219,27 @@ export default {
         console.log(e);
       }
     },
-    async handleStatusChange({ row, status, category, offlineReason, replacePluginId, message }) {
+    async handleStatusChange({ row, status, targetDirectoryId, disableReason, replacePluginId, message }) {
       try {
-        await updatePluginStatus({
-          spaceId: this.spaceId,
-          pluginId: row.id,
-          status,
-          category,
-          offlineReason,
-          replacePluginId,
-        });
-        await this.loadSummary();
+        const data = {
+          plugin_id: row.id,
+          space_id: this.spaceId,
+          status: mapBackendStatus(row.status, status),
+        };
+        if (data.status === 'enable') {
+          Object.assign(data, {
+            target_directory_id: targetDirectoryId === undefined ? '' : targetDirectoryId,
+          });
+        }
+        if (data.status === 'disabled') {
+          Object.assign(data, {
+            disable_reason: disableReason || '',
+            replace_plugin_id: replacePluginId || undefined,
+          });
+        }
+        console.log('handleStatusChange-请求data', data);
+        await this.updatePluginStatus(data);
+        // 状态变更不影响目录树 / 推荐计数 / 插件总数，无需刷新概要
         this.reloadPluginList();
         this.$bkMessage({
           message: message || getStatusChangeMessage(status, key => this.$t(key)),
@@ -189,12 +251,11 @@ export default {
     },
     async handleBatchStatusChange({ rows, status, message }) {
       try {
-        await batchUpdatePluginStatus({
-          spaceId: this.spaceId,
+        await this.batchUpdatePluginStatus({
+          space_id: this.spaceId,
           ids: rows.map(item => item.id),
-          status,
+          status: mapBackendStatus(rows.length ? rows[0].status : '', status),
         });
-        await this.loadSummary();
         this.reloadPluginList();
         this.$bkMessage({
           message: message || getStatusChangeMessage(status, key => this.$t(key)),
@@ -204,43 +265,15 @@ export default {
         console.log(e);
       }
     },
-    async handleDeletePlugins(rows) {
+    async handleStrategySave(strategyBody) {
       try {
-        await deletePlugins({
-          spaceId: this.spaceId,
-          ids: rows.map(item => item.id),
+        const saved = await this.savePluginStrategy({
+          space_id: this.spaceId,
+          ...strategyBody,
         });
-        await this.loadSummary();
-        this.reloadPluginList();
-        this.$bkMessage({
-          message: this.$t('删除成功'),
-          theme: 'success',
-        });
-      } catch (e) {
-        console.log(e);
-      }
-    },
-    async handleCleanPlugins(rows) {
-      try {
-        await cleanPlugins({
-          spaceId: this.spaceId,
-          ids: rows.map(item => item.id),
-        });
-        await this.loadSummary();
-        this.reloadPluginList();
-        this.$bkMessage({
-          message: this.$t('清理成功'),
-          theme: 'success',
-        });
-      } catch (e) {
-        console.log(e);
-      }
-    },
-    async handleStrategySave(strategyConfig) {
-      try {
-        await savePluginStrategy({ spaceId: this.spaceId, strategy: strategyConfig });
-        await this.loadSummary();
-        this.reloadPluginList();
+        if (saved && saved.mode) {
+          this.strategyMode = saved.mode;
+        }
         this.$bkMessage({
           message: this.$t('新插件策略保存成功'),
           theme: 'success',
@@ -248,27 +281,6 @@ export default {
       } catch (e) {
         console.log(e);
       }
-    },
-    handleInitCategory() {
-      this.$bkInfo({
-        title: this.$t('确认初始化插件分类目录？'),
-        subTitle: this.$t('初始化后将恢复为默认分类目录，自定义分类将被清除'),
-        maskClose: false,
-        width: 450,
-        confirmFn: async () => {
-          try {
-            await initCategories({ spaceId: this.spaceId });
-            await this.loadSummary();
-            this.reloadPluginList();
-            this.$bkMessage({
-              message: this.$t('初始化成功'),
-              theme: 'success',
-            });
-          } catch (e) {
-            console.log(e);
-          }
-        },
-      });
     },
     handleBatchManage() {
       this.$router.push({

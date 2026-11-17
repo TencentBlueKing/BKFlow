@@ -22,7 +22,7 @@
     </div>
     <strategy-sideslider
       :visible.sync="isStrategySliderShow"
-      :strategy="strategy"
+      :space-id="spaceId"
       :categories="categories"
       @save="handleSave" />
   </div>
@@ -30,8 +30,6 @@
 
 <script>
 import StrategySideslider from './StrategySideslider.vue';
-import { createDefaultStrategy } from './shared';
-
 
 export default {
   name: 'PluginManageHeader',
@@ -39,9 +37,9 @@ export default {
     StrategySideslider,
   },
   props: {
-    strategy: {
-      type: Object,
-      default: createDefaultStrategy,
+    spaceId: {
+      type: [String, Number],
+      default: '',
     },
     categories: {
       type: Array,
@@ -54,6 +52,9 @@ export default {
     };
   },
   methods: {
+    openStrategy() {
+      this.isStrategySliderShow = true;
+    },
     handleSave(strategyDraft) {
       this.isStrategySliderShow = false;
       this.$emit('save', strategyDraft);

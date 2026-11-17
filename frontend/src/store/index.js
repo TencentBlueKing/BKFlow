@@ -20,6 +20,7 @@ import system from './modules/system';
 import decisionTable from './modules/decisionTable';
 import credentialConfig from './modules/credentialConfig';
 import plugin from './modules/plugin';
+import pluginManage from './modules/pluginManage';
 import stageCanvas from './modules/stageCanvas';
 import label from './modules/label';
 Vue.use(Vuex);
@@ -44,6 +45,7 @@ const store = new Vuex.Store({
     decisionTable,
     credentialConfig,
     plugin,
+    pluginManage,
     stageCanvas,
     label,
   },

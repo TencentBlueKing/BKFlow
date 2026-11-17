@@ -20,174 +20,183 @@
     <div
       ref="contentEl"
       slot="content"
+      v-bkloading="{ isLoading: strategyLoading }"
       class="strategy-slider-content">
-      <div class="form-block">
-        <div class="form-label is-required">
-          {{ $t('新插件策略') }}
-        </div>
-        <div class="strategy-cards">
-          <div
-            v-for="card in strategyCards"
-            :key="card.value"
-            :class="['strategy-card', { 'is-active': draft.mode === card.value, 'is-flex': card.value === 'conditional' }]"
-            @click="handleModeChange(card.value)">
-            <div :class="['card-logo', { 'is-active': draft.mode === card.value }]">
-              <i :class="card.iconClass" />
-            </div>
-            <div class="card-text">
-              <p :class="['card-title', { 'is-active': draft.mode === card.value }]">
-                {{ card.title }}
-              </p>
-              <p class="card-desc">
-                {{ card.desc }}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <!-- 全部直接通过 -->
-      <template v-if="draft.mode === 'visible'">
+      <bk-form
+        ref="strategyForm"
+        :model="draft"
+        form-type="vertical">
         <div class="form-block">
           <div class="form-label is-required">
-            {{ $t('通过后的插件') }}
+            {{ $t('新插件策略') }}
           </div>
-          <bk-radio-group
-            v-model="draft.visibleAfterPass"
-            class="radio-group">
-            <bk-radio :value="'uncategorized'">
-              {{ enterUncategorizedText }}
-            </bk-radio>
-            <bk-radio :value="'ai'">
-              {{ $t('AI 自动决定目录') }}
-            </bk-radio>
-          </bk-radio-group>
-        </div>
-        <div
-          v-if="draft.visibleAfterPass === 'ai'"
-          class="form-block">
-          <div class="form-label is-required">
-            {{ $t('AI 自由范围') }}
-          </div>
-          <bk-radio-group
-            v-model="draft.visibleAiScope"
-            class="radio-group">
-            <bk-radio :value="'increment'">
-              {{ $t('仅对增量分类（不影响已有目录）') }}
-            </bk-radio>
-            <bk-radio :value="'free'">
-              {{ $t('完全自由（可对存量修改）') }}
-            </bk-radio>
-          </bk-radio-group>
-        </div>
-      </template>
-      <!-- 设条件自动通过 -->
-      <template v-else-if="draft.mode === 'conditional'">
-        <div class="condition-group">
-          <div
-            v-for="(cond, index) in draft.conditions"
-            :key="index"
-            class="condition-card">
-            <div class="condition-tag">
-              {{ $t('直通条件') }} {{ conditionLetter(index) }}
-            </div>
-            <i
-              v-bk-tooltips.top="$t('删除')"
-              class="commonicon-icon common-icon-delete condition-del"
-              @click="removeCondition(index)" />
-
-            <!-- 直通来源：跨条件组去重，已被其他条件选中的来源置灰 -->
-            <div class="form-item">
-              <div class="form-label is-required">
-                {{ $t('直通来源') }}
-              </div>
-              <bk-select
-                v-model="cond.sources"
-                class="source-select"
-                ext-cls="source-select-popover"
-                display-tag
-                :multiple="true"
-                :searchable="true">
-                <bk-option-group
-                  v-for="group in sources"
-                  :key="group.id"
-                  :name="group.name">
-                  <bk-option
-                    v-for="item in getSourceOptions(group)"
-                    :id="item.id"
-                    :key="item.id"
-                    :name="item.label"
-                    :disabled="isSourceDisabled(item.id, index)">
-                    <span
-                      v-bk-tooltips="{ content: getDisabledTip(item.id, index), disabled: !isSourceDisabled(item.id, index) }">
-                      {{ item.label }}
-                    </span>
-                  </bk-option>
-                </bk-option-group>
-              </bk-select>
-            </div>
-            <!-- 通过后的插件 -->
-            <div class="form-item">
-              <div class="form-label is-required">
-                {{ $t('通过后的插件') }}
-              </div>
-              <bk-radio-group
-                v-model="cond.afterPass"
-                class="radio-group">
-                <bk-radio :value="'uncategorized'">
-                  {{ enterUncategorizedText }}
-                </bk-radio>
-                <bk-radio :value="'ai'">
-                  {{ $t('AI 自动决定目录') }}
-                </bk-radio>
-                <bk-radio :value="'assign'">
-                  {{ $t('指派特定目录') }}
-                </bk-radio>
-              </bk-radio-group>
-            </div>
-
-            <!-- AI 自动决定目录时：AI 自由范围 -->
+          <div class="strategy-cards">
             <div
-              v-if="cond.afterPass === 'ai'"
-              class="form-item">
-              <div class="form-label is-required">
-                {{ $t('AI 自由范围') }}
+              v-for="card in strategyCards"
+              :key="card.value"
+              :class="['strategy-card', { 'is-active': draft.mode === card.value, 'is-flex': card.value === 'conditional' }]"
+              @click="handleModeChange(card.value)">
+              <div :class="['card-logo', { 'is-active': draft.mode === card.value }]">
+                <i :class="card.iconClass" />
               </div>
-              <bk-radio-group
-                v-model="cond.aiScope"
-                class="radio-group">
-                <bk-radio :value="'increment'">
-                  {{ $t('仅对增量分类（不影响已有目录）') }}
-                </bk-radio>
-                <bk-radio :value="'free'">
-                  {{ $t('完全自由（可对存量修改）') }}
-                </bk-radio>
-              </bk-radio-group>
-            </div>
-
-            <!-- 指派特定目录时：指派目录 -->
-            <div
-              v-if="cond.afterPass === 'assign'"
-              class="form-item">
-              <div class="form-label is-required">
-                {{ $t('指派目录') }}
+              <div class="card-text">
+                <p :class="['card-title', { 'is-active': draft.mode === card.value }]">
+                  {{ card.title }}
+                </p>
+                <p class="card-desc">
+                  {{ card.desc }}
+                </p>
               </div>
-              <bk-cascade
-                v-model="cond.assignCategory"
-                class="assign-cascade"
-                :list="categories"
-                :check-any-level="true"
-                :clearable="true" />
             </div>
-          </div>
-
-          <div
-            class="add-condition"
-            @click="addCondition">
-            <i class="commonicon-icon common-icon-add" />
-            {{ $t('添加直通条件') }}
           </div>
         </div>
-      </template>
+        <!-- 全部直接通过 -->
+        <template v-if="draft.mode === 'visible'">
+          <div class="form-block all-visible-block">
+            <div class="form-label is-required">
+              {{ $t('通过后的插件') }}
+            </div>
+            <bk-radio-group
+              v-model="draft.visible_after_pass"
+              class="radio-group">
+              <bk-radio :value="'uncategorized'">
+                {{ enterUncategorizedText }}
+              </bk-radio>
+              <bk-radio :value="'ai'">
+                {{ $t('AI 自动决定目录') }}
+              </bk-radio>
+            </bk-radio-group>
+          </div>
+          <div
+            v-if="draft.visible_after_pass === 'ai'"
+            class="form-block all-visible-block">
+            <div class="form-label is-required">
+              {{ $t('AI 自由范围') }}
+            </div>
+            <bk-radio-group
+              v-model="draft.visible_ai_scope"
+              class="radio-group">
+              <bk-radio :value="'increment'">
+                {{ $t('仅对增量分类（不影响已有目录）') }}
+              </bk-radio>
+              <bk-radio :value="'free'">
+                {{ $t('完全自由（可对存量修改）') }}
+              </bk-radio>
+            </bk-radio-group>
+          </div>
+        </template>
+        <!-- 设条件自动通过 -->
+        <template v-else-if="draft.mode === 'conditional'">
+          <div class="condition-group">
+            <div
+              v-for="(cond, index) in draft.conditions"
+              :key="index"
+              class="condition-card">
+              <div class="condition-tag">
+                {{ $t('启用条件') }} {{ conditionLetter(index) }}
+              </div>
+              <i
+                v-bk-tooltips.top="$t('删除')"
+                class="commonicon-icon common-icon-delete condition-del"
+                @click="removeCondition(index)" />
+
+              <!-- 启用来源：跨条件组去重，已被其他条件选中的来源置灰 -->
+              <bk-form-item
+                :label="$t('启用来源')"
+                :required="true"
+                :property="`conditions.${index}.sources`"
+                :rules="conditionSourcesRules(index)">
+                <bk-select
+                  v-model="cond.sources"
+                  class="source-select"
+                  ext-cls="source-select-popover"
+                  display-tag
+                  :multiple="true"
+                  :searchable="true">
+                  <bk-option-group
+                    v-for="group in sources"
+                    :key="group.id"
+                    :name="group.name">
+                    <bk-option
+                      v-for="item in getSourceOptions(group)"
+                      :id="item.id"
+                      :key="item.id"
+                      :name="item.name"
+                      :disabled="isSourceDisabled(item.id, index)">
+                      <span
+                        v-bk-tooltips="{ content: getDisabledTip(item.id, index), disabled: !isSourceDisabled(item.id, index) }">
+                        {{ item.label }}
+                      </span>
+                    </bk-option>
+                  </bk-option-group>
+                </bk-select>
+              </bk-form-item>
+              <!-- 通过后的插件 -->
+              <div class="form-item">
+                <div class="form-label is-required">
+                  {{ $t('通过后的插件') }}
+                </div>
+                <bk-radio-group
+                  v-model="cond.after_pass"
+                  class="radio-group">
+                  <bk-radio :value="'uncategorized'">
+                    {{ enterUncategorizedText }}
+                  </bk-radio>
+                  <bk-radio :value="'ai'">
+                    {{ $t('AI 自动决定目录') }}
+                  </bk-radio>
+                  <bk-radio
+                    v-if="hasAssignableCategory"
+                    :value="'assign'">
+                    {{ $t('指派特定目录') }}
+                  </bk-radio>
+                </bk-radio-group>
+              </div>
+
+              <!-- AI 自动决定目录时：AI 自由范围 -->
+              <div
+                v-if="cond.after_pass === 'ai'"
+                class="form-item">
+                <div class="form-label is-required">
+                  {{ $t('AI 自由范围') }}
+                </div>
+                <bk-radio-group
+                  v-model="cond.ai_scope"
+                  class="radio-group">
+                  <bk-radio :value="'increment'">
+                    {{ $t('仅对增量分类（不影响已有目录）') }}
+                  </bk-radio>
+                  <bk-radio :value="'free'">
+                    {{ $t('完全自由（可对存量修改）') }}
+                  </bk-radio>
+                </bk-radio-group>
+              </div>
+
+              <!-- 指派特定目录时：指派目录（编辑态暂存级联路径，保存时取末级目录 id） -->
+              <bk-form-item
+                v-if="cond.after_pass === 'assign'"
+                :label="$t('指派目录')"
+                :required="true"
+                :property="`conditions.${index}.assign_directory_id`"
+                :rules="conditionAssignRules(index)">
+                <bk-cascade
+                  v-model="cond.assign_directory_id"
+                  class="assign-cascade"
+                  :list="categories"
+                  :check-any-level="true"
+                  :clearable="true" />
+              </bk-form-item>
+            </div>
+
+            <div
+              class="add-condition"
+              @click="addCondition">
+              <i class="commonicon-icon common-icon-add" />
+              {{ $t('添加启用条件') }}
+            </div>
+          </div>
+        </template>
+      </bk-form>
     </div>
     <div
       slot="footer"
@@ -206,8 +215,7 @@
 
 <script>
 import tools from '@/utils/tools.js';
-import { getStrategySources } from './api';
-import { createDefaultStrategy } from './shared';
+import { mapActions } from 'vuex';
 
 export default {
   name: 'StrategySideslider',
@@ -216,10 +224,10 @@ export default {
       type: Boolean,
       default: false,
     },
-    // 当前策略对象：{ mode, visibleAfterPass, visibleAiScope, conditions }
-    strategy: {
-      type: Object,
-      default: createDefaultStrategy,
+    // 空间 id（查询启用来源必填）
+    spaceId: {
+      type: [String, Number],
+      default: '',
     },
     // 分类目录树（指派目录级联选项，两级）
     categories: {
@@ -230,13 +238,14 @@ export default {
   data() {
     const emptyCondition = {
       sources: [],
-      afterPass: 'uncategorized',
-      aiScope: 'increment',
-      assignCategory: [],
+      after_pass: 'uncategorized',
+      ai_scope: 'increment',
+      assign_directory_id: [],
     };
     return {
       emptyCondition,
-      draft: this.normalizeStrategy(this.strategy, emptyCondition),
+      draft: this.normalizeStrategy({}, emptyCondition),
+      strategyLoading: false,
       sources: [],
       footerDivided: false,
     };
@@ -244,6 +253,10 @@ export default {
   computed: {
     enterUncategorizedText() {
       return this.$t('进入 <未分类> 目录');
+    },
+    // 是否存在可指派的目录
+    hasAssignableCategory() {
+      return (this.categories || []).length > 0;
     },
     strategyCards() {
       return [
@@ -271,7 +284,7 @@ export default {
   watch: {
     visible(val) {
       if (val) {
-        this.draft = this.normalizeStrategy(this.strategy, this.emptyCondition);
+        this.initStrategy();
         this.loadSources();
         this.$nextTick(this.bindFooterScrollWatch);
       } else {
@@ -279,30 +292,61 @@ export default {
       }
     },
   },
-  created() {
-    this.loadSources();
-  },
   beforeDestroy() {
     this.unbindFooterScrollWatch();
   },
   methods: {
-    normalizeStrategy(val, emptyCondition = this.emptyCondition) {
-      const conditions = val.conditions.length
+    ...mapActions('pluginManage', [
+      'getStrategy',
+      'getStrategySources',
+    ]),
+    // 打开侧滑时拉取当前策略
+    async initStrategy() {
+      this.strategyLoading = true;
+      try {
+        const strategy = await this.getStrategy({ space_id: this.spaceId });
+        this.draft = this.normalizeStrategy(strategy || {}, this.emptyCondition);
+      } catch (e) {
+        console.warn(e);
+        this.draft = this.normalizeStrategy({}, this.emptyCondition);
+      } finally {
+        this.strategyLoading = false;
+      }
+    },
+    normalizeStrategy(val = {}, emptyCondition) {
+      const empty = emptyCondition || this.emptyCondition;
+      const conditions = (val.conditions || []).length
         ? val.conditions.map(item => ({
-          ...item,
-          sources: [...item.sources],
-          assignCategory: [...item.assignCategory],
+          sources: [...(item.sources || [])],
+          after_pass: item.after_pass === 'assign' && !this.hasAssignableCategory
+            ? 'uncategorized'
+            : (item.after_pass || 'uncategorized'),
+          ai_scope: item.ai_scope || 'increment',
+          assign_directory_id: this.directoryIdToPath(item.assign_directory_id),
         }))
-        : [tools.deepClone(emptyCondition)];
-      return { ...val, conditions };
+        : [tools.deepClone(empty)];
+      return {
+        mode: val.mode || 'review',
+        visible_after_pass: val.visible_after_pass || 'uncategorized',
+        visible_ai_scope: val.visible_ai_scope || 'increment',
+        conditions,
+      };
+    },
+    // 后端单个目录 id → 级联路径
+    directoryIdToPath(directoryId) {
+      if (directoryId === null || directoryId === undefined || directoryId === '') return [];
+      const parent = (this.categories || []).find(cate => String(cate.id) === String(directoryId)
+        || (cate.children || []).some(sub => String(sub.id) === String(directoryId)));
+      if (!parent) return [directoryId];
+      const child = (parent.children || []).find(sub => String(sub.id) === String(directoryId));
+      return child ? [parent.id, child.id] : [parent.id];
     },
     handleVisibleChange(val) {
       this.$emit('update:visible', val);
     },
     async loadSources() {
       if (this.sources.length) return;
-      const { groups } = await getStrategySources();
-      this.sources = groups || [];
+      this.sources = (await this.getStrategySources({ space_id: this.spaceId })) || [];
     },
 
     updateFooterDivided() {
@@ -341,20 +385,22 @@ export default {
       return String.fromCharCode(65 + (index % 26));
     },
     getSourceOptions(group) {
-      return (group.children || []).map((item) => {
-        if (item.whole) {
-          return { id: group.id, label: group.name };
-        }
-        return { id: item.id, label: `${item.name} / ${group.name}` };
-      });
+      if (group.whole) {
+        return [{ id: group.id, name: group.name, label: group.name }];
+      }
+      return (group.children || []).map(item => ({
+        id: item.id,
+        name: `${group.name} / ${item.name}`,
+        label: item.name,
+      }));
     },
-    // 直通来源跨条件组去重：已被其他条件选中的来源不可再选
+    // 启用来源跨条件组去重：已被其他条件选中的来源不可再选
     isSourceDisabled(sourceId, index) {
       return this.draft.conditions.some((cond, condIndex) => condIndex !== index && cond.sources.includes(sourceId),);
     },
     getDisabledTip(sourceId, index) {
       const ownerIndex = this.draft.conditions.findIndex((cond, condIndex) => condIndex !== index && cond.sources.includes(sourceId),);
-      return this.$t('该来源已经被直通条件 {letter} 选择，无法重复选择', {
+      return this.$t('该来源已经被启用条件 {letter} 选择，无法重复选择', {
         letter: this.conditionLetter(ownerIndex),
       });
     },
@@ -364,28 +410,57 @@ export default {
     removeCondition(index) {
       this.draft.conditions.splice(index, 1);
     },
-    handleSave() {
+    // 启用来源内联校验：非空即可，跨条件组重复由选项置灰兜底
+    conditionSourcesRules(index) {
+      return [{
+        required: true,
+        validator: () => (this.draft.conditions[index]?.sources || []).length > 0,
+        message: this.$t('请选择启用来源'),
+        trigger: 'change',
+      }];
+    },
+    // 指派目录内联校验（仅在 after_pass=assign 时渲染）
+    conditionAssignRules(index) {
+      return [{
+        required: true,
+        // snake_case 为后端接口字段，用方括号字符串规避 camelcase 规则
+        validator: () => (this.draft.conditions[index]?.['assign_directory_id'] || []).length > 0,
+        message: this.$t('请选择指派目录'),
+        trigger: 'change',
+      }];
+    },
+    async handleSave() {
       if (this.draft.mode === 'conditional') {
-        for (let i = 0; i < this.draft.conditions.length; i++) {
-          const cond = this.draft.conditions[i];
-          const label = `${this.$t('直通条件')} ${this.conditionLetter(i)}`;
-          if (!cond.sources.length) {
-            this.$bkMessage({
-              message: this.$t('请为{condition}选择直通来源', { condition: label }),
-              theme: 'error',
-            });
-            return;
-          }
-          if (cond.afterPass === 'assign' && !cond.assignCategory.length) {
-            this.$bkMessage({
-              message: this.$t('请为{condition}选择指派目录', { condition: label }),
-              theme: 'error',
-            });
-            return;
-          }
+        try {
+          await this.$refs.strategyForm.validate();
+        } catch (e) {
+          return;
         }
       }
-      this.$emit('save', JSON.parse(JSON.stringify(this.draft)));
+      const draft = JSON.parse(JSON.stringify(this.draft));
+      const body = { mode: draft.mode };
+      if (body.mode === 'visible') {
+        body.visible_after_pass = draft.visible_after_pass;
+        if (body.visible_after_pass === 'ai') {
+          body.visible_ai_scope = draft.visible_ai_scope;
+        }
+      }
+      if (body.mode === 'conditional') {
+        body.conditions = (draft.conditions || []).map((cond) => {
+          const item = {
+            sources: cond.sources || [],
+            after_pass: cond.after_pass,
+          };
+          if (item.after_pass === 'ai') {
+            item.ai_scope = cond.ai_scope;
+          }
+          if (item.after_pass === 'assign') {
+            item.assign_directory_id = (cond.assign_directory_id || []).slice(-1)[0] || '';
+          }
+          return item;
+        });
+      }
+      this.$emit('save', body);
     },
     handleCancel() {
       this.$emit('update:visible', false);
@@ -406,6 +481,9 @@ export default {
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+.all-visible-block {
+  margin-top: 24px;
 }
 
 .form-label {
@@ -511,6 +589,7 @@ export default {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    margin-top: 24px;
 }
 
 .condition-card {

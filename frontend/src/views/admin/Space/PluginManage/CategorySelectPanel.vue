@@ -9,23 +9,43 @@
     </div>
     <template v-if="showAiRecommend || showUnclassified">
       <div
-        v-if="showAiRecommend"
-        class="panel-option"
+        v-if="aiRecommendOptions.length"
+        class="ai-recommend-box">
+        <div class="ai-recommend-header">
+          <img
+            :src="aiBluekingIcon"
+            class="ai-icon"
+            alt="">
+          <span class="option-name ai-recommend-name">{{ $t('AI 推荐') }}</span>
+        </div>
+        <div
+          v-for="opt in aiRecommendOptions"
+          :key="opt.id"
+          class="panel-option ai-recommend-item"
+          @click="handleSelect(opt.id)">
+          <span class="option-name">{{ opt.name }}</span>
+        </div>
+      </div>
+      <div
+        v-else-if="showAiRecommend"
+        :class="['panel-option', { 'is-ai-loading': aiRecommendLoading }]"
         @click="handleSelect('', false, true)">
         <img
           :src="aiBluekingIcon"
           class="ai-icon"
           alt="">
-        <span class="option-name ai-recommend-name">{{ $t('AI 推荐') }}</span>
+        <span class="option-name ai-recommend-name">{{ aiRecommendLoading ? $t('AI 推荐获取中...') : $t('AI 推荐') }}</span>
       </div>
       <div
         v-if="showUnclassified"
-        class="panel-option"
+        :class="[ 'panel-option' ]"
         @click="handleSelect('')">
         <i class="bk-icon icon-question-circle uncategorized-icon" />
         <span class="option-name">{{ $t('未分类') }}</span>
       </div>
-      <div class="panel-divider" />
+      <div
+        v-if="optionTree.length"
+        class="panel-divider" />
     </template>
     <div
       v-for="group in optionTree"
@@ -81,6 +101,16 @@ export default {
       type: Boolean,
       default: true,
     },
+    // AI 建议的目标目录 id 列表
+    aiRecommendIds: {
+      type: Array,
+      default: () => [],
+    },
+    // AI 建议拉取中
+    aiRecommendLoading: {
+      type: Boolean,
+      default: false,
+    },
     excludeIds: {
       type: Array,
       default: () => [],
@@ -97,6 +127,10 @@ export default {
       const kw = (this.keyword || '').trim().toLowerCase();
       const tree = this.categoryTree || [];
       if (!kw) return tree;
+      // 仅可选一级目录（selectableLevel === 'level1'）时，搜索只按一级目录名匹配
+      if (this.selectableLevel === 'level1') {
+        return tree.filter(group => (group.name || '').toLowerCase().includes(kw));
+      }
       return tree.reduce((acc, group) => {
         const hitSelf = (group.name || '').toLowerCase().includes(kw);
         const children = hitSelf
@@ -119,6 +153,26 @@ export default {
         acc.push({ ...group, children });
         return acc;
       }, []);
+    },
+    // AI 建议目录项
+    aiRecommendOptions() {
+      const ids = new Set((this.aiRecommendIds || []).map(id => String(id)));
+      if (!ids.size) return [];
+      const onlyLevel1 = this.selectableLevel === 'level1';
+      const options = [];
+      (this.optionTree || []).forEach((group) => {
+        if (ids.has(String(group.id))) {
+          options.push({ id: group.id, name: group.name });
+        }
+        if (!onlyLevel1) {
+          (group.children || []).forEach((sub) => {
+            if (ids.has(String(sub.id))) {
+              options.push({ id: sub.id, name: `${group.name}/${sub.name}` });
+            }
+          });
+        }
+      });
+      return options;
     },
   },
   methods: {
@@ -177,6 +231,11 @@ export default {
       height: 16px;
     }
 
+    &.is-ai-loading {
+      cursor: default;
+      opacity: 0.7;
+    }
+
     .ai-recommend-name {
         background: linear-gradient(98deg, #4667F3 3.74%, #D287EA 96.48%);
         background-clip: text;
@@ -221,6 +280,38 @@ export default {
     height: 1px;
     margin: 4px 12px;
     background: #dcdee5;
+  }
+
+  .ai-recommend-box {
+    margin: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background:
+      linear-gradient(#fff, #fff) padding-box,
+      linear-gradient(98deg, #4667F3 3.74%, #D287EA 96.48%) border-box;
+
+    .ai-recommend-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      padding: 6px 12px;
+      font-size: 12px;
+
+      .ai-icon {
+        flex-shrink: 0;
+        width: 16px;
+        height: 16px;
+      }
+    }
+
+    .ai-recommend-item {
+      border-radius: 0;
+
+      &:last-child {
+        border-radius: 0 0 3px 3px;
+      }
+    }
   }
 }
 </style>

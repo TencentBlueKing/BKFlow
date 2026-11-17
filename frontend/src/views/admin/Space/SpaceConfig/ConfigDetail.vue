@@ -137,6 +137,8 @@
         :name="config.name"
         :space-id="spaceId"
         :config="config"
+        :is-deprecated-config="isDeprecatedConfig"
+        :migration-info="migrationInfo"
         :verifying="localVerifying"
         :verify-result="localVerifyResult"
         :doc-link="config.help && config.help.doc_link"
@@ -280,6 +282,11 @@
         type: Boolean,
         default: false,
       },
+      // 空间插件目录迁移状态
+      migrationInfo: {
+        type: Object,
+        default: null,
+      },
     },
     data() {
       return {
@@ -317,7 +324,8 @@
         return COMPOSITE_CONTROLS.includes(this.currentControl);
       },
       isDeprecatedConfig() {
-        return this.currentControl === 'plugin_scope';
+        return this.currentControl === 'plugin_scope'
+          && !!(this.migrationInfo && this.migrationInfo.ready);
       },
       controlOwnsVerify() {
         return SELF_VERIFY_CONTROLS.includes(this.currentControl);
@@ -599,8 +607,8 @@
           background: #fde9e9;
         }
         &.is-migrated {
-          color: var(--Brand-1, #3069F0);
-          background: var(--Brand-6, #E5EDFF);
+          color: #3069F0;
+          background: #E5EDFF;
         }
       }
     }
