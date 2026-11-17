@@ -23,6 +23,7 @@ from django.conf import settings
 
 from bkflow.exceptions import APIResponseError, ValidationError
 from bkflow.pipeline_plugins.query.uniform_api.utils import UniformAPIClient
+from bkflow.plugin_catalog.services.source_sync_state_service import SourceSyncStateService
 from bkflow.plugin.models import (
     OPEN_PLUGIN_WRAPPER_VERSION,
     OpenPluginCatalogIndex,
@@ -83,9 +84,18 @@ class OpenPluginCatalogService:
         元信息直接来自来源响应，不再回查只收录 V4 的缓存表——否则 V2/V3 协议插件的
         名称与描述会永远取不到（响应 schema 里 `name` 是所有版本都有的必填字段）。
 
-        :return: {source_key: {plugin_id: (name, description)}}
+        按**来源**隔离失败：一个来源采集失败不影响其它来源，失败原因与采集代次
+        一起返回，调用方据此决定"跳过"还是"按覆盖范围失效"，以及结果是否已过期。
+
+        :return: {
+            "sources": {source_key: {plugin_id: (name, description)}},
+            "failures": {source_key: (error_type, error_message)},
+            "generations": {source_key: collect_generation},
+        }
         """
-        source_plugins = cls._collect_source_plugins(space_id=space_id, source_key=source_key, username=username)
+        source_plugins, failures, generations = cls._collect_source_plugins(
+            space_id=space_id, source_key=source_key, username=username, collect_errors=True
+        )
 
         for current_source_key, plugins_by_id in source_plugins.items():
             cls._refresh_catalog_index(
@@ -95,31 +105,75 @@ class OpenPluginCatalogService:
             )
 
         return {
-            src: {
-                plugin_id: (api_item.get("name") or "", api_item.get("description") or "")
-                for plugin_id, api_item in plugins_by_id.items()
-            }
-            for src, plugins_by_id in source_plugins.items()
+            "sources": {
+                src: {
+                    plugin_id: (api_item.get("name") or "", api_item.get("description") or "")
+                    for plugin_id, api_item in plugins_by_id.items()
+                }
+                for src, plugins_by_id in source_plugins.items()
+            },
+            "failures": failures,
+            "generations": generations,
         }
 
     @classmethod
-    def _collect_source_plugins(cls, space_id, source_key=None, username="admin"):
+    def _collect_source_plugins(cls, space_id, source_key=None, username="admin", collect_errors=False):
         """实际发请求拉取每个已配置来源的完整插件清单，按"执行来源"聚合去重。
 
         `sync_space_plugins`（只服务 V4 缓存）与 `sync_space_plugins_with_meta`（服务统一插件目录，
         全版本不过滤并直接带回元信息）共用这一个方法，避免同一个来源在一次同步周期里被重复请求两次。
+
+        采集期间登记**采集代次**与**配置代次**（见 `SourceSyncStateService`）：
+        采集发起时 +1 一次采集代次并记下当时的配置代次，提交方拿这个代次来判定
+        "结果是否已过期"——配置在采集期间被改/删时，旧结果会被丢弃而不是当成当前结果
+        使用（避免误判插件失效）。
+
+        `collect_errors=True` 时按**来源**隔离失败：一个来源挂了不影响其它来源，
+        失败信息与采集代次一起返回给调用方（统一插件目录要按来源决定
+        "是否按覆盖范围失效"）。
         """
         source_plugins = {}
+        failures = {}
+        generations = {}
         for api_key, api_entry in cls._get_sources(space_id=space_id, source_key=source_key).items():
             current_source_key = cls._effective_source_key(api_key=api_key, api_entry=api_entry)
-            api_list = cls._fetch_api_list(
-                space_id=space_id,
-                api_entry=api_entry,
-                username=username,
-            )
+            generation = cls._begin_source_collect(space_id, current_source_key)
+            generations[current_source_key] = generation
+            try:
+                api_list = cls._fetch_api_list(
+                    space_id=space_id,
+                    api_entry=api_entry,
+                    username=username,
+                )
+            except Exception as exc:  # noqa: BLE001 按来源隔离，一个来源失败不影响其它来源
+                if not collect_errors:
+                    raise
+                error_type = SourceSyncStateService.classify_error(exc)
+                SourceSyncStateService.mark_failure(
+                    space_id, current_source_key, str(exc), error_type=error_type
+                )
+                logger.exception(
+                    "[开放插件目录] 来源采集失败: space_id=%s, source_key=%s, error_type=%s",
+                    space_id,
+                    current_source_key,
+                    error_type,
+                )
+                failures[current_source_key] = (error_type, str(exc))
+                continue
             plugins_by_id = source_plugins.setdefault(current_source_key, {})
             plugins_by_id.update({api_item["id"]: api_item for api_item in api_list})
+        if collect_errors:
+            return source_plugins, failures, generations
         return source_plugins
+
+    @staticmethod
+    def _begin_source_collect(space_id, source_key):
+        """登记一次采集（采集代次 +1、记下当前配置代次）。
+
+        `SourceSyncStateService` 只依赖 `plugin_catalog.models` 与 `space.*`，
+        不反向依赖 `plugin.services`，因此可以安全地模块级导入（无循环依赖）。
+        """
+        return SourceSyncStateService.begin_collect(space_id, source_key)
 
     @classmethod
     def list_space_plugins(cls, space_id, source_key=None):

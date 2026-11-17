@@ -151,10 +151,6 @@ class EntryStatusSerializer(serializers.Serializer):
         return attrs
 
 
-class SuggestDirectoryQuerySerializer(serializers.Serializer):
-    space_id = serializers.IntegerField(help_text=_("空间ID"))
-
-
 class PluginDetailQuerySerializer(serializers.Serializer):
     space_id = serializers.IntegerField(help_text=_("空间ID"))
 

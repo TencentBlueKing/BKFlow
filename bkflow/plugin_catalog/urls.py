@@ -86,11 +86,6 @@ plugin_entry_urlpatterns = [
     ),
     # --- detail：先匹配带子路径的，再匹配裸 `plugins/<id>/` ---
     re_path(
-        r"^plugins/(?P<pk>\d+)/status/suggest_directory/$",
-        _entry_views({"get": "suggest_directory"}, basename=_PLUGIN_CATALOG_ENTRY_BASENAME),
-        name="plugin_catalog_entry-suggest-directory",
-    ),
-    re_path(
         r"^plugins/(?P<pk>\d+)/detail/$",
         _entry_views({"get": "plugin_detail"}, basename=_PLUGIN_CATALOG_ENTRY_BASENAME),
         name="plugin_catalog_entry-detail",

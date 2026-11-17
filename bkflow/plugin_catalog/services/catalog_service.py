@@ -95,9 +95,9 @@ class PluginCatalogService:
         if replace_entry.id == entry_id:
             raise ValidationError("建议替换插件不能是插件自身")
         if replace_entry.status != PluginCatalogStatus.ENABLE:
-            raise ValidationError(
-                f"建议替换插件 {replace_plugin_id} 当前不是可用状态，不能作为替换建议"
-            )
+            # 用插件名称而不是 id，前端可直接展示给用户
+            plugin_name = replace_entry.plugin_name
+            raise ValidationError(f"建议替换插件「{plugin_name}」当前不是可用状态，不能作为替换建议")
         return replace_entry
 
     # ----------------------------------------------------------- 编辑单条(01) ----
@@ -206,14 +206,6 @@ class PluginCatalogService:
                 request_id=request_id,
             )
         return entry
-
-    @classmethod
-    def suggest_restore_directory(cls, space_id, entry_id):
-        """03 · 启用二次确认弹窗的默认目录建议：原目录仍存在则沿用，否则回「未分类」。"""
-        entry = cls._get_entry_or_404(space_id, entry_id)
-        if entry.directory_id and PluginDirectory.objects.filter(space_id=space_id, pk=entry.directory_id).exists():
-            return {"directory_id": entry.directory_id}
-        return {"directory_id": None}
 
     @classmethod
     def update_reason(

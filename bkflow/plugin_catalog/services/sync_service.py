@@ -28,6 +28,7 @@ from bkflow.plugin_catalog.models import (
     SpacePluginCatalogEntry,
 )
 from bkflow.plugin_catalog.services.source_group_service import SourceGroupService
+from bkflow.plugin_catalog.services.source_sync_state_service import SourceSyncStateService
 from bkflow.plugin_catalog.services.strategy_service import PluginAdmissionStrategyService
 from bkflow.space.configs import PluginCatalogMigrationConfig
 from bkflow.space.models import SpaceConfig
@@ -44,12 +45,16 @@ class PluginCatalogSyncService:
     """
 
     @classmethod
-    def sync_space_catalog(cls, space_id, username="admin"):
-        """对一个空间做一次全量三类来源同步，返回各类型的同步统计。"""
+    def sync_space_catalog(cls, space_id, username="admin", source_keys=None):
+        """对一个空间做一次全量三类来源同步，返回各类型的同步统计。
+
+        `source_keys` 只对 API 插件生效：**快速重试**时只重试指定来源，其它来源
+        这一轮既不采集也**不判定失效**（否则会被误判成"来源里没有了"）。
+        """
         return {
             PluginType.BUILTIN: cls.sync_builtin(space_id),
             PluginType.BK_PLUGIN: cls.sync_bk_plugin(space_id),
-            PluginType.API: cls.sync_api(space_id, username=username),
+            PluginType.API: cls.sync_api(space_id, username=username, source_keys=source_keys),
         }
 
     @classmethod
@@ -70,9 +75,12 @@ class PluginCatalogSyncService:
         )
 
     @classmethod
-    def sync_api(cls, space_id, username="admin"):
+    def sync_api(cls, space_id, username="admin", source_keys=None):
         """
         API 插件同步，覆盖 V2/V3/V4 全部协议版本，统一写入 SpacePluginCatalogEntry：
+
+        `source_keys` 只处理指定来源（**快速重试**时用）：其它来源这一轮既不采集、
+        也不判定失效——否则没采到的来源会被误判成"来源里已经没有这些插件了"。
 
         1. 调用 `OpenPluginCatalogService.sync_space_plugins_with_meta` **一次**请求完成两件事：
            刷新 `OpenPluginCatalogIndex`（只服务画布"缓存优先"展示路径、只收录 V4 协议插件，
@@ -89,14 +97,29 @@ class PluginCatalogSyncService:
 
         第 1 步本身请求失败（网络/凭证问题）时，直接跳过本次目录条目生成/失效判定，保留现状，
         避免把"这一轮没拉到"误判为"插件已被下架"。
+
+        采集与提交之间做了三件事（见 `SourceSyncStateService`）：
+
+        1. **代次判断**：采集期间来源配置被改/删时，旧结果会被丢弃（既不提交、
+           也不判定失效），避免误判插件失效。
+        2. **按覆盖范围失效**：只有**鉴权失败**（该来源整体挂了）才按覆盖范围把该来源
+           下的插件标记失效；超时/其它错误覆盖范围不明，**不判定失效**。
+        3. **有限重试**：采集失败已记进 `SourceSyncState`（失败次数 / 下次重试时间 /
+           耗尽标记），由调度侧决定是否快速重试。
         """
         try:
-            plugins_by_source = OpenPluginCatalogService.sync_space_plugins_with_meta(
-                space_id=space_id, username=username
+            collect_result = OpenPluginCatalogService.sync_space_plugins_with_meta(
+                space_id=space_id,
+                source_key=source_keys[0] if source_keys and len(source_keys) == 1 else None,
+                username=username,
             )
         except Exception:
             logger.exception("API 插件来源拉取失败，跳过本次目录条目生成: space_id=%s", space_id)
             return {"created": 0, "invalidated": 0, "skipped": True}
+
+        plugins_by_source = collect_result["sources"]
+        failures = collect_result.get("failures") or {}
+        generations = collect_result.get("generations") or {}
 
         configured_sources = set(plugins_by_source.keys())
         existing_sources = set(
@@ -108,7 +131,41 @@ class PluginCatalogSyncService:
         total_created, total_invalidated = 0, 0
         # 并集：当前仍配置的来源（可能有新增来源/新增插件）
         #     + 本空间已有记录的来源（可能对应的配置已被整体删除，需要级联失效）
-        for source_key in configured_sources | existing_sources:
+        sources = configured_sources | existing_sources
+        if source_keys is not None:
+            # 快速重试只处理指定来源；其它来源这一轮既不提交也不判定失效
+            sources = sources & set(source_keys)
+        for source_key in sources:
+            # ---- 代次判断：结果已过期就整来源丢弃（不提交、不判定失效）----
+            if source_key in generations and SourceSyncStateService.is_stale(
+                space_id, source_key, generations[source_key]
+            ):
+                continue
+
+            # ---- 采集失败：按错误类型决定「跳过」还是「按覆盖范围失效」----
+            if source_key in failures:
+                error_type, error_message = failures[source_key]
+                if SourceSyncStateService.invalidates_by_scope(error_type):
+                    # 鉴权失败：该来源整体挂了，它下面的插件确实都不可用 -> 按覆盖范围失效
+                    logger.warning(
+                        "[来源同步] 来源鉴权失败，按覆盖范围失效: space_id=%s, source_key=%s, error=%s",
+                        space_id,
+                        source_key,
+                        error_message,
+                    )
+                    total_invalidated += cls._invalidate_source_entries(space_id, source_key)
+                    continue
+                # 超时/其它：覆盖范围不明，不判定失效，保留现状
+                logger.warning(
+                    "[来源同步] 来源采集失败但覆盖范围不明，不判定失效: space_id=%s, source_key=%s, "
+                    "error_type=%s, error=%s",
+                    space_id,
+                    source_key,
+                    error_type,
+                    error_message,
+                )
+                continue
+
             plugins = plugins_by_source.get(source_key, {})
             stat = cls._sync_plugin_type(
                 space_id=space_id,
@@ -118,7 +175,30 @@ class PluginCatalogSyncService:
             )
             total_created += stat["created"]
             total_invalidated += stat["invalidated"]
+            # 采集成功：清零故障状态（只有新的成功证据才能让快速重试重新开启）
+            SourceSyncStateService.mark_success(space_id, source_key)
         return {"created": total_created, "invalidated": total_invalidated, "skipped": False}
+
+    @classmethod
+    def _invalidate_source_entries(cls, space_id, source_key):
+        """把该来源下的全部插件标记为失效（鉴权失败时按覆盖范围失效）。
+
+        与"某个插件从来源里消失"的处理一致：只改「来源事实」（状态置已失效），
+        不动管理员的管理决定（目录、推荐、未启用原因）。
+        """
+        entries = list(
+            SpacePluginCatalogEntry.objects.filter(
+                space_id=space_id, plugin_type=PluginType.API, source_key=source_key
+            )
+        )
+        invalidated = 0
+        now = timezone.now()
+        for entry in entries:
+            if entry.status == PluginCatalogStatus.EXPIRED:
+                continue
+            cls._mark_invalid(entry, now)
+            invalidated += 1
+        return invalidated
 
     @classmethod
     def _sync_plugin_type(cls, space_id, plugin_type, source_key, plugins):

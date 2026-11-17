@@ -376,3 +376,50 @@ class CatalogChangeRecord(BaseOperateRecord):
 
     def __str__(self):
         return f"{self.space_id}:{self.operate_type}:{self.instance_id}:{self.operator}"
+
+
+class SourceSyncState(models.Model):
+    """
+    来源同步状态：承载**有限重试**与**代次判断**两个机制。
+
+    - **粒度**：一行 = 一个 `(space_id, source_key)`。`builtin` / `bk_plugin` 的
+      `source_key` 恒为空串（这两类没有来源细分），API 插件按「执行来源」分行。
+    - **代次**：`config_generation` 是来源配置的代次标识（配置内容哈希），
+      `collect_generation` 是采集代次（每次发起采集 +1）。采集期间配置被改/删时，
+      旧结果晚到会因代次不一致被丢弃，不会被当成当前结果使用（避免误判插件失效）。
+    - **有限重试**：`retry_count` / `next_retry_at` / `exhausted` 记录"还能不能快速重试"。
+      耗尽后同一故障不重新开启快速重试，回到低频检查，只有新的成功证据才能恢复。
+    - **按覆盖范围失效**：`last_error_type` 区分「超时（覆盖范围不明，不判定失效）」
+      与「鉴权失败（该来源整体挂了，按覆盖范围失效）」。
+
+    与缓存表 / 队列消息的区别：这些状态**持久化在库里**，进程重启不丢，
+    也不依赖某条队列消息还在不在（设计文档明确"不以缓存锁或队列消息代替"）。
+    """
+
+    space_id = models.IntegerField(_("空间ID"), db_index=True)
+    source_key = models.CharField(_("来源标识"), max_length=64, blank=True, default="")
+
+    # ------------------------------------------------------------------ 代次 ----
+    config_generation = models.CharField(_("配置代次"), max_length=64, blank=True, default="")
+    collect_generation = models.BigIntegerField(_("采集代次"), default=0)
+
+    # -------------------------------------------------------------- 故障与重试 ----
+    failure_round = models.IntegerField(_("故障轮次"), default=0)
+    retry_count = models.IntegerField(_("已重试次数"), default=0)
+    next_retry_at = models.DateTimeField(_("下次快速重试时间"), null=True, blank=True)
+    exhausted = models.BooleanField(_("快速重试是否已耗尽"), default=False)
+    last_error = models.TextField(_("最近一次错误"), blank=True, default="")
+    last_error_type = models.CharField(_("最近一次错误类型"), max_length=32, blank=True, default="")
+    last_synced_at = models.DateTimeField(_("最近一次成功同步时间"), null=True, blank=True)
+
+    class Meta:
+        verbose_name = _("来源同步状态")
+        verbose_name_plural = _("来源同步状态")
+        app_label = "plugin_catalog"
+        unique_together = ("space_id", "source_key")
+        indexes = [
+            models.Index(fields=["space_id", "source_key"]),
+        ]
+
+    def __str__(self):
+        return f"{self.space_id}:{self.source_key or '(builtin)'}"
