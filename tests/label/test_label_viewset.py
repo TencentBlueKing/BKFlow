@@ -26,8 +26,25 @@ from rest_framework.test import APIRequestFactory
 from bkflow.admin.models import IsolationLevel, ModuleInfo, ModuleType
 from bkflow.label.models import Label, TemplateLabelRelation
 from bkflow.label.views import LabelViewSet
+from bkflow.template.models import Template, TemplateSnapshot
 
 from .test_label import make_label
+
+
+def make_template(template_id, space_id=1):
+    """Create a minimal Template record for testing label reference counts.
+
+    get_label_ref_count filters template refs by the current space via the
+    Template table, so tests must provide the referenced templates.
+    """
+    snapshot = TemplateSnapshot.objects.create(data={}, md5sum="", version="1")
+    return Template.objects.create(
+        id=template_id,
+        space_id=space_id,
+        snapshot_id=snapshot.id,
+        name=f"template_{template_id}",
+    )
+
 
 # Enable database access for all tests in this module
 pytestmark = pytest.mark.django_db
@@ -251,6 +268,8 @@ class TestLabelViewSet:
         l2 = make_label("label2", space_id=1)
 
         # Create template label relations
+        make_template(100, space_id=1)
+        make_template(101, space_id=1)
         TemplateLabelRelation.objects.create(template_id=100, label_id=l1.id)
         TemplateLabelRelation.objects.create(template_id=100, label_id=l2.id)
         TemplateLabelRelation.objects.create(template_id=101, label_id=l1.id)
@@ -295,6 +314,9 @@ class TestLabelViewSet:
         child2 = make_label("child2", space_id=1, parent_id=parent.id)
 
         # Template refs exist only on children
+        make_template(200, space_id=1)
+        make_template(201, space_id=1)
+        make_template(202, space_id=1)
         TemplateLabelRelation.objects.create(template_id=200, label_id=child1.id)
         TemplateLabelRelation.objects.create(template_id=201, label_id=child1.id)
         TemplateLabelRelation.objects.create(template_id=202, label_id=child2.id)
