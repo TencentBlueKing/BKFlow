@@ -338,6 +338,8 @@ class BatchDeletePeriodicTaskSerializer(serializers.Serializer):
 class LabelRefSerializer(serializers.Serializer):
     label_ids = serializers.CharField(help_text="标签ID", required=True)
     space_id = serializers.IntegerField(help_text="空间ID", required=True)
+    scope_type = serializers.CharField(help_text="流程范围类型", required=False)
+    scope_value = serializers.CharField(help_text="流程范围值", required=False)
 
 
 class TaskUpdateLabelSerializer(serializers.Serializer):

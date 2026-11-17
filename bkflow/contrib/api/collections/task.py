@@ -66,13 +66,15 @@ class TaskComponentClient(BaseComponentClient):
     def update_labels(self, task_id, data):
         return self._request(method="post", url=self._get_task_url("task/{}/update_labels/".format(task_id)), data=data)
 
-    def get_task_label_ref_count(self, space_id, label_ids):
+    def get_task_label_ref_count(self, space_id, label_ids, scope_type=None, scope_value=None):
+        data = {"space_id": space_id, "label_ids": label_ids}
+        if scope_type is not None and scope_value is not None:
+            data["scope_type"] = scope_type
+            data["scope_value"] = scope_value
         return self._request(
             method="get",
-            url=self._get_task_url(
-                "task/get_task_label_ref_count/?space_id={}&label_ids={}".format(space_id, label_ids)
-            ),
-            data=None,
+            url=self._get_task_url("task/get_task_label_ref_count/"),
+            data=data,
         )
 
     def delete_task_label_relation(self, data):
