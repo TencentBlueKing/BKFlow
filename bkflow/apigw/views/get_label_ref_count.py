@@ -10,6 +10,7 @@ from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.label import LabelRefCountSerializer
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.label.models import Label, TemplateLabelRelation
+from bkflow.template.models import Template
 from bkflow.utils import err_code
 
 
@@ -39,8 +40,12 @@ def get_label_ref_count(request, space_id):
         return task_result
     label_task_ref_count_map = task_result.get("data") or {}
 
+    # 仅统计属于当前空间的模板，避免统计到其他空间的同名/共享模板
+    space_template_ids = Template.objects.filter(space_id=int(space_id)).values_list("id", flat=True)
+
     aggregation_qs = (
         TemplateLabelRelation.objects.filter(label_id__in=all_query_label_ids)
+        .filter(template_id__in=space_template_ids)
         .values("label_id")
         .annotate(count=Count("id"))
     )
