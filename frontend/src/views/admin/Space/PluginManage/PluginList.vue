@@ -268,7 +268,6 @@
                 <category-select-panel
                   :category-tree="categoryTree"
                   :active-id="row.directory_id"
-                  :follow-source="!row.directory_id"
                   :ai-recommend-ids="row.id === quickAiRecommendRowId ? quickAiRecommendIds : []"
                   :ai-recommend-loading="aiRecommendLoading"
                   @select="payload => handleQuickCategorySelect(row, payload)" />
@@ -1341,7 +1340,7 @@ export default {
       if (!this.pluginList.length || !leafCategories.length) return;
       this.pluginList.forEach((row) => {
         const categoryId = leafCategories[Math.floor(Math.random() * leafCategories.length)];
-        this.$emit('categoryChange', { row, categoryId, followSource: false });
+        this.$emit('categoryChange', { row, categoryId });
       });
     },
     handleSelectionChange(selection) {
@@ -1355,15 +1354,15 @@ export default {
       return getCategoryPath(this.categories, categoryId);
     },
     // 快捷编辑所属分类
-    handleQuickChangeCategory(row, categoryId, followSource = false) {
+    handleQuickChangeCategory(row, categoryId) {
       const popRef = this.$refs[`categoryPop-${row.id}`];
       if (popRef && popRef[0]) {
         popRef[0].hideHandler();
       }
-      this.$emit('categoryChange', { row, categoryId, followSource });
+      this.$emit('categoryChange', { row, categoryId });
     },
     // 行内快捷分类面板
-    handleQuickCategorySelect(row, { categoryId, followSource, isAiRecommend }) {
+    handleQuickCategorySelect(row, { categoryId, isAiRecommend }) {
       if (isAiRecommend) {
         this.fetchAiRecommendIds([row.id]).then((ids) => {
           if (ids) {
@@ -1375,7 +1374,7 @@ export default {
       }
       this.quickAiRecommendRowId = '';
       this.quickAiRecommendIds = [];
-      this.handleQuickChangeCategory(row, categoryId, followSource);
+      this.handleQuickChangeCategory(row, categoryId);
     },
     async fetchAiRecommendIds(pluginIds) {
       if (this.aiRecommendLoading) return null;
@@ -1400,7 +1399,7 @@ export default {
       }
     },
     // 批量移动
-    handleBatchMoveCategory({ categoryId, followSource, isAiRecommend }) {
+    handleBatchMoveCategory({ categoryId, isAiRecommend }) {
       if (isAiRecommend) {
         this.fetchAiRecommendIds(this.selection.map(row => row.id)).then((ids) => {
           if (ids) this.batchAiRecommendIds = ids;
@@ -1411,7 +1410,7 @@ export default {
       if (popRef) {
         popRef.hideHandler();
       }
-      this.$emit('batchCategoryChange', { rows: [...this.selection], categoryId, followSource });
+      this.$emit('batchCategoryChange', { rows: [...this.selection], categoryId });
     },
     handleRowStatus(row, status, message) {
       this.$emit('statusChange', { row, status, message });

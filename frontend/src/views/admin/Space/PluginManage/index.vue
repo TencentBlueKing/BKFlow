@@ -184,7 +184,7 @@ export default {
     handleEditSaved() {
       this.loadSummary();
     },
-    async handleCategoryQuickChange({ row, categoryId, followSource: _followSource }) {
+    async handleCategoryQuickChange({ row, categoryId }) {
       try {
         await this.updatePlugin({
           plugin_id: row.id,
@@ -202,12 +202,12 @@ export default {
         console.log(e);
       }
     },
-    async handleBatchCategoryChange({ rows, categoryId, followSource }) {
+    async handleBatchCategoryChange({ rows, categoryId }) {
       try {
         await this.batchUpdatePluginCategory({
           space_id: this.spaceId,
           ids: rows.map(item => item.id),
-          directory_id: followSource ? '' : categoryId,
+          directory_id: categoryId,
         });
         await this.loadSummary();
         this.reloadPluginList();
@@ -237,7 +237,6 @@ export default {
             replace_plugin_id: replacePluginId || undefined,
           });
         }
-        console.log('handleStatusChange-请求data', data);
         await this.updatePluginStatus(data);
         // 状态变更不影响目录树 / 推荐计数 / 插件总数，无需刷新概要
         this.reloadPluginList();
