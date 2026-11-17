@@ -29,24 +29,81 @@ logger = logging.getLogger("celery")
 
 
 @shared_task(ignore_result=True, max_retries=0)
-def sync_space_plugin_catalog_task(space_id):
+def sync_space_plugin_catalog_task(space_id, trigger="schedule", source_keys=None):
     """
     按空间同步 builtin/bk_plugin/api 三类插件进统一插件目录。
     由 bkflow.plugin.tasks.dispatch_open_plugin_catalog_sync 对"已完成插件目录迁移"的空间
     批量投递。失败只记录日志，不自动重试，
     等下一轮周期调度自然重试（与现有 sync_open_plugin_catalog_source 的失败处理口径一致）。
+
+    `trigger` 区分触发原因（设计文档：快速重试与低频恢复走**同一个同步执行函数**、
+    不同触发原因，**不另建 retry task**、不新增 Beat 入口）：
+
+    - `schedule`：周期调度（Beat 30 分钟一轮）
+    - `retry`：失败后的快速重试（按 `SourceSyncState` 里的 `next_retry_at` 决定间隔，
+      10/20/40 秒退避、最多 3 次、抖动不超过 20%）
+
+    快速重试的判定状态**持久化在 `SourceSyncState` 表里**（不是队列消息），
+    进程重启不丢；耗尽后同一故障不重新开启快速重试，等下一轮周期调度自然重试。
     """
     # 延迟 import，避免在 Celery worker 启动阶段过早触发 bkflow.plugin_catalog.services 的
     # 模块级依赖加载顺序问题。
     from bkflow.plugin_catalog.services.sync_service import PluginCatalogSyncService
 
     try:
-        result = PluginCatalogSyncService.sync_space_catalog(space_id=space_id)
-        logger.info("空间插件目录同步完成: space_id=%s, result=%s", space_id, result)
-        return result
+        result = PluginCatalogSyncService.sync_space_catalog(
+            space_id=space_id, source_keys=source_keys
+        )
+        logger.info("空间插件目录同步完成: space_id=%s, trigger=%s, result=%s", space_id, trigger, result)
     except Exception:
-        logger.exception("空间插件目录同步失败: space_id=%s", space_id)
+        logger.exception("空间插件目录同步失败: space_id=%s, trigger=%s", space_id, trigger)
         raise
+
+    # 采集失败的来源：未耗尽且有下次重试时间 -> 延迟投递自己（同一个 task，trigger=retry）
+    if trigger != "retry":
+        _dispatch_fast_retry(space_id)
+    return result
+
+
+def _dispatch_fast_retry(space_id):
+    """为采集失败的来源投递一次**快速重试**（同一个 task，`trigger=retry`）。
+
+    设计文档要求：快速重试与低频恢复走**同一个同步执行函数、不同触发原因**，
+    **不另建 retry task**、不新增 Beat 入口；重试次数与时限写在 `SourceSyncState`
+    （不是队列消息），进程重启不丢。
+
+    只重试「失败且未耗尽」的来源；耗尽的（同一故障已重试满 3 次）等下一轮周期调度。
+    """
+    from django.utils import timezone
+
+    from bkflow.plugin_catalog.services.source_sync_state_service import SourceSyncStateService
+
+    pending = SourceSyncStateService.pending_retry_sources(space_id)
+    if not pending:
+        return 0
+
+    # 每次失败后都要投递，用 countdown 把唤醒时间对齐到 `next_retry_at`
+    # （10/20/40 秒退避）；已经到点的 countdown 为 0（立即重试）。
+    now = timezone.now()
+    source_keys = [source_key for source_key, _ in pending]
+    next_at = min(next_retry_at for _, next_retry_at in pending)
+    countdown = max(0, int((next_at - now).total_seconds()))
+    try:
+        sync_space_plugin_catalog_task.apply_async(
+            args=[space_id],
+            kwargs={"trigger": "retry", "source_keys": source_keys},
+            countdown=countdown,
+        )
+    except Exception:
+        logger.exception("[来源同步] 快速重试投递失败，等下一轮周期调度: space_id=%s", space_id)
+        return 0
+    logger.info(
+        "[来源同步] 已投递快速重试: space_id=%s, source_keys=%s, countdown=%ss",
+        space_id,
+        source_keys,
+        countdown,
+    )
+    return len(source_keys)
 
 
 @shared_task(ignore_result=True, max_retries=0)

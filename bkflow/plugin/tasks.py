@@ -69,13 +69,17 @@ def dispatch_open_plugin_catalog_sync():
 
 def _dispatch_plugin_catalog_sync():
     """为已完成插件目录迁移的空间投递统一插件目录同步任务。延迟 import 避免
-    bkflow.plugin 对 bkflow.plugin_catalog 产生模块级依赖/循环导入。"""
+    bkflow.plugin 对 bkflow.plugin_catalog 产生模块级依赖/循环导入。
+
+    这是**周期调度**入口（Beat 30 分钟一轮，`trigger=schedule`）；失败后的快速重试
+    由任务自身投递自己（同一个任务，`trigger=retry`），不新增 Beat 入口。
+    """
     from bkflow.plugin_catalog.services.sync_service import PluginCatalogSyncService
     from bkflow.plugin_catalog.tasks import sync_space_plugin_catalog_task
 
     space_ids = sorted(set(PluginCatalogSyncService.iter_ready_spaces()))
     for space_id in space_ids:
-        sync_space_plugin_catalog_task.delay(space_id=space_id)
+        sync_space_plugin_catalog_task.delay(space_id=space_id, trigger="schedule")
 
     logger.info("空间插件目录同步任务已投递: space_count=%s", len(space_ids))
     return len(space_ids)

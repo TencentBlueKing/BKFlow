@@ -33,7 +33,6 @@ from bkflow.plugin_catalog.serializers.catalog import (
     ReasonSerializer,
     ReferenceListQuerySerializer,
     SpaceIdQuerySerializer,
-    SuggestDirectoryQuerySerializer,
 )
 from bkflow.plugin_catalog.services.catalog_service import PluginCatalogService
 from bkflow.plugin_catalog.services.query_service import PluginCatalogQueryService
@@ -126,13 +125,6 @@ class PluginCatalogAdminViewSet(PluginCatalogErrorMixin, TenantScopeMixin, Simpl
             **extra,
         )
         return Response(PluginCatalogQueryService.serialize_entries(data["space_id"], [entry])[0])
-
-    def suggest_directory(self, request, pk=None):
-        ser = SuggestDirectoryQuerySerializer(data=request.query_params)
-        ser.is_valid(raise_exception=True)
-        return Response(
-            PluginCatalogService.suggest_restore_directory(space_id=ser.validated_data["space_id"], entry_id=pk)
-        )
 
     def plugin_detail(self, request, pk=None):
         """07 · 基本信息 + 引用统计 + 首页引用列表（一次性返回，避免详情侧滑二次请求）。"""
