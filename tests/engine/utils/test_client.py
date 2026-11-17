@@ -259,8 +259,8 @@ class TestTaskComponentClient:
         client.get_task_label_ref_count(1, "1,2")
         client._request.assert_called_with(
             method="get",
-            url="http://task.space1/task/get_task_label_ref_count/?space_id=1&label_ids=1,2",
-            data=None,
+            url="http://task.space1/task/get_task_label_ref_count/",
+            data={"space_id": 1, "label_ids": "1,2"},
         )
 
         client.delete_task_label_relation({"task_id": 1, "label_ids": [1]})
