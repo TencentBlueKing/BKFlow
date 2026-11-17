@@ -10,7 +10,7 @@
       <span class="recommend-divider" />
       <span class="recommend-count">
         {{ $t('已推荐') }}
-        <span>{{ rows.length }} / {{ maxRecommend }}</span>
+        <span>{{ pluginList.length }} / {{ maxRecommend }}</span>
       </span>
     </div>
     <div
@@ -28,7 +28,7 @@
       :show-condition="false"
       clearable
       :popover-zindex="2300"
-      :placeholder="$t('搜索 插件名称、类型、来源、目录、描述、最近修改人')"
+      :placeholder="$t('搜索 插件名称、类型、来源、目录、最近修改人')"
       @change="handleSearchChange" />
     <div
       v-if="!isRecommend"
@@ -51,23 +51,16 @@
     </div>
 
     <bk-alert
-      v-if="isInvalidTab"
-      class="legacy-alert invalid-alert"
-      type="warning">
-      <template slot="title">
-        <span>{{ $t('以下插件在来源中已不存在，本空间仍保留它们的设置记录，它们不会出现在画布面板；已有流程中的节点保持原样，能否执行取决于来源。') }}</span>
-      </template>
-    </bk-alert>
-
-    <bk-alert
       v-if="isReviewTab"
       class="legacy-alert review-alert"
       type="warning">
       <template slot="title">
         <ul class="review-alert-tips">
           <li>
-            {{ $t('当前新插件策略为「全部需要审核 / 设条件自动通过」，如需调整，请前往') }}
-            <span class="strategy-link">{{ $t('新插件策略') }}</span>
+            {{ $t('当前新插件策略为「{mode}」，如需调整，请前往', { mode: strategyModeText }) }}
+            <span
+              class="strategy-link"
+              @click="$emit('openStrategy')">{{ $t('新插件策略') }}</span>
           </li>
           <li>
             {{ $t('通过之前，请确认「目标目录」，默认是「未分类」，可手动「修改目标目录」') }}
@@ -77,7 +70,7 @@
     </bk-alert>
 
     <div
-      v-if="hasToolbar"
+      v-if="hasSelection"
       class="list-toolbar">
       <div class="toolbar-left">
         <template v-if="isReviewTab">
@@ -103,7 +96,7 @@
                     {{ $t('插件状态') }}：<span>{{ reviewSelectedNames }}</span>
                   </p>
                   <p class="clean-pop-desc">
-                    {{ $t('启用后，将自动按绑定分类并设为可见') }}
+                    {{ $t('启用后，将自动绑定到对应分类并设为启用') }}
                   </p>
                 </div>
               </div>
@@ -116,8 +109,8 @@
           </bk-popconfirm>
           <bk-button
             :disabled="!selection.length"
-            @click="handleBatchStatus('rejected')">
-            {{ $t('批量停用') }}
+            @click="handleBatchStatus('not_enable')">
+            {{ $t('批量不启用') }}
           </bk-button>
           <bk-popover
             v-if="selection.length"
@@ -131,11 +124,13 @@
             :transfer="true">
             <bk-button
               icon-right="icon-angle-down">
-              {{ $t('批量移动') }}
+              {{ $t('修改目标目录') }}
             </bk-button>
             <template slot="content">
               <category-select-panel
                 :category-tree="categoryTree"
+                :ai-recommend-ids="batchAiRecommendIds"
+                :ai-recommend-loading="aiRecommendLoading"
                 @select="handleBatchMoveCategory" />
             </template>
           </bk-popover>
@@ -143,7 +138,7 @@
             v-else
             disabled
             icon-right="icon-angle-down">
-            {{ $t('批量移动') }}
+            {{ $t('修改目标目录') }}
           </bk-button>
         </template>
         <template v-else-if="isAvailableTab">
@@ -165,17 +160,54 @@
             <template slot="content">
               <category-select-panel
                 :category-tree="categoryTree"
+                :ai-recommend-ids="batchAiRecommendIds"
+                :ai-recommend-loading="aiRecommendLoading"
                 @select="handleBatchMoveCategory" />
             </template>
           </bk-popover>
+        </template>
+        <template v-else-if="isUnusedTab">
+          <bk-popconfirm
+            trigger="click"
+            placement="bottom-start"
+            width="330"
+            ext-cls="review-popconfirm"
+            :disabled="!selection.length"
+            :confirm-text="$t('启用')"
+            :cancel-text="$t('取消')"
+            @confirm="handleBatchReviewPass">
+            <template slot="content">
+              <div class="clean-pop-main">
+                <span class="clean-pop-icon is-info">
+                  <i class="bk-icon icon-info-circle-shape" />
+                </span>
+                <div class="clean-pop-texts">
+                  <p class="clean-pop-title">
+                    {{ $t('确定批量启用插件？') }}
+                  </p>
+                  <p class="clean-pop-name">
+                    {{ $t('插件状态') }}：<span>{{ reviewSelectedNames }}</span>
+                  </p>
+                  <p class="clean-pop-desc">
+                    {{ $t('启用后，将自动绑定到对应分类并设为启用') }}
+                  </p>
+                </div>
+              </div>
+            </template>
+            <bk-button
+              theme="primary"
+              :disabled="!selection.length">
+              {{ $t('批量启用') }}
+            </bk-button>
+          </bk-popconfirm>
         </template>
       </div>
     </div>
 
     <bk-table
       ref="pluginTable"
-      v-bkloading="{ isLoading: loading || submitting }"
-      :data="rows"
+      v-bkloading="{ isLoading: loading || submitting, immediate: true }"
+      :data="pluginList"
       :size="'small'"
       :pagination="pagination"
       :ext-cls="isRecommend ? 'plugin-list-table recommend-table' : 'plugin-list-table'"
@@ -186,6 +218,7 @@
       <bk-table-column
         v-if="!isRecommend && hasSelection"
         type="selection"
+        :selectable="selectionSelectable"
         width="42" />
       <bk-table-column
         v-for="col in tableColumns"
@@ -205,14 +238,14 @@
             v-if="col.id === 'name'"
             class="plugin-name-cell">
             <span
-              v-if="isRecommend || row.tag === 'recommend'"
+              v-if="isRecommend || row.recommended"
               class="plugin-tag is-recommend">{{ $t('推荐') }}</span>
             <span
               class="plugin-name"
-              @click="handleNameClick(row)">{{ row.name }}</span>
+              @click="handleNameClick(row)">{{ row.plugin_name }}</span>
           </div>
-          <span v-else-if="col.id === 'type'">{{ typeText(row.type) }}</span>
-          <span v-else-if="col.id === 'source'">{{ sourceText(row.source) }}</span>
+          <span v-else-if="col.id === 'type'">{{ row.plugin_type_name || typeText(row.plugin_type) }}</span>
+          <span v-else-if="col.id === 'source'">{{ row.source_name || sourceText(row.source_key) }}</span>
           <div
             v-else-if="col.id === 'category'"
             class="category-cell">
@@ -225,42 +258,39 @@
               :width="280"
               :arrow="false"
               :transfer="true"
-              @show="activeCategoryPopId = row.id"
+              @show="activeCategoryPopId = row.id; quickAiRecommendRowId = ''; quickAiRecommendIds = []"
               @hide="activeCategoryPopId === row.id && (activeCategoryPopId = '')">
               <div
                 :class="['category-chip', { 'is-active': activeCategoryPopId === row.id }]">
-                <span>{{ categoryPath(row.category) }}</span>
+                <span>{{ categoryPath(row.directory_id) }}</span>
               </div>
               <template slot="content">
                 <category-select-panel
                   :category-tree="categoryTree"
-                  :active-id="row.category"
-                  :follow-source="!row.category"
-                  @select="payload => handleQuickChangeCategory(row, payload.categoryId, payload.followSource)" />
+                  :active-id="row.directory_id"
+                  :ai-recommend-ids="row.id === quickAiRecommendRowId ? quickAiRecommendIds : []"
+                  :ai-recommend-loading="aiRecommendLoading"
+                  @select="payload => handleQuickCategorySelect(row, payload)" />
               </template>
             </bk-popover>
           </div>
           <!-- 状态 -->
           <span
             v-else-if="col.id === 'status'"
-            :class="['status-badge', `is-${row.status}`]">
-            <i :class="['bk-icon', statusMap[row.status].icon]" />
-            {{ statusMap[row.status].label }}
+            :class="['status-badge', `is-${statusGroup(row.status)}`]">
+            <i :class="['bk-icon', (statusMap[statusGroup(row.status)] || {}).icon]" />
+            {{ (statusMap[statusGroup(row.status)] || {}).label }}
           </span>
           <!-- 引用流程数 -->
           <span
-            v-else-if="col.id === 'refCount'"
+            v-else-if="col.id === 'ref_count'"
             class="ref-count">
-            {{ row.refCount }}
-          </span>
-          <!-- 来源入库时间 -->
-          <span v-else-if="col.id === 'incomeTime'">
-            {{ row.incomeTime || row.updateTime || '--' }}
+            {{ row.ref_count }}
           </span>
           <span v-else>{{ row[col.id] || "--" }}</span>
         </template>
       </bk-table-column>
-      <!-- 空间推荐：取消推荐 + 更多（编辑 / 状态变更 / 下架配置） -->
+      <!-- 空间推荐：取消推荐 + 更多（编辑 / 状态变更 / 停用配置） -->
       <bk-table-column
         v-if="isRecommend"
         :label="$t('操作')"
@@ -278,8 +308,9 @@
               :ref="`rowMore-${row.id}`"
               theme="light"
               placement="bottom-start"
-              :width="78"
-              :distance="4">
+              :width="84"
+              :distance="4"
+              :arrow="false">
               <i class="bk-icon icon-more row-more-icon" />
               <template slot="content">
                 <ul class="dropdown-list">
@@ -297,13 +328,13 @@
         </template>
       </bk-table-column>
       <bk-table-column
-        v-else-if="!isInvalidTab"
+        v-else
         :label="$t('操作')"
         :width="isReviewTab ? 110 : 150"
         fixed="right">
         <template slot-scope="{ row }">
           <div class="operate-column">
-            <!-- 可用：编辑 / 下架 -->
+            <!-- 可用：编辑 / 停用 -->
             <template v-if="isAvailableTab">
               <bk-button
                 text
@@ -314,12 +345,13 @@
               <bk-button
                 text
                 theme="primary"
-                @click="openOfflineDialog(row)">
+                @click="openDisabledDialog(row)">
                 {{ $t('停用') }}
               </bk-button>
             </template>
-            <template v-else-if="isReviewTab || isRejectedTab">
+            <template v-else-if="isReviewTab || isUnusedTab">
               <bk-popconfirm
+                v-if="isReviewTab || row.status === 'disabled'"
                 trigger="click"
                 placement="bottom"
                 width="360"
@@ -358,6 +390,8 @@
                         <category-select-panel
                           :category-tree="categoryTree"
                           :active-id="passCategory"
+                          :ai-recommend-ids="passAiRecommendIds"
+                          :ai-recommend-loading="aiRecommendLoading"
                           @select="handlePassCategorySelect" />
                       </template>
                     </bk-popover>
@@ -375,14 +409,14 @@
                 v-if="isReviewTab"
                 text
                 theme="primary"
-                @click="handleRowStatus(row, 'rejected')">
+                @click="handleRowStatus(row, 'disabled')">
                 {{ $t('不启用') }}
               </bk-button>
               <bk-button
-                v-else
+                v-else-if="row.status === 'disabled'"
                 text
                 theme="primary"
-                @click="openOfflineConfigDialog(row)">
+                @click="openDisabledConfigDialog(row)">
                 {{ $t('停用配置') }}
               </bk-button>
             </template>
@@ -401,42 +435,43 @@
       :visible.sync="isDetailSliderShow"
       :plugin="detailPlugin"
       :space-id="spaceId"
-      :category-tree="categoryTree" />
+      :category-tree="categoryTree"
+      @viewFlow="handleDetailViewFlow" />
 
-    <!-- 下架确认弹窗 -->
+    <!-- 停用确认弹窗 -->
     <bk-dialog
-      v-model="offlineDialogVisible"
-      ext-cls="offline-confirm-dialog"
+      v-model="disabledDialogVisible"
+      ext-cls="disabled-confirm-dialog"
       :width="640"
       header-position="left">
       <template slot="header">
-        <div class="offline-dialog-header">
-          {{ $t('确认停用 「{name}」插件？', { name: offlineRow ? offlineRow.name : '' }) }}
+        <div class="disabled-dialog-header">
+          {{ $t('确认停用 「{name}」插件？', { name: disabledRow ? disabledRow.plugin_name : '' }) }}
         </div>
       </template>
       <div
-        v-if="offlineRow"
-        class="offline-dialog-body">
-        <!-- 下架说明 -->
-        <div class="offline-alert">
+        v-if="disabledRow"
+        class="disabled-dialog-body">
+        <!-- 停用说明 -->
+        <div class="disabled-alert">
           <bk-icon type="exclamation-circle" />
           <div class="alert-content">
             <p class="alert-title">
               {{ $t('停用只禁止新增使用：') }}
             </p>
             <ul>
-              <li>{{ $t('已有流程中的') }} <b>{{ offlineRow.nodeCount || 0 }}</b> {{ $t('个节点照常编辑、执行，画布上标记「已下架」；') }}</li>
+              <li>{{ $t('已有流程中的') }} <b>{{ disabledRow.node_count || 0 }}</b> {{ $t('个节点照常编辑、执行，画布上标记「已停用」；') }}</li>
               <li>{{ $t('在已有流程里新增该插件的节点将无法保存，新建、复制、导入流程不受限制。') }}</li>
             </ul>
           </div>
         </div>
-        <!-- 下架原因 -->
+        <!-- 停用原因 -->
         <div class="form-item">
           <div class="form-label">
             {{ $t('停用原因（选填）') }}
           </div>
           <bk-input
-            v-model="offlineForm.offlineReason"
+            v-model="disabledForm.disable_reason"
             type="textarea"
             :rows="3"
             :maxlength="200"
@@ -446,19 +481,21 @@
         <!-- 替换插件 -->
         <div class="form-item">
           <div class="form-label">
-            {{ $t('停用插件（选填）') }}
+            {{ $t('替换插件（选填）') }}
           </div>
           <bk-cascade
             v-model="replacePluginPath"
             class="replace-cascade"
-            ext-popover-cls="offline-cascade-popover"
-            :list="offlineCascadeList"
+            ext-popover-cls="disabled-cascade-popover"
+            :list="disabledCascadeList"
             :clearable="true"
             :placeholder="$t('请选择')">
-            <!-- 各级选项前置分类图标（与侧栏目录分类一致）；末级插件无 icon 字段，不显示图标 -->
             <template
               slot="option"
               slot-scope="{ node }">
+              <i
+                v-if="node.divider"
+                class="cascade-cate-divider" />
               <i
                 v-if="node.icon"
                 :class="['cascade-cate-icon', node.icon]" />
@@ -467,21 +504,21 @@
           </bk-cascade>
         </div>
         <p class="dialog-tips">
-          {{ $t('原因与停用插件会显示在画布节点提示与保存拦截提示中。') }}
+          {{ $t('原因与替换插件会显示在画布节点提示与保存拦截提示中。') }}
           <br>
-          {{ $t('不填原因时，画布/拦截统一显示「该插件已被空间管理员下架」。') }}
+          {{ $t('不填原因时，画布/拦截统一显示「该插件已被空间管理员停用」。') }}
         </p>
       </div>
       <template slot="footer">
         <bk-button
           theme="danger"
           :outline="true"
-          @click="handleOfflineConfirm">
+          @click="handleDisabledConfirm">
           {{ $t('确认停用') }}
         </bk-button>
         <bk-button
           theme="default"
-          @click="handleOfflineCancel">
+          @click="handleDisabledCancel">
           {{ $t('取消') }}
         </bk-button>
       </template>
@@ -507,14 +544,18 @@
               <div class="info-name-row">
                 <span
                   v-bk-overflow-tips
-                  class="info-name">{{ editingPlugin.name }}</span>
+                  class="info-name">{{ editingPlugin.plugin_name }}</span>
                 <span
-                  v-if="editingPlugin.tag === 'recommend'"
+                  v-if="editingPlugin.recommended"
                   class="recommend-tag">推荐</span>
-                <span :class="['status-badge', `is-${editingPlugin.status}`]">{{ editingStatusInfo.label }}</span>
+                <span :class="['status-badge', `is-${editingPlugin.status}`]">
+                  <bk-icon
+                    v-if="['expired', 'not_enable', 'disabled'].includes(editingPlugin.status)"
+                    type="exclamation-triangle-shape" />
+                  {{ editingStatusInfo.label }}</span>
               </div>
               <p class="info-desc">
-                {{ editingPlugin.desc || '--' }}
+                {{ editingPlugin.plugin_desc || '--' }}
               </p>
             </div>
           </div>
@@ -535,20 +576,20 @@
               <span class="meta-label">{{ $t('插件身份：') }}</span>
               <span
                 v-bk-overflow-tips
-                class="meta-value is-code">{{ editingPlugin.code || '--' }}</span>
+                class="meta-value is-code">{{ editingPlugin.plugin_code || '--' }}</span>
             </div>
           </div>
         </section>
 
         <div
-          v-if="isOfflineConfigMode"
-          class="edit-form-area offline-config-form">
+          v-if="isDisabledConfigMode"
+          class="edit-form-area disabled-config-form">
           <div class="edit-form-item">
             <div class="edit-form-label">
               {{ $t('停用原因（选填）') }}
             </div>
             <bk-input
-              v-model="editForm.offlineReason"
+              v-model="editForm.disable_reason"
               type="textarea"
               :rows="3"
               :maxlength="200"
@@ -557,18 +598,21 @@
           </div>
           <div class="edit-form-item">
             <div class="edit-form-label">
-              {{ $t('停用插件（选填）') }}
+              {{ $t('替换插件（选填）') }}
             </div>
             <bk-cascade
               v-model="replacePluginPath"
               class="replace-cascade"
-              ext-popover-cls="offline-cascade-popover"
-              :list="offlineCascadeList"
+              ext-popover-cls="disabled-cascade-popover"
+              :list="disabledCascadeList"
               :clearable="true"
               :placeholder="$t('请选择')">
               <template
                 slot="option"
                 slot-scope="{ node }">
+                <i
+                  v-if="node.divider"
+                  class="cascade-cate-divider" />
                 <i
                   v-if="node.icon"
                   :class="['cascade-cate-icon', node.icon]" />
@@ -577,9 +621,9 @@
             </bk-cascade>
           </div>
           <p class="dialog-tips">
-            {{ $t('原因与停用插件会显示在画布节点提示与保存拦截提示中。') }}
+            {{ $t('原因与替换插件会显示在画布节点提示与保存拦截提示中。') }}
             <br>
-            {{ $t('不填原因时，画布/拦截统一显示「该插件已被空间管理员下架」。') }}
+            {{ $t('不填原因时，画布/拦截统一显示「该插件已被空间管理员停用」。') }}
           </p>
         </div>
         <div
@@ -593,6 +637,15 @@
             <bk-select
               v-model="editForm.category"
               :searchable="true">
+              <bk-option-group
+                v-if="editAiRecommendations.length"
+                :name="$t('AI 推荐')">
+                <bk-option
+                  v-for="item in editAiRecommendations"
+                  :id="item.id"
+                  :key="item.id"
+                  :name="item.name" />
+              </bk-option-group>
               <bk-option
                 v-for="item in editCategoryOptions"
                 :id="item.id"
@@ -659,38 +712,27 @@ import PluginDetailSlider from './PluginDetailSlider.vue';
 import CategorySelectPanel from './CategorySelectPanel.vue';
 import bkCascade from 'bk-magic-vue/lib/cascade';
 import 'bk-magic-vue/lib/ui/cascade.css';
-import Sortable from 'sortablejs';
 import aiBluekingIcon from '@/assets/images/ai-blueking.svg';
-import useListQuery from './mixins/useListQuery';
-import {
-  getPluginList,
-  updatePlugin,
-  getRecommendList,
-  saveRecommendOrder,
-  cancelRecommend,
-  updatePluginStatus,
-} from './api';
+import { mapActions } from 'vuex';
 import {
   getStatusMap,
   getStatusTabs,
+  normalizePluginStatus,
   getTypeOptions,
   getSourceOptions,
   getTypeText,
   getSourceText,
+  matchPluginSource,
   getCategoryPath,
   buildCategoryNameMap,
   getRowActions,
   getStatusChangeMessage,
+  mapBackendStatus,
   renderCategoryHeader as renderCategoryHeaderCell,
   MAX_RECOMMEND,
   CATEGORY_ICONS,
 } from './shared';
 
-// 拖拽幽灵行固定宽度（设计稿 figma 236:8851）
-const GHOST_FIXED_WIDTH = 700;
-// 幽灵行可见列的索引：手柄(1) / 插件(3) / 类型(4) / 所属分类(6)（与 CSS nth-child 对应）
-const GHOST_VISIBLE_COLUMNS = [0, 2, 3, 5];
-// 编辑弹窗「所属目录」下拉的两个固定项（仅用于下拉选择，不直接落库；口径与分类选择面板一致）
 const EDIT_AI_RECOMMEND = '__ai_recommend__';
 const EDIT_UNCATEGORIZED = '__uncategorized__';
 
@@ -701,8 +743,11 @@ export default {
     CategorySelectPanel,
     bkCascade,
   },
-  mixins: [useListQuery],
   props: {
+    category: {
+      type: String,
+      default: 'all',
+    },
     categoryTitle: {
       type: String,
       default: '',
@@ -720,12 +765,12 @@ export default {
       type: [String, Number],
       default: '',
     },
-    // 全量插件（用于下架确认弹窗的替换插件选项）
+    // 全量插件（用于停用确认弹窗的替换插件选项）
     plugins: {
       type: Array,
       default: () => [],
     },
-    // 分类原始树（用于下架确认弹窗的替换插件级联分组）
+    // 分类原始树（用于停用确认弹窗的替换插件级联分组）
     categoryTree: {
       type: Array,
       default: () => [],
@@ -735,24 +780,36 @@ export default {
       type: Number,
       default: 0,
     },
+    strategyMode: {
+      type: String,
+      default: 'review',
+    },
   },
   data() {
     return {
-      rows: [],
+      activeTab: 'enable',
+      searchValues: [],
+      total: 0,
+      pagination: {
+        current: 1,
+        count: 0,
+        limit: 10,
+      },
+      pluginList: [],
       loading: false,
       statusCounts: {},
       pendingLocateTab: false,  // 仅「搜索条件变化」触发的那次请求才自动定位 Tab，避免覆盖用户手动切换的选择
+      skipAutoFetch: false,
       selection: [],
       isDetailSliderShow: false,
       detailPlugin: null,
-      offlineDialogVisible: false,
-      offlineRow: null,
-      offlineForm: {
-        offlineReason: '',
-        replacePluginId: '',
+      disabledDialogVisible: false,
+      disabledRow: null,
+      disabledForm: {
+        disable_reason: '',
       },
       replacePluginPath: [], // 级联选中路径（分类 → 子分类 → 插件），末级即替换插件 id
-      activeCategoryPopId: '', // 面板展开中的分类 chip 所在行 id（激活态样式）
+      activeCategoryPopId: '',
       editDialogVisible: false,
       editMode: 'edit',
       editingPlugin: null,
@@ -760,27 +817,102 @@ export default {
       editForm: {
         category: '',
         recommended: false,
-        offlineReason: '',
+        disable_reason: '',
       },
       passRow: null,
       passCategory: '',
-      activePassCategoryPop: false, // 启用至目录下拉展开态（激活触发框边框样式）
-      // hideOnClick:false 保证点击目录下拉时确认气泡不关闭；onCreate 给 tooltip 根元素加类，用于清掉 tippy 自带 padding
+      // 编辑弹窗 AI 推荐
+      editAiRecommendIds: [],
+      // 列表行内快捷分类的 AI 推荐建议
+      quickAiRecommendRowId: '',
+      quickAiRecommendIds: [],
+      // AI 推荐
+      batchAiRecommendIds: [],
+      passAiRecommendIds: [],
+      aiRecommendLoading: false,
+      activePassCategoryPop: false,
       passTippyOptions: {
         hideOnClick: false,
         onCreate: (instance) => {
           instance.tooltip && instance.tooltip.classList.add('review-pass-tooltip');
         },
       },
-      submitting: false, // 空间推荐的写操作（排序 / 取消推荐 / 状态变更）进行中
-      sortable: null,
-      grabPointerY: 0,
-      grabRowTop: 0,
+      submitting: false, // 空间推荐的写操作（取消推荐 / 状态变更）进行中
     };
   },
   computed: {
+    // 搜索条件转查询参数
+    searchParams() {
+      const params = {
+        searchType: [],
+        searchSource: [],
+        searchCategory: [],
+        searchName: '',
+        searchUpdatedBy: '',
+        keyword: [],
+      };
+      const fieldMap = {
+        type: 'searchType',
+        source: 'searchSource',
+        category: 'searchCategory',
+      };
+      (this.searchValues || []).forEach((chip) => {
+        const { id, name, values } = chip || {};
+        // 模糊匹配插件名称 / 最近修改人
+        if (!fieldMap[id]) {
+           if (Array.isArray(values)) {
+            params.keyword.push(values[0].id);
+           } else {
+            params.keyword.push(name);
+           }
+        } else {
+          params[fieldMap[id]].push(values[0].id);
+        }
+      });
+      return params;
+    },
+    queryParams() {
+      const search = this.searchParams;
+      console.log('search', search);
+      // 「未启用」Tab 聚合 disabled + expired 两态
+      const statusMap = { not_enable: ['disabled', 'expired'] };
+      const status = statusMap[this.activeTab] || (this.activeTab ? [this.activeTab] : []);
+      const pluginTypes = Array.isArray(search.searchType) ? search.searchType : [];
+      const keyword = [
+        ...(Array.isArray(search.keyword) ? search.keyword : [search.keyword]),
+        search.searchName,
+        search.searchUpdatedBy,
+      ].map(item => String(item || '').trim()).filter(Boolean);
+      const params = {
+        space_id: this.spaceId,
+        directory_id: this.category || 'all',
+        page: this.pagination.current,
+        page_size: this.pagination.limit,
+      };
+      if (status.length) params.status = status.join(',');
+      if (pluginTypes.length) params.plugin_type = pluginTypes.join(',');
+      if ((search.searchSource || []).length) params.source_key = search.searchSource.join(',');
+      if (keyword.length) params.keyword = keyword.join(',');
+      if (search.searchCategory.length > 0) params.directory_id = search.searchCategory.join(',');
+      return params;
+    },
     isRecommend() {
       return this.category === 'recommend';
+    },
+    editAiRecommendations() {
+      const ids = new Set((this.editAiRecommendIds || []).map(id => String(id)));
+      const options = [];
+      (this.categoryTree || []).forEach((group) => {
+        if (ids.has(String(group.id))) {
+          options.push({ id: group.id, name: group.name });
+        }
+        (group.children || []).forEach((sub) => {
+          if (ids.has(String(sub.id))) {
+            options.push({ id: sub.id, name: `${group.name}/${sub.name}` });
+          }
+        });
+      });
+      return options;
     },
     editCategoryOptions() {
       const options = [
@@ -796,7 +928,7 @@ export default {
           name: this.$t('未分类'),
           label: this.$t('未分类'),
           special: 'uncategorized',
-          divider: true,
+          divider: (this.categoryTree || []).length > 0,
         },
       ];
       (this.categoryTree || []).forEach((group) => {
@@ -810,6 +942,14 @@ export default {
     maxRecommend() {
       return MAX_RECOMMEND;
     },
+    strategyModeText() {
+      const map = {
+        review: this.$t('全部需要审核'),
+        visible: this.$t('全部直接通过'),
+        conditional: this.$t('设条件自动通过'),
+      };
+      return map[this.strategyMode] || map.review;
+    },
     statusMap() {
       return getStatusMap(key => this.$t(key));
     },
@@ -817,28 +957,21 @@ export default {
     statusTabs() {
       return getStatusTabs(this.statusCounts, key => this.$t(key));
     },
-    // 当前是否为「可用」Tab（行内：编辑 / 显示 / 下架）
+    // 当前是否为「启用」Tab（行内：编辑 / 停用）
     isAvailableTab() {
-      return this.activeTab === 'visible';
+      return this.activeTab === 'enable';
     },
-    // 当前是否为「已失效」Tab（仅展示，无选择列与操作列）
-    isInvalidTab() {
-      return this.activeTab === 'invalid';
-    },
-    // 当前是否为「待审核」Tab（批量通过 / 批量忽略 / 批量移动）
+    // 当前是否为「待审核」Tab（批量通过 / 批量停用 / 批量移动）
     isReviewTab() {
-      return this.activeTab === 'review';
+      return this.activeTab === 'pending_review';
     },
-    // 当前是否为「未启用」Tab（行内：启用 / 停用配置）
-    isRejectedTab() {
-      return this.activeTab === 'rejected';
+    // 当前是否为「未启用」Tab（聚合 disabled+expired 两态；行内：启用 / 停用配置）
+    isUnusedTab() {
+      return this.activeTab === 'not_enable';
     },
-    // 已失效 / 未启用 Tab 无勾选列
+    // 非推荐 Tab 均有勾选列与批量操作工具栏（expired 终态行由 selectable 禁用勾选）
     hasSelection() {
-      return !this.isInvalidTab && !this.isRejectedTab;
-    },
-    hasToolbar() {
-      return !this.isRecommend && (this.isReviewTab || this.isAvailableTab);
+      return !this.isRecommend;
     },
     typeOptions() {
       return getTypeOptions(key => this.$t(key));
@@ -850,7 +983,7 @@ export default {
       return [
         { id: 'name', name: this.$t('插件名称') },
         // { id: 'desc', name: this.$t('描述') },
-        { id: 'updatedBy', name: this.$t('最近修改人') },
+        { id: 'updated_by', name: this.$t('最近修改人') },
         {
           id: 'type',
           name: this.$t('类型'),
@@ -880,16 +1013,16 @@ export default {
       const typeCol = { id: 'type', label: this.$t('类型'), width: 200, filters: this.typeFilters, filterMethod: this.filterMethod };
       const sourceCol = { id: 'source', label: this.$t('来源'), width: 200, filters: this.sourceFilters, filterMethod: this.filterMethod };
       const statusCol = { id: 'status', label: this.$t('状态'), width: 150, filters: this.statusFilters, filterMethod: this.filterMethod };
-      const incomeCol = { id: 'incomeTime', label: this.$t('来源入库时间'), width: 200, sortable: true };
+      const incomeCol = { id: 'update_at', label: this.$t('来源入库时间'), width: 200, sortable: true };
       if (this.isRecommend) {
         return [
           { id: 'name', label: this.$t('插件'), width: 250 },
           typeCol,
           sourceCol,
           { id: 'category', label: this.$t('目录'), width: 250 },
-          { id: 'refCount', label: this.$t('当前引用流程'), width: 130, sortable: true },
-          { id: 'updatedBy', label: this.$t('最近修改人'), width: 200, filters: this.updatedByFilters, filterMethod: this.filterMethod },
-          { id: 'updateTime', label: this.$t('最近修改时间'), width: 200, sortable: true },
+          { id: 'ref_count', label: this.$t('当前引用流程'), width: 130, sortable: true },
+          { id: 'updated_by', label: this.$t('最近修改人'), width: 200, filters: this.updatedByFilters, filterMethod: this.filterMethod },
+          { id: 'update_at', label: this.$t('最近修改时间'), width: 200, sortable: true },
           statusCol,
         ];
       }
@@ -903,28 +1036,16 @@ export default {
           statusCol,
         ];
       }
-      if (this.isRejectedTab) {
+      if (this.isUnusedTab) {
         return [
           { id: 'name', label: this.$t('插件'), width: 250 },
           typeCol,
           sourceCol,
           { id: 'category', label: this.$t('原目录'), width: 250 },
-          { id: 'refCount', label: this.$t('当前引用流程'), width: 130, sortable: true },
-          { id: 'updatedBy', label: this.$t('最近修改人'), width: 200, filters: this.updatedByFilters, filterMethod: this.filterMethod },
-          { id: 'updateTime', label: this.$t('最近修改时间'), width: 200, sortable: true },
+          { id: 'ref_count', label: this.$t('当前引用流程'), width: 130, sortable: true },
+          { id: 'updated_by', label: this.$t('最近修改人'), width: 200, filters: this.updatedByFilters, filterMethod: this.filterMethod },
+          { id: 'update_at', label: this.$t('最近修改时间'), width: 200, sortable: true },
           // incomeCol,
-          statusCol,
-        ];
-      }
-      if (this.isInvalidTab) {
-        return [
-          { id: 'name', label: this.$t('插件'), width: 250 },
-          typeCol,
-          sourceCol,
-          { id: 'category', label: this.$t('原所属目录'), width: 250 },
-          { id: 'refCount', label: this.$t('当前引用流程'), width: 130, sortable: true },
-          // { id: 'invalidReason', label: this.$t('失效原因'), width: 250 },
-          { id: 'foundTime', label: this.$t('发现时间'), width: 200, sortable: true },
           statusCol,
         ];
       }
@@ -933,9 +1054,9 @@ export default {
         typeCol,
         sourceCol,
         { id: 'category', label: this.$t('目录'), width: 250 },
-        { id: 'refCount', label: this.$t('当前引用流程'), width: 130, sortable: true },
-        { id: 'updatedBy', label: this.$t('最近修改人'), width: 200, filters: this.updatedByFilters, filterMethod: this.filterMethod },
-        { id: 'updateTime', label: this.$t('最近修改时间'), width: 200, sortable: true },
+        { id: 'ref_count', label: this.$t('当前引用流程'), width: 130, sortable: true },
+        { id: 'updated_by', label: this.$t('最近修改人'), width: 200, filters: this.updatedByFilters, filterMethod: this.filterMethod },
+        { id: 'update_at', label: this.$t('最近修改时间'), width: 200, sortable: true },
         statusCol,
       ];
     },
@@ -960,7 +1081,7 @@ export default {
     },
     // 最近修改人筛选选项
     updatedByFilters() {
-      return [...new Set(this.rows.map(row => row.updatedBy).filter(Boolean))]
+      return [...new Set(this.pluginList.map(row => row.updated_by).filter(Boolean))]
         .map(name => ({ text: name, value: name }));
     },
     // 启用至目录：当前选中分类的显示名（空串回落「未分类」占位）
@@ -969,25 +1090,25 @@ export default {
     },
     // 待审核确认气泡中的选中插件文案
     reviewSelectedNames() {
-      if (this.selection.length === 1) return this.selection[0].name;
+      if (this.selection.length === 1) return this.selection[0].plugin_name;
       return this.$t('已选 {count} 项', { count: this.selection.length });
     },
     cascadeSourcePlugin() {
-      if (this.editDialogVisible && this.isOfflineConfigMode) return this.editingPlugin;
-      return this.offlineRow;
+      if (this.editDialogVisible && this.isDisabledConfigMode) return this.editingPlugin;
+      return this.disabledRow;
     },
-    offlineCascadeList() {
+    disabledCascadeList() {
       const self = this.cascadeSourcePlugin;
       if (!self) return [];
-      const candidates = (this.plugins || []).filter(item => item.id !== self.id);
-      const toLeaf = item => ({ id: item.id, name: item.name });
+      const candidates = (this.plugins || []).filter(item => item.id !== self.id && item.status === 'enable');
+      const toLeaf = item => ({ id: item.id, name: item.plugin_name });
       const byCategory = {};
       candidates.forEach((item) => {
-        const key = item.category || '';
+        const key = item.directory_id || '';
         byCategory[key] = byCategory[key] || [];
         byCategory[key].push(item);
       });
-      return [
+      const result = [
         { id: 'all', name: this.$t('全部插件'), icon: CATEGORY_ICONS.all, children: candidates.map(toLeaf) },
         {
           id: 'recommend',
@@ -1003,6 +1124,12 @@ export default {
         },
         ...(this.categoryTree || []).map(cate => this.buildCategoryNode(cate, byCategory, toLeaf)),
       ];
+      // 只允许选末级插件
+      const fixedIds = new Set(['all', 'recommend', 'uncategorized']);
+      const withDivider = result.filter(node => node.children.length);
+      const firstCate = withDivider.find(node => !fixedIds.has(node.id));
+      if (firstCate) firstCate.divider = true;
+      return withDivider;
     },
     // 级联末级即替换插件 id；选中项是目录时按未选择处理，避免把目录 id 当插件提交
     replacePluginId() {
@@ -1014,26 +1141,26 @@ export default {
     },
     // 编辑弹窗
     editingStatusInfo() {
-      return this.editingPlugin ? (this.statusMap[this.editingPlugin.status] || {}) : {};
+      return this.editingPlugin ? (this.statusMap[this.statusGroup(this.editingPlugin.status)] || {}) : {};
     },
     editingTypeText() {
-      return this.editingPlugin ? getTypeText(this.editingPlugin.type, key => this.$t(key)) : '--';
+      return this.editingPlugin ? getTypeText(this.editingPlugin.plugin_type, key => this.$t(key)) : '--';
     },
     editingSourceText() {
-      return this.editingPlugin ? getSourceText(this.editingPlugin.source, key => this.$t(key)) : '--';
+      return this.editingPlugin ? getSourceText(this.editingPlugin.source_key, key => this.$t(key)) : '--';
     },
     editingLogoText() {
-      return this.editingPlugin && this.editingPlugin.name ? this.editingPlugin.name.trim().charAt(0) : '';
+      return this.editingPlugin && this.editingPlugin.plugin_name ? this.editingPlugin.plugin_name.trim().charAt(0) : '';
     },
-    isOfflineConfigMode() {
-      return this.editMode === 'offline-config';
+    isDisabledConfigMode() {
+      return this.editMode === 'disabledConfig';
     },
     editDialogTitle() {
-      return this.isOfflineConfigMode ? this.$t('停用配置') : this.$t('编辑插件');
+      return this.isDisabledConfigMode ? this.$t('停用配置') : this.$t('编辑插件');
     },
-    // 只有「可用」插件可新设为推荐；其余状态一律置灰（已推荐的仍需允许关闭以释放名额）
+    // 只有「启用」插件可新设为推荐
     editRecommendDisabled() {
-      return !!this.editingPlugin && this.editingPlugin.status !== 'visible' && !this.editForm.recommended;
+      return !!this.editingPlugin && this.editingPlugin.status !== 'enable' && !this.editForm.recommended;
     },
     // 开关置灰原因
     editRecommendDisabledReason() {
@@ -1051,26 +1178,79 @@ export default {
     },
   },
   watch: {
-    rows() {
-      this.$nextTick(this.initSortable);
-    },
     'editForm.category'(val, oldVal) {
       if (val !== EDIT_AI_RECOMMEND) return;
-      this.$bkMessage({ message: this.$t('功能建设中，敬请期待'), theme: 'warning' });
+      this.handleEditAiRecommend(oldVal);
+    },
+    total: {
+      handler(val) {
+        this.pagination.count = val;
+        this.clampCurrentPage();
+      },
+      immediate: true,
+    },
+    // 状态 Tab 变化
+    activeTab() {
+      if (this.skipAutoFetch) return;
+      this.resetPageAndFetch();
+    },
+    // 搜索条件变化
+    searchValues() {
+      if (this.skipAutoFetch) return;
+      this.resetPageAndFetch();
+    },
+    'pagination.current'() {
+      this.fetchList();
+    },
+    'pagination.limit'() {
+      this.resetPageAndFetch();
+    },
+    // 切换分类：清空搜索框内容并把状态 Tab 归位到「可用」
+    category() {
+      this.skipAutoFetch = true;
+      this.searchValues = [];
+      this.activeTab = 'enable';
       this.$nextTick(() => {
-        this.editForm.category = oldVal === undefined ? '' : oldVal;
+        if (this.skipAutoFetch) {
+          this.skipAutoFetch = false;
+          this.resetPageAndFetch();
+        }
       });
     },
   },
   mounted() {
     this.fetchList();
   },
-  beforeDestroy() {
-    this.destroySortable();
-  },
   methods: {
+    ...mapActions('pluginManage', [
+      'getPluginList',
+      'getRecommendList',
+      'updatePlugin',
+      'updateDisableConfig',
+      'aiClassify',
+      'updatePluginStatus',
+      'cancelRecommend',
+    ]),
+    reload() {
+      this.resetPageAndFetch();
+    },
+    // 查询条件变化后回到第一页再请求（已是第一页时直接请求，避免重复触发）
+    resetPageAndFetch() {
+      if (this.pagination.current === 1) {
+        this.fetchList();
+      } else {
+        this.pagination.current = 1;
+      }
+    },
+    // 总条数变少时收敛当前页码，避免停在空白页
+    clampCurrentPage() {
+      const totalPage = Math.max(Math.ceil(this.pagination.count / this.pagination.limit), 1);
+      if (this.pagination.current > totalPage) {
+        this.pagination.current = totalPage;
+      }
+    },
     handleSearchChange(values) {
-      this.searchValues = (values || []).map(item => ({ ...item }));
+      this.searchValues = values || [];
       this.pendingLocateTab = true;
     },
     async fetchList() {
@@ -1083,11 +1263,8 @@ export default {
       this.pendingLocateTab = false;
       this.loading = true;
       try {
-        const { count, results, status_counts: statusCounts } = await getPluginList({
-          spaceId: this.spaceId,
-          ...this.queryParams,
-        });
-        this.rows = results;
+        const { count, results, status_counts: statusCounts } = await this.getPluginList(this.queryParams);
+        this.pluginList = results;
         this.total = count;
         this.statusCounts = statusCounts || {};
         if (shouldLocateTab) {
@@ -1100,8 +1277,8 @@ export default {
     async fetchRecommendList() {
       this.loading = true;
       try {
-        const { results } = await getRecommendList({ spaceId: this.spaceId });
-        this.rows = results;
+        const results = await this.getRecommendList({ space_id: this.spaceId });
+        this.pluginList = results;
         this.total = 0;
         this.statusCounts = {};
       } finally {
@@ -1127,10 +1304,21 @@ export default {
     handlePageLimitChange(limit) {
       this.pagination.limit = limit;
     },
-    // 列头筛选
     filterMethod(value, row, column) {
       const { property } = column;
-      return row[property] === value;
+      if (property === 'status') {
+        return this.statusGroup(row.status) === value;
+      }
+      if (property === 'source') {
+        // API 类来源带子级路径（api/apidemo），按类型前缀匹配
+        return matchPluginSource(row.source_key, value);
+      }
+      const fieldMap = { type: 'plugin_type', source: 'source_key' };
+      const field = fieldMap[property] || property;
+      return row[field] === value;
+    },
+    statusGroup(status) {
+      return normalizePluginStatus(status);
     },
     // 待审核「目标目录」列头
     renderReviewCategoryHeader(h, { column }) {
@@ -1149,59 +1337,106 @@ export default {
         leafCategories.push(group.id);
         (group.children || []).forEach(child => leafCategories.push(child.id));
       });
-      if (!this.rows.length || !leafCategories.length) return;
-      this.rows.forEach((row) => {
+      if (!this.pluginList.length || !leafCategories.length) return;
+      this.pluginList.forEach((row) => {
         const categoryId = leafCategories[Math.floor(Math.random() * leafCategories.length)];
-        this.$emit('category-change', { row, categoryId, followSource: false });
+        this.$emit('categoryChange', { row, categoryId });
       });
     },
     handleSelectionChange(selection) {
       this.selection = selection;
     },
+    // 未启用 Tab：expired 为终态（来源已不存在，后端不允许人工启用），禁用勾选
+    selectionSelectable(row) {
+      return this.isUnusedTab ? row.status === 'disabled' : true;
+    },
     categoryPath(categoryId) {
       return getCategoryPath(this.categories, categoryId);
     },
     // 快捷编辑所属分类
-    handleQuickChangeCategory(row, categoryId, followSource = false) {
+    handleQuickChangeCategory(row, categoryId) {
       const popRef = this.$refs[`categoryPop-${row.id}`];
       if (popRef && popRef[0]) {
         popRef[0].hideHandler();
       }
-      this.$emit('category-change', { row, categoryId, followSource });
+      this.$emit('categoryChange', { row, categoryId });
+    },
+    // 行内快捷分类面板
+    handleQuickCategorySelect(row, { categoryId, isAiRecommend }) {
+      if (isAiRecommend) {
+        this.fetchAiRecommendIds([row.id]).then((ids) => {
+          if (ids) {
+            this.quickAiRecommendRowId = row.id;
+            this.quickAiRecommendIds = ids;
+          }
+        });
+        return;
+      }
+      this.quickAiRecommendRowId = '';
+      this.quickAiRecommendIds = [];
+      this.handleQuickChangeCategory(row, categoryId);
+    },
+    async fetchAiRecommendIds(pluginIds) {
+      if (this.aiRecommendLoading) return null;
+      if (!pluginIds.length) {
+        this.$bkMessage({ message: this.$t('请先勾选插件后再使用 AI 推荐'), theme: 'warning' });
+        return null;
+      }
+      this.aiRecommendLoading = true;
+      try {
+        const res = await this.aiClassify({ space_id: this.spaceId, plugin_ids: pluginIds });
+        if (res && res.result === 'patch') {
+          return Object.values(res.patch || {}).map(id => String(id));
+        }
+        const reason = res && res.result === 'error' && res.message ? res.message : '';
+        this.$bkMessage({ message: reason || this.$t('AI 暂无推荐分类，请手动选择'), theme: 'warning' });
+        return null;
+      } catch (e) {
+        this.$bkMessage({ message: this.$t('AI 推荐获取失败，请手动选择'), theme: 'error' });
+        return null;
+      } finally {
+        this.aiRecommendLoading = false;
+      }
     },
     // 批量移动
-    handleBatchMoveCategory({ categoryId, followSource }) {
+    handleBatchMoveCategory({ categoryId, isAiRecommend }) {
+      if (isAiRecommend) {
+        this.fetchAiRecommendIds(this.selection.map(row => row.id)).then((ids) => {
+          if (ids) this.batchAiRecommendIds = ids;
+        });
+        return;
+      }
       const popRef = this.$refs.batchMovePopover;
       if (popRef) {
         popRef.hideHandler();
       }
-      this.$emit('batch-category-change', { rows: [...this.selection], categoryId, followSource });
+      this.$emit('batchCategoryChange', { rows: [...this.selection], categoryId });
     },
     handleRowStatus(row, status, message) {
-      this.$emit('status-change', { row, status, message });
+      this.$emit('statusChange', { row, status, message });
     },
     handlePassClick(row) {
       this.passRow = row;
-      this.passCategory = row.category || '';
+      this.passCategory = row.directory_id || '';
     },
-    // AI 推荐目标目录
-    handlePassAiRecommend() {
-      const leafCategories = [];
-      (this.categoryTree || []).forEach((group) => {
-        leafCategories.push(group.id);
-        (group.children || []).forEach(child => leafCategories.push(child.id));
-      });
-      if (!leafCategories.length) return;
-      this.passCategory = leafCategories[Math.floor(Math.random() * leafCategories.length)];
-    },
-    // 「启用至目录」面板选择：AI 推荐随机取叶子分类，其余直接回写；选中后收起下拉
     handlePassCategorySelect({ categoryId, isAiRecommend }) {
       if (isAiRecommend) {
-        this.handlePassAiRecommend();
-      } else {
-        this.passCategory = categoryId;
+        if (!this.passRow) return;
+        this.fetchAiRecommendIds([this.passRow.id]).then((ids) => {
+          if (ids) this.passAiRecommendIds = ids;
+        });
+        return;
       }
+      this.passCategory = categoryId;
       this.hidePassCategoryPop();
+    },
+    async handleEditAiRecommend(previousVal) {
+      this.$nextTick(() => {
+        this.editForm.category = previousVal === undefined ? '' : previousVal;
+      });
+      if (this.aiRecommendLoading) return;
+      const ids = await this.fetchAiRecommendIds([this.editingPlugin.id]);
+      this.editAiRecommendIds = ids || [];
     },
     hidePassCategoryPop() {
       const poppers = document.querySelectorAll('.tippy-popper.pass-category-popover');
@@ -1213,22 +1448,26 @@ export default {
       this.activePassCategoryPop = false;
     },
     handleReviewPassConfirm(row) {
-      this.$emit('status-change', {
+      this.$emit('statusChange', {
         row,
-        status: 'visible',
-        category: this.passCategory || '',
-        message: this.$t('已通过审核'),
+        status: 'enable',
+        targetDirectoryId: this.passCategory || '',
+        message: this.$t('已启用'),
       });
     },
     buildCategoryNode(cate, byCategory, toLeaf) {
       const children = [];
       ((cate && cate.children) || []).forEach((sub) => {
-        children.push({
-          id: sub.id,
-          name: sub.name,
-          icon: CATEGORY_ICONS.level2,
-          children: (byCategory[sub.id] || []).map(toLeaf),
-        });
+        const subPlugins = (byCategory[sub.id] || []).map(toLeaf);
+        // 子目录下没有插件时不渲染
+        if (subPlugins.length) {
+          children.push({
+            id: sub.id,
+            name: sub.name,
+            icon: CATEGORY_ICONS.level2,
+            children: subPlugins,
+          });
+        }
       });
       children.push(...((cate && byCategory[cate.id]) || []).map(toLeaf));
       return {
@@ -1239,45 +1478,56 @@ export default {
         children,
       };
     },
-    // 打开下架确认弹窗
-    openOfflineDialog(row) {
-      this.offlineRow = row;
-      this.offlineForm = { offlineReason: '', replacePluginId: '' };
-      this.replacePluginPath = [];
-      this.offlineDialogVisible = true;
+    // 打开停用确认弹窗
+    openDisabledDialog(row) {
+      this.disabledRow = row;
+      this.disabledForm = { disable_reason: row.disable_reason || '' };
+      this.replacePluginPath = this.findCascadePath(this.disabledCascadeList, row.replace_plugin_id);
+      this.disabledDialogVisible = true;
     },
-    handleOfflineCancel() {
-      this.offlineDialogVisible = false;
+    handleDisabledCancel() {
+      this.disabledDialogVisible = false;
     },
-    // 确认停用：携带停用原因与替换插件一并提交（级联末级即插件 id），停用后插件进入「未启用」
-    handleOfflineConfirm() {
-      this.$emit('status-change', {
-        row: this.offlineRow,
-        status: 'rejected',
-        offlineReason: this.offlineForm.offlineReason,
+    handleDisabledConfirm() {
+      this.$emit('statusChange', {
+        row: this.disabledRow,
+        status: 'disabled',
+        disableReason: this.disabledForm.disable_reason,
         replacePluginId: this.replacePluginId,
         message: this.$t('已停用'),
       });
-      this.offlineDialogVisible = false;
+      this.disabledDialogVisible = false;
     },
 
     // 批量状态变更
     handleBatchStatus(status) {
       if (!this.selection.length) return;
-      this.$emit('batch-status-change', { rows: [...this.selection], status });
+      this.$emit('batchStatusChange', { rows: [...this.selection], status });
     },
-    // 待审核批量通过
+    // 待审核批量通过（未传目标目录，各条目沿用现有目录）
     handleBatchReviewPass() {
       if (!this.selection.length) return;
-      this.$emit('batch-status-change', {
+      this.$emit('batchStatusChange', {
         rows: [...this.selection],
-        status: 'visible',
+        status: 'enable',
         message: this.$t('已通过审核'),
       });
     },
     handleOpenDetail(row) {
       this.detailPlugin = row;
       this.isDetailSliderShow = true;
+    },
+    // 详情侧滑-查看流程
+    handleDetailViewFlow({ row }) {
+      const { href } = this.$router.resolve({
+        name: 'templatePanel',
+        params: {
+          templateId: row.template_id,
+          type: 'view',
+        },
+        query: this.$route.query,
+      });
+      window.open(href, '_blank');
     },
     handleNameClick(row) {
       this.handleOpenDetail(row);
@@ -1307,14 +1557,19 @@ export default {
         this.openEditDialog(row);
         return;
       }
-      if (action.type === 'offline-config') {
-        this.openOfflineConfigDialog(row);
+      if (action.type === 'disabledConfig') {
+        this.openDisabledConfigDialog(row);
         return;
       }
-      const target = this.rows.find(item => item.id === row.id);
+      const target = this.pluginList.find(item => item.id === row.id);
       const prevStatus = target ? target.status : '';
-      await this.submit(async () => {
-        await updatePluginStatus({ spaceId: this.spaceId, pluginId: row.id, status: action.status });
+      this.submitting = true;
+      try {
+        await this.updatePluginStatus({
+          plugin_id: row.id,
+          space_id: this.spaceId,
+          status: mapBackendStatus(row.status, action.status),
+        });
         if (target) {
           target.status = action.status;
         }
@@ -1322,188 +1577,55 @@ export default {
           message: action.message || getStatusChangeMessage(action.status, key => this.$t(key)),
           theme: 'success',
         });
-        // 状态变化可能改变推荐名额占用，通知父组件刷新概要
-        this.$emit('recommend-changed');
-      }, () => {
+        this.reload();
+        this.$emit('recommendChanged');
+      } catch (e) {
         if (target) {
           target.status = prevStatus;
         }
-      });
-    },
-    // 取消推荐：立即生效并释放名额，无需二次确认
-    async handleCancelRecommend(row) {
-      await this.submit(async () => {
-        await cancelRecommend({ spaceId: this.spaceId, pluginId: row.id });
-        this.rows = this.rows.filter(item => item.id !== row.id);
-        this.$bkMessage({
-          message: this.$t('已取消推荐'),
-          theme: 'success',
-        });
-        this.$emit('recommend-changed');
-      });
-    },
-    // 统一处理空间推荐的写操作：进行中置 submitting，失败提示并回滚
-    async submit(request, rollback) {
-      this.submitting = true;
-      try {
-        await request();
-      } catch (e) {
-        if (rollback) rollback();
-        this.$bkMessage({
-          message: this.$t('操作失败，请重试'),
-          theme: 'error',
-        });
       } finally {
         this.submitting = false;
       }
     },
-    // 在表格 tbody 上挂载行拖拽：仅手柄可发起，蓝色插入线标落点，幽灵行跟随指针
-    initSortable() {
-      this.destroySortable();
-      if (!this.isRecommend) return;
-      const tableEl = this.$refs.pluginTable;
-      const tbody = tableEl && tableEl.$el ? tableEl.$el.querySelector('tbody') : null;
-      if (!tbody) return;
-      this.sortable = new Sortable(tbody, {
-        handle: '.drag-handle',
-        animation: 150,
-        // 用 fallback 模式呈现设计稿的「幽灵行跟随指针」效果
-        forceFallback: true,
-        fallbackClass: 'recommend-ghost-row',
-        ghostClass: 'recommend-insert-line',
-        onStart: this.handleDragStart,
-        onEnd: this.handleSortEnd,
-      });
-      // 捕获阶段记录按下时指针相对所在行的纵向偏移——onStart 触发时原行已被压缩成
-      // 3px 插入线，拿不到原始行位置，必须在 mousedown 阶段先记下来
-      tbody.addEventListener('mousedown', this.recordGrabOffset, true);
-    },
-    recordGrabOffset(e) {
-      const tr = e.target && e.target.closest ? e.target.closest('tr') : null;
-      if (tr) {
-        this.grabPointerY = e.clientY;
-        this.grabRowTop = tr.getBoundingClientRect().top;
-      }
-    },
-    handleDragStart() {
-      // 拖拽进行中将光标换成四向移动图标
-      document.body.classList.add('recommend-row-dragging');
-      const grabOffset = Math.min(Math.max((this.grabPointerY || 0) - (this.grabRowTop || 0), 0), 42);
-      let tries = 0;
-      const applyGhostStyle = () => {
-        const ghost = document.querySelector('.recommend-ghost-row');
-        if (!ghost) return false;
-        // 高度固定 42（覆盖 Sortable 从原行拷贝的内联高度）
-        ghost.style.height = '42px';
-        // 固定宽度 + 四列按内容自适应
-        const cells = Array.from(ghost.children);
-        const visibleCells = GHOST_VISIBLE_COLUMNS.map(i => cells[i]).filter(Boolean);
-        ghost.style.tableLayout = 'auto';
-        ghost.style.width = 'auto';
-        const contentWidths = visibleCells.map(cell => cell.offsetWidth);
-        // 内容本身超过固定宽度时以内容为准，否则末列会被压没
-        const contentTotal = contentWidths.reduce((sum, w) => sum + w, 0);
-        ghost.style.tableLayout = 'fixed';
-        ghost.style.width = `${Math.max(GHOST_FIXED_WIDTH, contentTotal)}px`;
-        contentWidths.forEach((width, i) => {
-          // 最后一列留空不设宽，用来吸收剩余空间
-          if (i < visibleCells.length - 1) {
-            visibleCells[i].style.width = `${width}px`;
-          } else {
-            visibleCells[i].style.width = '';
-          }
-        });
-        // 垂直居中修正：ghost 的 top 是 Sortable 挂载时写死的，后续移动只改 transform，
-        // 这里改 top 加一个固定偏移量即可全程生效（偏移 = 幽灵行半高 - 抓取偏移）
-        const ghostTop = parseFloat(getComputedStyle(ghost).top);
-        if (!Number.isNaN(ghostTop)) {
-          ghost.style.top = `${ghostTop + (ghost.offsetHeight / 2) - grabOffset}px`;
-        }
-        return true;
-      };
-      const timer = setInterval(() => {
-        if (applyGhostStyle() || (tries += 1) > 60) {
-          clearInterval(timer);
-        }
-      }, 16);
-    },
-    clearHoverRows() {
-      const tableEl = this.$refs.pluginTable;
-      const tbody = tableEl && tableEl.$el ? tableEl.$el.querySelector('tbody') : null;
-      if (!tbody) return;
-      tbody.querySelectorAll('tr.hover-row').forEach(row => row.classList.remove('hover-row'));
-    },
-    destroySortable() {
-      if (this.sortable) {
-        this.sortable.destroy();
-        this.sortable = null;
-        // 兜底：拖拽被外力中断（如组件销毁）时 body 标记类不会走 onEnd，这里补清理
-        document.body.classList.remove('recommend-row-dragging');
-        const tableEl = this.$refs.pluginTable;
-        const tbody = tableEl && tableEl.$el ? tableEl.$el.querySelector('tbody') : null;
-        if (tbody) {
-          tbody.removeEventListener('mousedown', this.recordGrabOffset, true);
-        }
-      }
-    },
-    // 拖拽结束：先还原 Sortable 对真实 DOM 的改动，再按数据重排
-    async handleSortEnd(evt) {
-      document.body.classList.remove('recommend-row-dragging');
-      const { item, oldIndex, newIndex } = evt;
-      if (item && item.parentNode && oldIndex !== undefined && newIndex !== undefined && oldIndex !== newIndex) {
-        const parent = item.parentNode;
-        const refNode = oldIndex > newIndex
-          ? parent.children[oldIndex + 1]
-          : parent.children[oldIndex];
-        parent.insertBefore(item, refNode || null);
-      }
-      // 清理拖拽期间残留的行 hover 类
-      this.clearHoverRows();
-      // 清理 fallback 拖拽期间按住移动拉出的文本选区
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-      }
-      if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex) return;
-      const prevRows = [...this.rows];
-      const nextRows = [...this.rows];
-      const [moved] = nextRows.splice(oldIndex, 1);
-      nextRows.splice(newIndex, 0, moved);
-      this.rows = nextRows;
-      // Vue 按新数据重渲染后再清一次：上一轮清理可能发生在重渲染之前
-      this.$nextTick(this.clearHoverRows);
-      await this.submit(async () => {
-        await saveRecommendOrder({ spaceId: this.spaceId, ids: nextRows.map(item => item.id) });
+    async handleCancelRecommend(row) {
+      this.submitting = true;
+      try {
+        await this.cancelRecommend({ space_id: this.spaceId, plugin_id: row.id });
+        this.pluginList = this.pluginList.filter(item => item.id !== row.id);
         this.$bkMessage({
-          message: this.$t('顺序修改成功'),
+          message: this.$t('已取消推荐'),
           theme: 'success',
         });
-      }, () => {
-        this.rows = prevRows;
-      });
+        this.$emit('recommendChanged');
+      } catch (e) {
+        console.log(e);
+      } finally {
+        this.submitting = false;
+      }
     },
     openEditDialog(row) {
       this.editingPlugin = row;
       this.editMode = 'edit';
+      this.editAiRecommendIds = [];
       this.editForm = {
-        category: row.category || EDIT_UNCATEGORIZED,
+        category: row.directory_id || EDIT_UNCATEGORIZED,
         recommended: !!row.recommended,
-        offlineReason: '',
+        disable_reason: '',
       };
       this.replacePluginPath = [];
       this.editDialogVisible = true;
     },
-    // 打开下架配置弹窗
-    openOfflineConfigDialog(row) {
+    // 打开停用配置弹窗
+    openDisabledConfigDialog(row) {
       this.editingPlugin = row;
-      this.editMode = 'offline-config';
+      this.editMode = 'disabledConfig';
       this.editForm = {
-        category: row.category || '',
+        category: row.directory_id || '',
         recommended: !!row.recommended,
-        offlineReason: row.offlineReason || '',
+        disable_reason: row.disable_reason || '',
       };
       this.editDialogVisible = true;
-      this.replacePluginPath = this.findCascadePath(this.offlineCascadeList, row.replacePluginId);
+      this.replacePluginPath = this.findCascadePath(this.disabledCascadeList, row.replace_plugin_id);
     },
     // 在替换插件级联树中反查插件 id 的完整路径（用于回显已保存的替换插件）
     findCascadePath(list, id, path = []) {
@@ -1523,31 +1645,23 @@ export default {
     },
     // 保存编辑
     async handleEditSave() {
-      if (this.isOfflineConfigMode) {
+      if (this.isDisabledConfigMode) {
         this.editSaving = true;
         try {
-          await updatePlugin({
-            spaceId: this.spaceId,
-            pluginId: this.editingPlugin.id,
-            data: {
-              category: this.editingPlugin.category || '',
-              recommended: !!this.editingPlugin.recommended,
-              offlineReason: this.editForm.offlineReason,
-              replacePluginId: this.replacePluginId,
-            },
-          });
+          await this.updateDisableConfig({
+            plugin_id: this.editingPlugin.id,
+            space_id: this.spaceId,
+            disable_reason: this.editForm.disable_reason,
+            replace_plugin_id: this.replacePluginId,
+          }),
           this.$bkMessage({
             message: this.$t('保存成功'),
             theme: 'success',
           });
           this.editDialogVisible = false;
           this.reload();
-          this.$emit('edit-saved');
         } catch (e) {
-          this.$bkMessage({
-            message: this.$t('操作失败，请重试'),
-            theme: 'error',
-          });
+          console.log(e);
         } finally {
           this.editSaving = false;
         }
@@ -1567,14 +1681,11 @@ export default {
       }
       this.editSaving = true;
       try {
-        await updatePlugin({
-          spaceId: this.spaceId,
-          pluginId: this.editingPlugin.id,
-          data: {
-            // 「未分类」用哨兵 id 参与选择与必填校验，提交时还原为空 category
-            category: this.editForm.category === EDIT_UNCATEGORIZED ? '' : this.editForm.category,
-            recommended: this.editForm.recommended,
-          },
+        await this.updatePlugin({
+          plugin_id: this.editingPlugin.id,
+          space_id: this.spaceId,
+          directory_id: this.editForm.category === EDIT_UNCATEGORIZED ? '' : this.editForm.category,
+          recommended: this.editForm.recommended,
         });
         this.$bkMessage({
           message: this.$t('保存成功'),
@@ -1583,9 +1694,9 @@ export default {
         this.editDialogVisible = false;
         this.reload();
         // 推荐名额 / 分类计数可能变化，通知父组件刷新概要
-        this.$emit('edit-saved');
+        this.$emit('editSaved');
         if (this.isRecommend) {
-          this.$emit('recommend-changed');
+          this.$emit('recommendChanged');
         }
       } catch (e) {
         this.$bkMessage({
@@ -1666,17 +1777,18 @@ export default {
     line-height: 1;
   }
 
-  &.is-visible {
+  &.is-enable {
       color: #1D8F70;
       background: #E1F5F0;
   }
-  &.is-review {
+  &.is-pending_review {
     color: #f59500;
     background-color: #FFEDD1;
   }
 
-  &.is-invalid,
-  &.is-rejected {
+  &.is-expired,
+  &.is-not_enable,
+  &.is-disabled {
     color: #8F9FBD;
     background-color: #F0F4FA;
   }
@@ -1809,6 +1921,8 @@ export default {
   .plugin-search-select {
     margin-top: 12px;
     margin-bottom: 16px;
+    height: auto;
+    min-height: 32px;
 
     ::v-deep .bk-search-select {
       width: 100%;
@@ -1845,6 +1959,7 @@ export default {
       .tab-icon {
         font-size: 16px;
         color: #4e5e7a;
+        margin-top: 3px;
       }
 
       .tab-count {
@@ -1861,6 +1976,7 @@ export default {
         line-height: 20px;
         font-family: "Arial";
         color: #8f9fbd;
+        margin-top: 2px;
 
         &.is-warn {
           background: #ffedd1;
@@ -1970,6 +2086,13 @@ export default {
     }
     .bk-button {
       border-radius: 6px;
+      font-size: 12px;
+      font-family: "PingFang SC";
+    }
+    .bk-button.bk-primary.is-disabled,
+    .bk-button.bk-primary[disabled] {
+      background-color: #C1CDE5;
+      border-color: #C1CDE5;
     }
   }
   .category-cell {
@@ -2007,87 +2130,13 @@ export default {
     cursor: pointer;
   }
 
-  ::v-deep .recommend-table {」
-    th,
-    td {
-      user-select: none;
-    }
-
+  ::v-deep .recommend-table {
     th:first-child .cell,
     td:first-child .cell {
       padding: 0 12px;
       overflow: visible;
       text-overflow: clip;
       white-space: nowrap;
-    }
-
-    .drag-handle {
-      font-size: 16px;
-      color: #979ba5;
-      cursor: grab;
-
-      &:hover {
-        color: #3a84ff;
-      }
-    }
-
-    tr.recommend-insert-line {
-      background: #3a84ff;
-
-      td {
-        height: 3px;
-        padding: 0;
-        border: none;
-        background: #3a84ff !important;
-        font-size: 0;
-        line-height: 0;
-      }
-
-      .cell {
-        display: none;
-      }
-    }
-S 设置
-    tr.recommend-ghost-row {
-      display: table;
-      border-collapse: separate;
-      border-spacing: 0;
-      // 不拦截指针事件：避免幽灵行挡住底下行的 hover 高亮
-      pointer-events: none;
-      opacity: 1 !important;
-      background: #f0f5ff !important;
-      border: 2px solid #3a84ff;
-      border-radius: 4px;
-      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.18);
-      cursor: grabbing;
-
-      td {
-        background: #f0f5ff !important;
-        border: none !important;
-        padding: 0 16px;
-        vertical-align: middle;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-
-        .cell {
-          padding: 0;
-        }
-      }
-      td {
-        display: none;
-      }
-
-      td:nth-child(1),
-      td:nth-child(3),
-      td:nth-child(4),
-      td:nth-child(6) {
-        display: table-cell;
-      }
-
-      .drag-handle {
-        color: #3a84ff;
-      }
     }
   }
 
@@ -2151,6 +2200,7 @@ S 设置
             line-height: 20px;
             color: #8f9fbd;
             word-break: break-all;
+            max-width: 500px;
           }
         }
       }
@@ -2192,24 +2242,32 @@ S 设置
         align-items: center;
         height: 16px;
         padding: 0 6px;
-        border-radius: 8px;
         font-size: 10px;
         line-height: 16px;
         flex-shrink: 0;
 
-        &.is-visible {
+        &.is-enable {
           color: #1d8f70;
           background: #e1f5f0;
+          border-radius: 8px;
         }
 
-        &.is-review {
+        &.is-pending_review {
           background: #fff4e2;
           color: #ff9c01;
+          border-radius: 8px;
         }
 
-        &.is-invalid {
-          background: #f0f1f5;
-          color: #979ba5;
+        &.is-expired,
+        &.is-not_enable,
+        &.is-disabled {
+          color: #FFF;
+          background-color: #FAA41E;
+          border-radius: 4px;
+        }
+
+        .bk-icon {
+          margin-top: 2px;
         }
       }
       .recommend-tag {
@@ -2533,7 +2591,7 @@ S 设置
 </style>
 
 <style lang="scss">
-.offline-confirm-dialog {
+.disabled-confirm-dialog {
     .bk-dialog-header {
         padding: 0 24px;
     }
@@ -2548,7 +2606,7 @@ S 设置
           overflow: hidden;
         }
     }
-    .offline-alert {
+    .disabled-alert {
       border-radius: 6px !important;
       .bk-icon {
         font-size: 14px !important;
@@ -2582,12 +2640,12 @@ S 设置
     }
 }
 
-.offline-dialog-body {
+.disabled-dialog-body {
     display: flex;
     flex-direction: column;
     gap: 16px;
 
-    .offline-alert {
+    .disabled-alert {
         display: flex;
         align-items: flex-start;
         gap: 8px;
@@ -2652,7 +2710,7 @@ S 设置
     }
 }
 
-.offline-cascade-popover {
+.disabled-cascade-popover {
     .bk-option-name {
         display: inline-flex;
         align-items: center;
@@ -2672,18 +2730,17 @@ S 设置
         white-space: nowrap;
     }
 
-    > .bk-cascade-options > .bk-cascade-panel:first-child > .bk-cascade-panel-ul > li:nth-child(4) {
+    .bk-cascade-panel-ul > li {
         position: relative;
+    }
 
-        &::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 12px;
-            right: 12px;
-            height: 1px;
-            background: #dcdee5;
-        }
+    .cascade-cate-divider {
+        position: absolute;
+        top: 0;
+        left: 12px;
+        right: 12px;
+        height: 1px;
+        background: #dcdee5;
     }
 }
 </style>
@@ -2739,7 +2796,16 @@ S 设置
   font-size: 14px;
 }
 .bk-options-wrapper li.category-option-divider {
-  border-bottom: 1px solid #dcdee5;
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 16px;
+    right: 16px;
+    height: 1px;
+    background: #dcdee5;
+  }
 }
 </style>
 
@@ -2780,7 +2846,7 @@ S 设置
   .bk-select.is-focus {
     border-color: #3a84ff;
   }
-  .offline-config-form {
+  .disabled-config-form {
     .bk-textarea-wrapper {
       border-radius: 6px;
       overflow: hidden;
@@ -2798,21 +2864,6 @@ S 设置
       color: #979ba5;
     }
   }
-}
-</style>
-
-<style lang="scss">
-body.recommend-row-dragging,
-body.recommend-row-dragging * {
-  cursor: url("data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M16.0003 3L10.5835 8.41667H14.9164V14.9167H8.41678V10.5828L3 15.9995L8.41678 21.4161V17.0833H14.9164V23.5833H10.5835L16.0003 29L21.417 23.5833H17.0836V17.0833H23.5832V21.4161L29 15.9995L23.5832 10.5828V14.9167H17.0836V8.41667H21.417L16.0003 3Z' fill-rule='evenodd' clip-rule='evenodd' fill='%234D4F56'/%3E%3C/svg%3E") 16 16, move !important;
-}
-
-body.recommend-row-dragging
-  .recommend-table
-  tbody
-  tr.hover-row:not(.recommend-insert-line):not(.recommend-ghost-row)
-  > td {
-  background-color: #fff !important;
 }
 </style>
 

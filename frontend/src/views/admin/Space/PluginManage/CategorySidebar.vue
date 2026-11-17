@@ -15,11 +15,12 @@
       <bk-button
         theme="primary"
         class="batch-btn"
-        @click="$emit('batch-manage')">
+        @click="$emit('batchManage')">
         <i class="commonicon-icon common-icon-content-mulu batch-btn-icon" />
         <span>{{ $t('目录批量管理') }}</span>
       </bk-button>
       <bk-input
+        v-if=" categories.length > 0"
         v-model="keyword"
         class="cate-search"
         :placeholder="$t('搜索 插件目录')"
@@ -36,8 +37,12 @@
         <span class="cate-name">{{ item.name }}</span>
         <span class="cate-count">{{ counts[item.countKey] || 0 }}</span>
       </div>
-      <div class="cate-divider" />
-      <div class="cate-tree">
+      <div
+        v-if=" categories.length > 0"
+        class="cate-divider" />
+      <div
+        v-bkloading="{ isLoading: loading, color: 'transparent' }"
+        class="cate-tree">
         <div
           v-for="node in visibleNodes"
           :key="node.id"
@@ -58,7 +63,7 @@
           <span class="cate-count">{{ counts.tree ? (counts.tree[node.id] || 0) : 0 }}</span>
         </div>
         <bk-exception
-          v-if="!visibleNodes.length"
+          v-if=" categories.length > 0 && !visibleNodes.length"
           class="cate-empty"
           type="search-empty"
           scene="part" />
@@ -84,6 +89,10 @@ export default {
     selected: {
       type: String,
       default: 'all',
+    },
+    loading: {
+      type: Boolean,
+      default: false,
     },
   },
   data() {
@@ -263,6 +272,7 @@ export default {
 
     .cate-tree {
         position: relative;
+        min-height: 120px;
     }
 
     .cate-empty {

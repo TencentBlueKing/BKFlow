@@ -42,6 +42,7 @@
         :config="selectedConfig"
         :space-id="spaceId"
         :saving="saving"
+        :migration-info="pluginCatalogMigration"
         :save-error="!!errorConfigs[selectedName]"
         @save="handleSave"
         @reset="handleReset" />
@@ -115,6 +116,7 @@
         resetDialogVisible: false,
         resetLoading: false,
         pendingResetRow: null,
+        pluginCatalogMigration: null,
       };
     },
     computed: {
@@ -166,9 +168,21 @@
         'updateSpaceConfig',
         'deleteSpaceConfig',
         'getSpaceConfigMeta',
+        'getPluginCatalogMigration',
       ]),
+      // 查询空间插件目录迁移状态
+      async loadPluginCatalogMigration() {
+        if (!this.spaceId) return;
+        try {
+          this.pluginCatalogMigration = await this.getPluginCatalogMigration(this.spaceId);
+        } catch (error) {
+          console.warn(error);
+          this.pluginCatalogMigration = null;
+        }
+      },
       async loadConfigs() {
         if (!this.spaceId) return;
+        this.loadPluginCatalogMigration();
         try {
           this.listLoading = true;
           const [dataResp, metaResp] = await Promise.all([
@@ -214,7 +228,9 @@
         return item.isDefault ? 'default' : 'configured';
       },
       isDeprecatedItem(item) {
-        return !!item && item.name === 'space_plugin_config';
+        return !!item
+          && item.name === 'space_plugin_config'
+          && !!(this.pluginCatalogMigration && this.pluginCatalogMigration.ready);
       },
       async handleSave(payload) {
         try {

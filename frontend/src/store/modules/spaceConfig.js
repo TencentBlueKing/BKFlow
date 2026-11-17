@@ -54,6 +54,14 @@ export default {
     verifySpaceConfig({}, data) {
       return axios.post('api/space/admin/space_config/verify/', data).then(response => response.data.data);
     },
+    // 查询空间插件目录迁移状态
+    getPluginCatalogMigration({}, spaceId) {
+      return axios.get('api/space/admin/space_config/plugin_catalog_migration/', {
+        params: {
+          space_id: spaceId,
+        },
+      }).then(response => response.data.data);
+    },
   },
 };
 

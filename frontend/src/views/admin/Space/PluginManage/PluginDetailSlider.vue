@@ -24,13 +24,13 @@
               </div>
               <div class="hero-title">
                 <div class="title-line">
-                  <span class="plugin-name">{{ detail.plugin.name }}</span>
-                  <span :class="['status-tag', `is-${detail.plugin.status}`]">
+                  <span class="plugin-name">{{ detail.plugin.plugin_name }}</span>
+                  <span :class="['status-tag', `is-${statusGroup(detail.plugin.status)}`]">
                     {{ statusInfo.label }}
                   </span>
                 </div>
                 <p class="plugin-desc">
-                  {{ detail.plugin.desc || '--' }}
+                  {{ detail.plugin.plugin_desc || '--' }}
                 </p>
               </div>
             </div>
@@ -41,7 +41,7 @@
                     {{ $t('当前引用流程') }}
                   </p>
                   <p class="stats-value">
-                    {{ detail.refs.flowCount }}
+                    {{ detail.refs.flow_count }}
                   </p>
                 </div>
                 <div class="stats-item">
@@ -49,7 +49,7 @@
                     {{ $t('线上版引用') }}
                   </p>
                   <p class="stats-value">
-                    {{ detail.refs.versionCount }}
+                    {{ detail.refs.published_flow_count }}
                   </p>
                 </div>
                 <div class="stats-item">
@@ -57,7 +57,7 @@
                     {{ $t('仅草稿引用') }}
                   </p>
                   <p class="stats-value">
-                    {{ detail.refs.draftOnlyCount }}
+                    {{ detail.refs.draft_only_flow_count }}
                   </p>
                 </div>
               </div>
@@ -94,20 +94,20 @@
           <div class="info-row">
             <span class="info-label">{{ $t('所属分类：') }}</span>
             <span class="info-value with-icon">
-              {{ categoryText }}
+              {{ detail.plugin.directory_name || '--'}}
             </span>
           </div>
           <div class="info-row">
             <span class="info-label">{{ $t('插件身份：') }}</span>
-            <span class="info-value">{{ detail.plugin.identity || detail.plugin.code || '--' }}</span>
+            <span class="info-value">{{ detail.plugin.plugin_code || '--' }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">{{ $t('最近更新人：') }}</span>
-            <span class="info-value">{{ detail.plugin.updatedBy || '--' }}</span>
+            <span class="info-value">{{ detail.plugin.updated_by || '--' }}</span>
           </div>
           <div class="info-row">
             <span class="info-label">{{ $t('最近更新时间：') }}</span>
-            <span class="info-value">{{ detail.plugin.updateTime || '--' }}</span>
+            <span class="info-value">{{ detail.plugin.update_at || '--' }}</span>
           </div>
         </div>
 
@@ -158,7 +158,7 @@
             @page-limit-change="handlePageLimitChange">
             <bk-table-column
               :label="$t('流程')"
-              prop="flowName"
+              prop="flow_name"
               width="200"
               show-overflow-tooltip />
             <bk-table-column
@@ -166,17 +166,20 @@
               width="200">
               <template slot-scope="{ row }">
                 <bk-popover
-                  v-if="row.publishedNodes > 0"
+                  v-if="row.published_node_count > 0"
+                  :disabled="!(row.published_node_names && row.published_node_names.length)"
                   placement="top"
                   theme="light"
                   ext-cls="reference-node-popover">
                   <div class="version-cell">
                     <div class="version-count">
-                      <span class="node-count">{{ row.publishedNodes }}</span>
+                      <span class="node-count">{{ row.published_node_count }}</span>
                       {{ $t('个节点') }}
                     </div>
-                    <div class="version-no">
-                      {{ row.publishedVersion }}
+                    <div
+                      v-bk-overflow-tips="{ placement: 'bottom' }"
+                      class="version-no">
+                      {{ row.published_version }}
                     </div>
                   </div>
                   <div
@@ -187,14 +190,14 @@
                     </p>
                     <ul class="popover-node-list">
                       <li
-                        v-for="(name, index) in publishedNodeNames(row)"
+                        v-for="(name, index) in row.published_node_names"
                         :key="`pop-p-${index}`">
                         {{ name }}
                       </li>
                     </ul>
                     <div
                       class="popover-link"
-                      @click="$emit('viewFlow', { row, type: 'published' })">
+                      @click="$emit('viewFlow', { row })">
                       {{ $t('查看流程') }}
                       <i class="common-icon-jump-link" />
                     </div>
@@ -210,13 +213,14 @@
               width="130">
               <template slot-scope="{ row }">
                 <bk-popover
-                  v-if="row.draftNodes > 0"
+                  v-if="row.draft_node_count > 0"
+                  :disabled="!(row.draft_node_names && row.draft_node_names.length)"
                   placement="bottom"
                   theme="light"
                   ext-cls="reference-node-popover">
                   <div class="version-cell">
                     <p class="version-count">
-                      <span class="node-count">{{ row.draftNodes }}</span>
+                      <span class="node-count">{{ row.draft_node_count }}</span>
                       {{ $t('个节点') }}
                     </p>
                   </div>
@@ -228,14 +232,14 @@
                     </p>
                     <ul class="popover-node-list">
                       <li
-                        v-for="(name, index) in draftNodeNames(row)"
+                        v-for="(name, index) in row.draft_node_names"
                         :key="`pop-d-${index}`">
                         {{ name }}
                       </li>
                     </ul>
                     <div
                       class="popover-link"
-                      @click="$emit('viewFlow', { row, type: 'draft' })">
+                      @click="$emit('viewFlow', { row })">
                       {{ $t('编辑草稿') }}
                       <i class="common-icon-jump-link" />
                     </div>
@@ -254,11 +258,12 @@
             <bk-table-column
               :label="$t('操作')"
               width="100">
-              <template>
+              <template slot-scope="{ row }">
                 <bk-button
                   text
                   theme="primary"
-                  ext-cls="expand-btn">
+                  ext-cls="expand-btn"
+                  @click="$emit('viewFlow', { row })">
                   {{ $t('查看流程') }}
                 </bk-button>
               </template>
@@ -273,15 +278,11 @@
 <script>
 import {
   getStatusMap,
+  normalizePluginStatus,
   getTypeText,
   getSourceText,
-  getCategoryPath,
 } from './shared';
-import {
-  getPluginDetail,
-  getPluginReferences,
-  getPluginSummary,
-} from './api';
+import { mapActions } from 'vuex';
 
 export default {
   name: 'PluginDetailSlider',
@@ -336,24 +337,19 @@ export default {
     },
     statusInfo() {
       const status = this.detail ? this.detail.plugin.status : '';
-      return getStatusMap(key => this.$t(key))[status] || { label: '--', icon: '' };
+      return getStatusMap(key => this.$t(key))[normalizePluginStatus(status)] || { label: '--', icon: '' };
     },
     logoText() {
-      const name = this.detail ? this.detail.plugin.name : '';
+      const name = this.detail ? this.detail.plugin.plugin_name : '';
       return name ? name.charAt(0) : '';
     },
     typeText() {
-      return this.detail ? getTypeText(this.detail.plugin.type, key => this.$t(key)) : '--';
+      return this.detail ? getTypeText(this.detail.plugin.plugin_type, key => this.$t(key)) : '--';
     },
     sourceText() {
-      return this.detail ? getSourceText(this.detail.plugin.source, key => this.$t(key)) : '--';
-    },
-    categoryText() {
-      if (!this.detail) return '--';
-      return getCategoryPath(this.flatCategories, this.detail.plugin.category);
-    },
-    flatCategories() {
-      return this.detail && this.detail.categories ? this.detail.categories : this.categoryTree;
+      return this.detail
+        ? (this.detail.plugin.source_name || getSourceText(this.detail.plugin.source_key, key => this.$t(key)))
+        : '--';
     },
     expandedRowKeys() {
       return this.expandedRowId ? [this.expandedRowId] : [];
@@ -383,8 +379,16 @@ export default {
     },
   },
   methods: {
+    ...mapActions('pluginManage', [
+      'getPluginDetail',
+      'getPluginReferences',
+      'getPluginSummary',
+    ]),
     isExpanded(row) {
       return this.expandedRowId === row.id;
+    },
+    statusGroup(status) {
+      return normalizePluginStatus(status);
     },
     handleVisibleChange(val) {
       this.$emit('update:visible', val);
@@ -409,30 +413,18 @@ export default {
       if (!this.plugin) return;
       this.loading = true;
       try {
-        const detail = await getPluginDetail({ spaceId: this.spaceId, plugin: this.plugin });
-        if (!detail.categories) {
-          detail.categories = await this.fetchCategories();
-        }
-        this.detail = detail;
+        this.detail = await this.getPluginDetail({ space_id: this.spaceId, plugin_id: this.plugin.id });
       } finally {
         this.loading = false;
-      }
-    },
-    async fetchCategories() {
-      try {
-        const { categories } = await getPluginSummary({ spaceId: this.spaceId });
-        return categories || [];
-      } catch (e) {
-        return [];
       }
     },
     async fetchReferences() {
       if (!this.plugin) return;
       this.loading = true;
       try {
-        const { count, results } = await getPluginReferences({
-          spaceId: this.spaceId,
-          pluginId: this.plugin.id,
+        const { count, results } = await this.getPluginReferences({
+          plugin_id: this.plugin.id,
+          space_id: this.spaceId,
           scope: this.scope,
           keyword: this.keyword.trim(),
           page: this.referencePagination.current,
@@ -460,18 +452,12 @@ export default {
       this.expandedRowId = null;
       this.fetchReferences();
     },
-    fallbackNodeNames(count) {
-      return Array.from({ length: count || 0 }, (item, index) => this.$t('节点 {index}', { index: index + 1 }));
-    },
-    publishedNodeNames(row) {
-      return (row.publishedNodeNames && row.publishedNodeNames.length)
-        ? row.publishedNodeNames
-        : this.fallbackNodeNames(row.publishedNodes);
-    },
-    draftNodeNames(row) {
-      return (row.draftNodeNames && row.draftNodeNames.length)
-        ? row.draftNodeNames
-        : this.fallbackNodeNames(row.draftNodes);
+    // 草稿引用数展示口径：>0 展示节点数；=0 有草稿但未引用该插件；null 表示无草稿
+    draftCountText(row) {
+      if (row.draft_node_count > 0) {
+        return `${row.draft_node_count} ${this.$t('个节点')}`;
+      }
+      return row.draft_node_count === 0 ? this.$t('未引用') : this.$t('无草稿');
     },
     handleExportCsv() {
       const header = [
@@ -481,9 +467,9 @@ export default {
         this.$t('维护人'),
       ];
       const rows = this.references.map(row => [
-        row.flowName,
-        row.publishedNodes > 0 ? `${row.publishedNodes} ${this.$t('个节点')} ${row.publishedVersion}` : this.$t('尚未发布'),
-        row.draftNodes > 0 ? `${row.draftNodes} ${this.$t('个节点')}` : (row.draftNodes === 0 ? this.$t('未引用') : this.$t('无草稿')),
+        row.flow_name,
+        row.published_node_count > 0 ? `${row.published_node_count} ${this.$t('个节点')} ${row.published_version}` : this.$t('尚未发布'),
+        this.draftCountText(row),
         row.maintainer,
       ]);
       const csv = [header, ...rows]
@@ -492,7 +478,7 @@ export default {
       const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `${this.plugin ? this.plugin.name : 'plugin'}-${this.$t('当前引用')}.csv`;
+      link.download = `${this.plugin ? this.plugin.plugin_name : 'plugin'}-${this.$t('当前引用')}.csv`;
       link.click();
       URL.revokeObjectURL(link.href);
     },
@@ -579,6 +565,7 @@ export default {
                 line-height: 20px;
                 color: #8f9fbd;
                 word-break: break-word;
+                max-width: 432px;
             }
         }
 
@@ -589,17 +576,18 @@ export default {
             font-size: 10px;
             line-height: 16px;
 
-            &.is-visible {
+            &.is-enable {
                 color: #1D8F70;
                 background: #E1F5F0;
             }
 
-            &.is-review {
+            &.is-pending_review {
                 color: #ff9c01;
                 background: #fdf4e8;
             }
 
-            &.is-invalid {
+            &.is-expired,
+            &.is-not_enable {
                 color: #979ba5;
                 background: #f0f1f5;
             }
@@ -824,13 +812,14 @@ export default {
                 align-items: center;
                 border-radius: 6px;
                 border: 1px solid #C1CDE5;
+                font-family: "PingFang SC";
+                font-size: 12px;
+                color: #4E5E7A;
 
                 .bk-icon {
                     margin-right: 6px;
-                    font-size: 14px;
-                    line-height: 30px;
                     top: -1px;
-                    color: #4D4F56;
+                    font-size: 12px;
                 }
             }
         }
@@ -850,9 +839,6 @@ export default {
                 cursor: pointer;
                 color: #4E5E7A;
             }
-            .expand-btn {
-                pointer-events: none;
-            }
             .bk-table-column-expand {
                 width: 0 !important;
                 padding: 0 !important;
@@ -870,6 +856,7 @@ export default {
                 font-family: "Noto Sans SC";
                 font-size: 12px;
                 align-items: center;
+                text-wrap: nowrap;
 
                 .node-count {
                     font-weight: 700 !important;
@@ -878,14 +865,17 @@ export default {
                 .version-no {
                     font-size: 12px;
                     color: #8F9FBD;
-                    display: flex;
+                    display: inline-block;
+                    max-width: 90px;
                     height: 16px;
+                    line-height: 16px;
                     padding: 0 6px;
                     border-radius: 4px;
-                    align-items: center;
-                    align-content: center;
+                    vertical-align: middle;
                     background: #F0F4FA;
-                    gap: 0 4px;
+                    overflow: hidden;
+                    white-space: nowrap;
+                    text-overflow: ellipsis;
                 }
             }
 

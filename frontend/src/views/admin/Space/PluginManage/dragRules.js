@@ -85,16 +85,16 @@ export function resolveDragGroup({ checkedIds = [], categories = [], plugins = [
 export function resolveRowIntent({ dragType, rowType, ratio, targetId }) {
   // 插件落在目录行上统一为「移入该目录」（插件不参与目录序列的调序）
   if (dragType === DRAG_TYPE_PLUGIN && rowType === DRAG_TYPE_DIR) {
-    return { kind: DROP_INTO, targetId };
+    return { kind: DROP_INTO, targetId, targetType: DRAG_TYPE_DIR };
   }
   if (rowType === DRAG_TYPE_DIR) {
-    if (ratio < DIR_REORDER_RATIO) return { kind: DROP_BEFORE, targetId };
-    if (ratio > 1 - DIR_REORDER_RATIO) return { kind: DROP_AFTER, targetId };
-    return { kind: DROP_INTO, targetId };
+    if (ratio < DIR_REORDER_RATIO) return { kind: DROP_BEFORE, targetId, targetType: DRAG_TYPE_DIR };
+    if (ratio > 1 - DIR_REORDER_RATIO) return { kind: DROP_AFTER, targetId, targetType: DRAG_TYPE_DIR };
+    return { kind: DROP_INTO, targetId, targetType: DRAG_TYPE_DIR };
   }
   return ratio < 0.5
-    ? { kind: DROP_BEFORE, targetId }
-    : { kind: DROP_AFTER, targetId };
+    ? { kind: DROP_BEFORE, targetId, targetType: DRAG_TYPE_PLUGIN }
+    : { kind: DROP_AFTER, targetId, targetType: DRAG_TYPE_PLUGIN };
 }
 
 // 落点校验：返回 { ok, reason }，reason 非空时用于气泡/错误提示
@@ -114,11 +114,15 @@ export function validateDrop({ categories = [], plugins = [], dnd, intent, t = k
       ? { ok: true, reason: '' }
       : { ok: false, reason: t('只有插件可以移动到未分类') };
   }
-  // 落点目标：优先按目录解析，其次按插件解析（插件行的 before/after 调序）
-  const cateTarget = findCateInfo(categories, intent.targetId);
-  const pluginTarget = cateTarget
-    ? null
-    : plugins.find(plugin => plugin.id === intent.targetId) || null;
+  // 落点目标：按落点行的类型解析（目录/插件 id 是两套编号可能撞号）
+  const targetType = intent.targetType
+    || (type === DRAG_TYPE_PLUGIN ? DRAG_TYPE_PLUGIN : DRAG_TYPE_DIR);
+  const cateTarget = targetType === DRAG_TYPE_DIR
+    ? findCateInfo(categories, intent.targetId)
+    : null;
+  const pluginTarget = targetType === DRAG_TYPE_PLUGIN
+    ? plugins.find(plugin => plugin.id === intent.targetId) || null
+    : null;
   if ((!cateTarget && !pluginTarget) || ids.includes(intent.targetId)) {
     return { ok: false, reason: '' };
   }
@@ -145,16 +149,13 @@ export function validateDrop({ categories = [], plugins = [], dnd, intent, t = k
       ? { ok: true, reason: '' }
       : { ok: false, reason: t('插件不能直接放在根目录下') };
   }
-  // 目录组（含「子目录 + 直属插件」混选）的调序校验
-  const idSet = new Set(ids);
+  // 目录组调序校验（resolveDragGroup 限定了组内只有目录 id，不含插件 id；
+  // 注意不能再用 ids 去 plugins 里匹配——目录/插件 id 可能撞号，会误判「混选插件归属不符」而拒绝拖拽）
   const cateInfos = getMovingCateInfos(categories, ids);
-  // 落到直属插件行：仅当同父混排（组内目录都是该插件直属一级目录的子目录、组内插件同归属）时允许
+  // 落到直属插件行：组内目录都是该插件直属一级目录的子目录时允许（混排序列整组调序）
   if (!cateTarget) {
-    if (!pluginTarget || !pluginTarget.category) return { ok: false, reason: '' };
-    if (cateInfos.some(info => info.level !== 2 || info.parentId !== pluginTarget.category)) {
-      return { ok: false, reason: '' };
-    }
-    if (plugins.some(plugin => idSet.has(plugin.id) && (plugin.category || '') !== pluginTarget.category)) {
+    if (!pluginTarget || !pluginTarget.directory_id) return { ok: false, reason: '' };
+    if (cateInfos.some(info => info.level !== 2 || info.parentId !== pluginTarget.directory_id)) {
       return { ok: false, reason: '' };
     }
     return { ok: true, reason: '' };
@@ -162,11 +163,6 @@ export function validateDrop({ categories = [], plugins = [], dnd, intent, t = k
   // 目录行调序落到二级层级：自身含子目录时会超 2 层
   if (cateTarget.level === 2 && cateInfos.some(info => (info.node.children || []).length)) {
     return { ok: false, reason: t('含有子目录的目录，无法移动到别的目录下（一共只能拥有 2 层目录）') };
-  }
-  // 混选组落到二级目录行：插件必须与目标目录同父（同一混排序列），否则整组无法一起移动
-  if (cateTarget.level === 2
-    && plugins.some(plugin => idSet.has(plugin.id) && (plugin.category || '') !== cateTarget.parentId)) {
-    return { ok: false, reason: '' };
   }
   return { ok: true, reason: '' };
 }
@@ -179,10 +175,10 @@ export function reorderPlugins({ plugins = [], ids = [], targetId, kind }) {
   if (!target) return { list: plugins, updates: [], changed: false };
   const moving = plugins.filter(plugin => idSet.has(plugin.id));
   if (!moving.length) return { list: plugins, updates: [], changed: false };
-  const targetCategory = target.category || '';
+  const targetCategory = target.directory_id || '';
   const updates = moving
-    .filter(plugin => (plugin.category || '') !== targetCategory)
-    .map(plugin => ({ plugin, category: targetCategory }));
+    .filter(plugin => (plugin.directory_id || '') !== targetCategory)
+    .map(plugin => ({ plugin, directory_id: targetCategory }));
   const rest = plugins.filter(plugin => !idSet.has(plugin.id));
   const idx = rest.findIndex(plugin => plugin.id === targetId);
   const insertIdx = idx < 0 ? rest.length : idx + (kind === DROP_AFTER ? 1 : 0);
@@ -195,24 +191,32 @@ export function reorderPlugins({ plugins = [], ids = [], targetId, kind }) {
 // 目录存于父级 children、插件存于 plugins（category = 父级 id），展示时拼接为同一列表，
 // 跨类型边界的调序需同时回写两个序列（目录相对顺序 + 同归属插件相对顺序）
 // 返回 { children, plugins, changed }
-export function reorderMixedColumn({ children = [], plugins = [], parentId, ids = [], targetId, kind }) {
+export function reorderMixedColumn({ children = [], plugins = [], parentId, ids = [], targetId, kind, dragType, targetKind }) {
   const idSet = new Set(ids);
-  const itemKey = item => (item.kind === DRAG_TYPE_DIR ? item.node.id : item.plugin.id);
-  const catPlugins = plugins.filter(plugin => (plugin.category || '') === parentId);
+  // 目录取 node.id，插件取 plugin.id
+  const itemKey = (item) => {
+    if (item.kind === DRAG_TYPE_DIR) return item.node.id;
+    return item.plugin.id;
+  };
+  // 撞号防护：移动组只匹配与拖拽类型同类型的项，落点目标也只匹配与落点类型同类型的项
+  const itemHit = (item, kind2) => item.kind === kind2 && idSet.has(itemKey(item));
+  const catPlugins = plugins.filter(plugin => (plugin.directory_id || '') === parentId);
   const seq = [
     ...children.map(node => ({ kind: DRAG_TYPE_DIR, node })),
     ...catPlugins.map(plugin => ({ kind: DRAG_TYPE_PLUGIN, plugin })),
   ];
+  const groupKind = dragType === DRAG_TYPE_PLUGIN ? DRAG_TYPE_PLUGIN : DRAG_TYPE_DIR;
+  const targetHitKind = targetKind === DRAG_TYPE_PLUGIN ? DRAG_TYPE_PLUGIN : DRAG_TYPE_DIR;
   const groupIdxs = [];
   seq.forEach((item, index) => {
-    if (idSet.has(itemKey(item))) groupIdxs.push(index);
+    if (itemHit(item, groupKind)) groupIdxs.push(index);
   });
   if (!groupIdxs.length) return { children, plugins, changed: false };
   const group = groupIdxs.map(index => seq[index]);
   const groupSet = new Set(groupIdxs);
   const rest = seq.filter((item, index) => !groupSet.has(index));
   // 摘除组后重新定位目标，按 before / after 插回
-  const restTargetIdx = rest.findIndex(item => itemKey(item) === targetId);
+  const restTargetIdx = rest.findIndex(item => item.kind === targetHitKind && itemKey(item) === targetId);
   if (restTargetIdx < 0) return { children, plugins, changed: false };
   const insertIdx = restTargetIdx + (kind === DROP_AFTER ? 1 : 0);
   const nextSeq = [...rest.slice(0, insertIdx), ...group, ...rest.slice(insertIdx)];
@@ -221,7 +225,7 @@ export function reorderMixedColumn({ children = [], plugins = [], parentId, ids 
   // 同归属插件按原槽位写回，其他归属插件位置不变
   const positions = [];
   plugins.forEach((plugin, index) => {
-    if ((plugin.category || '') === parentId) positions.push(index);
+    if ((plugin.directory_id || '') === parentId) positions.push(index);
   });
   const nextPlugins = plugins.slice();
   positions.forEach((pos, index) => {

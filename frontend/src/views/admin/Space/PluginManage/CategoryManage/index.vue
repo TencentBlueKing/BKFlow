@@ -92,10 +92,9 @@
           </bk-button>
           <bk-button
             class="tool-btn"
-            :disabled="!canCreateChild"
             theme="primary"
             :outline="true"
-            @click="handleCreateCategory(selectedLevel1Id)">
+            @click="handleCreateCategory(isUncategorized ? '' : selectedLevel1Id, 'child')">
             <i class="bk-icon icon-plus btn-icon" />
             {{ $t('新建子目录') }}
           </bk-button>
@@ -132,6 +131,8 @@
                   :show-unclassified="moveShowUnclassified"
                   :show-ai-recommend="moveShowAiRecommend"
                   :exclude-ids="moveExcludeIds"
+                  :ai-recommend-ids="moveAiRecommendIds"
+                  :ai-recommend-loading="moveAiLoading"
                   @select="handleMoveTo" />
               </template>
             </bk-popover>
@@ -201,7 +202,7 @@
               <div
                 :class="['cate-row', rowStateCls('uncategorized'), { 'is-active': selectedLevel1Id === 'uncategorized' }]"
                 data-dnd-type="uncat"
-                @click="handleSelectLevelOne('uncategorized')">
+                @click="onSelectLevelOne('uncategorized')">
                 <span
                   class="row-checkbox uncategorized-checkbox"
                   @click.stop>
@@ -214,6 +215,7 @@
                   v-bk-overflow-tips
                   class="row-name">{{ $t('未分类插件') }}</span>
                 <span class="row-count-tag">{{ uncategorizedPlugins.length }}</span>
+                <i class="bk-icon icon-angle-right row-arrow" />
               </div>
               <div class="row-divider" />
               <div
@@ -222,22 +224,22 @@
                 :data-locate-id="cate.id"
                 data-dnd-type="dir"
                 :class="['cate-row', rowStateCls(cate.id), { 'is-active': selectedLevel1Id === cate.id, 'is-flash': flashId === cate.id }]"
-                @click="handleSelectLevelOne(cate.id)"
+                @click="onSelectLevelOne(cate.id)"
                 @mousedown="handleRowDragMousedown(cate.id, 'dir', $event)">
                 <i class="commonicon-icon common-icon-drawable" />
                 <span
                   class="row-checkbox"
                   @click.stop>
                   <bk-checkbox
-                    :value="checkedIds.includes(cate.id)"
-                    @change="toggleChecked(cate.id)" />
+                    :value="checkedCateIds.includes(cate.id)"
+                    @change="toggleCateChecked(cate.id)" />
                 </span>
                 <i :class="['row-icon', 'commonicon-icon common-icon-file-open-dakaiwenjianjia']" />
                 <span
                   v-bk-overflow-tips
                   class="row-name">{{ cate.name }}</span>
                 <span class="row-count-tag">{{ level1PluginCount(cate) }}</span>
-                <i class="bk-icon icon-right-shape row-arrow" />
+                <i class="bk-icon icon-angle-right row-arrow" />
               </div>
             </div>
           </section>
@@ -259,47 +261,47 @@
               <template v-if="secondDirectories.length || secondPlugins.length">
                 <div
                   v-for="sub in secondDirectories"
-                  :key="sub.id"
+                  :key="`dir-${sub.id}`"
                   :data-locate-id="sub.id"
                   data-dnd-type="dir"
-                  :class="['cate-row', rowStateCls(sub.id), { 'is-active': selectedSecondId === sub.id, 'is-flash': flashId === sub.id }]"
-                  @click="handleSelectSecond(sub)"
+                  :class="['cate-row', rowStateCls(sub.id, 'dir'), { 'is-active': selectedSecondId === sub.id, 'is-flash': flashId === sub.id }]"
+                  @click="onSelectSecond(sub)"
                   @mousedown="handleRowDragMousedown(sub.id, 'dir', $event)">
                   <i class="commonicon-icon common-icon-drawable" />
                   <span
                     class="row-checkbox"
                     @click.stop>
                     <bk-checkbox
-                      :value="checkedIds.includes(sub.id)"
-                      @change="toggleChecked(sub.id)" />
+                      :value="checkedCateIds.includes(sub.id)"
+                      @change="toggleCateChecked(sub.id)" />
                   </span>
                   <i :class="['row-icon', 'commonicon-icon common-icon-file-open-dakaiwenjianjia']" />
                   <span
                     v-bk-overflow-tips
                     class="row-name">{{ sub.name }}</span>
                   <span class="row-count-tag">{{ pluginCountById(sub.id) }}</span>
-                  <i class="bk-icon icon-right-shape row-arrow" />
+                  <i class="bk-icon icon-angle-right row-arrow" />
                 </div>
                 <div
                   v-for="plugin in secondPlugins"
-                  :key="plugin.id"
+                  :key="`plugin-${plugin.id}`"
                   :data-locate-id="plugin.id"
                   data-dnd-type="plugin"
-                  :class="['cate-row', rowStateCls(plugin.id), { 'is-flash': flashId === plugin.id }]"
-                  @click="toggleChecked(plugin.id)"
+                  :class="['cate-row', rowStateCls(plugin.id, 'plugin'), { 'is-flash': flashId === plugin.id }]"
+                  @click="togglePluginChecked(plugin.id)"
                   @mousedown="handleRowDragMousedown(plugin.id, 'plugin', $event)">
                   <i class="commonicon-icon common-icon-drawable" />
                   <span
                     class="row-checkbox"
                     @click.stop>
                     <bk-checkbox
-                      :value="checkedIds.includes(plugin.id)"
-                      @change="toggleChecked(plugin.id)" />
+                      :value="checkedPluginIds.includes(plugin.id)"
+                      @change="togglePluginChecked(plugin.id)" />
                   </span>
                   <i class="row-icon commonicon-icon common-icon-plugin-chajian is-plugin" />
                   <span
                     v-bk-overflow-tips
-                    class="row-name">{{ plugin.name }}</span>
+                    class="row-name">{{ plugin.plugin_name }}</span>
                 </div>
               </template>
               <bk-exception
@@ -329,21 +331,21 @@
                   :key="plugin.id"
                   :data-locate-id="plugin.id"
                   data-dnd-type="plugin"
-                  :class="['cate-row', rowStateCls(plugin.id), { 'is-flash': flashId === plugin.id }]"
-                  @click="toggleChecked(plugin.id)"
+                  :class="['cate-row', rowStateCls(plugin.id, 'plugin'), { 'is-flash': flashId === plugin.id }]"
+                  @click="togglePluginChecked(plugin.id)"
                   @mousedown="handleRowDragMousedown(plugin.id, 'plugin', $event)">
                   <i class="commonicon-icon common-icon-drawable" />
                   <span
                     class="row-checkbox"
                     @click.stop>
                     <bk-checkbox
-                      :value="checkedIds.includes(plugin.id)"
-                      @change="toggleChecked(plugin.id)" />
+                      :value="checkedPluginIds.includes(plugin.id)"
+                      @change="togglePluginChecked(plugin.id)" />
                   </span>
                   <i class="row-icon commonicon-icon common-icon-plugin-chajian is-plugin" />
                   <span
                     v-bk-overflow-tips
-                    class="row-name">{{ plugin.name }}</span>
+                    class="row-name">{{ plugin.plugin_name }}</span>
                 </div>
               </template>
               <bk-exception
@@ -383,6 +385,7 @@
         </div>
       </div>
     </div>
+    <!-- 新建目录/新建子目录 -->
     <bk-dialog
       v-model="createDialogVisible"
       theme="primary"
@@ -421,11 +424,11 @@
           <bk-input
             v-model.trim="createForm.name"
             :maxlength="32"
-            :placeholder="$t('请输入')"
-            @enter="confirmCreateCategory" />
+            :placeholder="$t('请输入')"/>
         </bk-form-item>
       </bk-form>
     </bk-dialog>
+
     <bk-dialog
       v-model="deleteDialogVisible"
       width="478"
@@ -436,9 +439,11 @@
         <span>{{ $t('请确认删除后的改动，是否符合预期？') }}</span>
         <span>{{ $t('如果不符合预期，请先手动移动 / 智能分类') }}</span>
       </p>
-      <template v-if="deleteDialogVisible">
+      <div
+        v-bkloading="{ isLoading: deleteImpactLoading, opacity: 1 }"
+        class="impact-loading-wrap">
         <div
-          v-for="cate in deleteCategories"
+          v-for="cate in deleteImpactItems"
           :key="cate.id"
           class="impact-block">
           <p
@@ -448,7 +453,7 @@
           </p>
           <bk-table
             class="impact-table"
-            :data="getCategoryImpactRows(cate)">
+            :data="impactRows(cate)">
             <bk-table-column
               :label="$t('子对象')"
               width="220">
@@ -462,7 +467,7 @@
               prop="change" />
           </bk-table>
         </div>
-      </template>
+      </div>
       <template slot="footer">
         <bk-button
           theme="danger"
@@ -479,8 +484,9 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 import CategorySelectPanel from '../CategorySelectPanel.vue';
+
 import { matchPluginCategory } from '../shared';
 import {
   resolveDragGroup,
@@ -492,7 +498,6 @@ import {
   reorderPlugins,
   reorderMixedColumn,
 } from '../dragRules';
-import { getCategoryManageData, saveCategoryManage } from '../api';
 
 const UNCLASSIFIED = 'uncategorized';
 
@@ -507,13 +512,17 @@ export default {
       saving: false,
       categories: [],
       plugins: [],
-      // 本页删除的插件 id
-      deletedPluginIds: [],
+      // 拉取时的插件归属快照（pluginId -> directory_id），保存时用于 diff 出变化项
+      originalAssignments: {},
+      // 整页数据版本号
+      manageRevision: null,
       // 当前选中：一级目录 id（uncategorized 为「未分类插件」固定项）
       selectedLevel1Id: UNCLASSIFIED,
       // 第二栏选中的子目录 id（空表示未选中，第三栏为空态）
       selectedSecondId: '',
-      checkedIds: [],
+      // 勾选状态按类型拆分：目录 id 与插件 id
+      checkedCateIds: [],
+      checkedPluginIds: [],
       keyword: '',
       isSearchPanelShow: false,
       flashId: '',
@@ -521,7 +530,11 @@ export default {
       dirty: false,
       // AI 智能分类：自然语言分类需求（选填）
       aiPrompt: '',
+      moveAiRecommendIds: [],
+      moveAiLoading: false,
       deleteDialogVisible: false,
+      deleteImpactLoading: false,
+      deleteImpactItems: [],
       createDialogVisible: false,
       createMode: 'root',
       createForm: { parentId: '', name: '' },
@@ -573,24 +586,30 @@ export default {
         });
       });
       this.plugins.forEach((plugin) => {
-        if ((plugin.name || '').toLowerCase().includes(kw)) {
-          const level1 = this.categories.find(cate => cate.id === plugin.category
-            || (cate.children || []).some(sub => sub.id === plugin.category));
-          const sub = level1 && (level1.children || []).find(item => item.id === plugin.category);
+        const pluginName = plugin.plugin_name || '';
+        if (pluginName.toLowerCase().includes(kw)) {
+          const level1 = this.categories.find(cate => cate.id === plugin.directory_id
+            || (cate.children || []).some(sub => sub.id === plugin.directory_id));
+          const sub = level1 && (level1.children || []).find(item => item.id === plugin.directory_id);
+          let path = this.$t('未分类插件');
+          if (level1) {
+            path = sub ? `${level1.name} / ${sub.name}` : level1.name;
+          }
           results.push({
             id: plugin.id,
             type: 'plugin',
             parentId: sub ? sub.id : '',
             level1Id: level1 ? level1.id : UNCLASSIFIED,
-            name: plugin.name,
-            path: level1 ? (sub ? `${level1.name} / ${sub.name}` : level1.name) : this.$t('未分类插件'),
+            name: pluginName,
+            path,
           });
         }
       });
       return results;
     },
+    // plugins 为全量插件：directory_id 有值即已分类，空值（'' / null）即未分类
     uncategorizedPlugins() {
-      return this.plugins.filter(plugin => !plugin.category);
+      return this.plugins.filter(plugin => !plugin.directory_id);
     },
     isUncategorized() {
       return this.selectedLevel1Id === UNCLASSIFIED;
@@ -608,9 +627,8 @@ export default {
     },
     // 第二栏的直属插件（未分类时展示全部未分类插件）
     secondPlugins() {
-      return this.isUncategorized
-        ? this.uncategorizedPlugins
-        : this.plugins.filter(plugin => plugin.category === this.selectedLevel1Id);
+      if (this.isUncategorized) return this.uncategorizedPlugins;
+      return this.plugins.filter(plugin => this.pluginDirectoryId(plugin) === String(this.selectedLevel1Id));
     },
     selectedSecondName() {
       const sub = this.secondDirectories.find(item => item.id === this.selectedSecondId);
@@ -621,36 +639,23 @@ export default {
     },
     thirdPlugins() {
       if (!this.selectedSecondName) return [];
-      return this.plugins.filter(plugin => plugin.category === this.selectedSecondId);
+      return this.plugins.filter(plugin => this.pluginDirectoryId(plugin) === String(this.selectedSecondId));
     },
     hasChecked() {
-      return this.checkedIds.length > 0;
-    },
-    // 勾选项中的目录（一级 + 子目录）与插件
-    checkedCategoryIds() {
-      const ids = new Set(this.checkedIds);
-      const cateIds = [];
-      this.categories.forEach((cate) => {
-        if (ids.has(cate.id)) cateIds.push(cate.id);
-        (cate.children || []).forEach((sub) => {
-          if (ids.has(sub.id)) cateIds.push(sub.id);
-        });
-      });
-      return cateIds;
+      return this.checkedCateIds.length + this.checkedPluginIds.length > 0;
     },
     hasCheckedCategory() {
-      return this.checkedCategoryIds.length > 0;
+      return this.checkedCateIds.length > 0;
     },
     hasCheckedPlugin() {
-      const ids = new Set(this.checkedIds);
-      return this.plugins.some(plugin => ids.has(plugin.id));
+      return this.checkedPluginIds.length > 0;
     },
     // 移动场景判定：只勾了插件时才提供「未分类」入口
     moveIsPluginOnly() {
       return !this.hasCheckedCategory;
     },
     moveBlocked() {
-      const ids = new Set(this.checkedIds);
+      const ids = new Set(this.checkedCateIds);
       return this.categories.some(cate => ids.has(cate.id) && (cate.children || []).length > 0);
     },
     moveDisabled() {
@@ -669,17 +674,17 @@ export default {
     },
     // 勾选项中是否含一级目录
     hasCheckedTopLevel() {
-      const ids = new Set(this.checkedIds);
+      const ids = new Set(this.checkedCateIds);
       return this.categories.some(cate => ids.has(cate.id));
     },
     // 勾选项中是否含二级目录
     hasCheckedSecondLevel() {
-      const ids = new Set(this.checkedIds);
+      const ids = new Set(this.checkedCateIds);
       return this.categories.some(cate => (cate.children || []).some(sub => ids.has(sub.id)));
     },
     // 不能移动到自己或自己的子目录下：排除被勾选目录自身及其子目录
     moveExcludeIds() {
-      const ids = new Set(this.checkedIds);
+      const ids = new Set(this.checkedCateIds);
       const excluded = [];
       this.categories.forEach((cate) => {
         if (ids.has(cate.id)) {
@@ -694,51 +699,20 @@ export default {
       return excluded;
     },
     deleteDisabled() {
-      return !this.hasCheckedCategory;
+      // 仅勾选目录时可删除
+      return !this.hasCheckedCategory || this.hasCheckedPlugin;
     },
 
-    // 待删除目录清单（一级 / 子目录都算），带各自的子目录数与直属插件数
-    deleteCategories() {
-      const idSet = new Set(this.checkedIds);
-      const list = [];
-      this.categories.forEach((cate) => {
-        if (idSet.has(cate.id)) {
-          list.push({
-            id: cate.id,
-            name: cate.name,
-            // 一级目录被删后，未被同时勾选的子目录提升为一级目录
-            subCount: (cate.children || []).filter(sub => !idSet.has(sub.id)).length,
-            pluginCount: this.plugins.filter(plugin => plugin.category === cate.id).length,
-          });
-        }
-        (cate.children || []).forEach((sub) => {
-          if (idSet.has(sub.id)) {
-            list.push({
-              id: sub.id,
-              name: sub.name,
-              subCount: 0,
-              pluginCount: this.plugins.filter(plugin => plugin.category === sub.id).length,
-            });
-          }
-        });
-      });
-      return list;
-    },
     // 删除弹窗标题：单个目录显示名称，多个显示数量
     deleteDialogTitle() {
-      const list = this.deleteCategories;
+      const list = this.deleteImpactItems;
       if (list.length === 1) {
         return this.$t('确认删除「{0}」目录？', [list[0].name]);
       }
       return this.$t('确认删除所选的 {0} 个目录？', [list.length]);
     },
-    // 多个目录时逐目录展示影响（每个目录独立表格+标题），单个目录不重复显示标题
     isMultiCategoryDelete() {
-      return this.deleteCategories.length > 1;
-    },
-    // 「新建子目录」需要先选中一个真实一级目录
-    canCreateChild() {
-      return !!this.selectedLevel1;
+      return this.deleteImpactItems.length > 1;
     },
     createDialogTitle() {
       return this.createMode === 'root' ? this.$t('新建目录') : this.$t('新建子目录');
@@ -762,6 +736,14 @@ export default {
   watch: {
     keyword(val) {
       this.isSearchPanelShow = !!String(val || '').trim();
+    },
+    // 弹窗关闭清除校验态
+    createDialogVisible(val) {
+      if (val) return;
+      const form = this.$refs.createFormRef;
+      if (form && typeof form.clearValidate === 'function') {
+        form.clearValidate();
+      }
     },
   },
   created() {
@@ -791,12 +773,80 @@ export default {
     });
   },
   methods: {
+    // 目录 id 在 directoriesToTree 中已转为字符串，插件 directory_id 统一 String 归一化后再比较
+    pluginDirectoryId(plugin) {
+      return String(plugin.directory_id || '');
+    },
+    ...mapActions('pluginManage', [
+      'getDirectoryManagePage',
+      'saveDirectoryManage',
+      'getCategoryDeleteImpact',
+      'deleteCategory',
+      'aiClassify',
+    ]),
+    directoriesToTree(directories = {}) {
+      const nodes = Object.keys(directories).map(key => ({
+        id: String((directories[key] && directories[key].id) || key),
+        parent_id: directories[key] && directories[key].parent_id ? String(directories[key].parent_id) : '',
+        name: (directories[key] && directories[key].name) || '',
+        order: (directories[key] && directories[key].order) || 0,
+        children: [],
+      }));
+      const byId = {};
+      nodes.forEach((node) => {
+        byId[node.id] = node;
+      });
+      const roots = [];
+      nodes.forEach((node) => {
+        if (node.parent_id && byId[node.parent_id]) {
+          byId[node.parent_id].children.push(node);
+        } else {
+          roots.push(node);
+        }
+      });
+      const byOrder = (a, b) => a.order - b.order;
+      roots.sort(byOrder);
+      Object.keys(byId).forEach(id => byId[id].children.sort(byOrder));
+      // 剥离内部排序字段
+      const clean = node => ({
+        id: node.id,
+        name: node.name,
+        children: node.children.map(clean),
+      });
+      return roots.map(clean);
+    },
+    treeToDirectories(categories = []) {
+      const directories = {};
+      const walk = (nodes, parentId) => {
+        (nodes || []).forEach((node, index) => {
+          directories[String(node.id)] = {
+            id: String(node.id),
+            parent_id: parentId ? String(parentId) : '',
+            name: node.name,
+            order: index + 1,
+          };
+          walk(node.children, node.id);
+        });
+      };
+      walk(categories, '');
+      return directories;
+    },
     async fetchData() {
       this.loading = true;
       try {
-        const { categories, plugins } = await getCategoryManageData({ spaceId: this.spaceId });
-        this.categories = categories || [];
-        this.plugins = plugins || [];
+        const page = await this.getDirectoryManagePage({ space_id: this.spaceId });
+        this.manageRevision = page.revision;
+        this.categories = this.directoriesToTree(page.directories);
+        this.plugins = (page.plugins || []).map(plugin => ({
+          ...plugin,
+          // 统一字符串化：data-locate-id / checkedCateIds / checkedPluginIds / 拖拽组 ids 均为字符串，避免 === 类型不匹配
+          id: String(plugin.id),
+          directory_id: plugin.directory_id ? String(plugin.directory_id) : '',
+        }));
+        this.originalAssignments = {};
+        this.plugins.forEach(({ id, directory_id: directoryId }) => {
+          this.originalAssignments[String(id)] = directoryId;
+        });
         this.resetSelection();
       } finally {
         this.loading = false;
@@ -805,7 +855,8 @@ export default {
     resetSelection() {
       this.selectedLevel1Id = UNCLASSIFIED;
       this.selectedSecondId = '';
-      this.checkedIds = [];
+      this.checkedCateIds = [];
+      this.checkedPluginIds = [];
       // 默认选中第一个一级目录
       const first = this.categories[0];
       if (first) this.handleSelectLevelOne(first.id);
@@ -814,7 +865,7 @@ export default {
       return this.plugins.filter(plugin => matchPluginCategory(plugin, cate.id, this.categories)).length;
     },
     pluginCountById(categoryId) {
-      return this.plugins.filter(plugin => plugin.category === categoryId).length;
+      return this.plugins.filter(plugin => plugin.directory_id === categoryId).length;
     },
     handleSelectLevelOne(id) {
       this.selectedLevel1Id = id;
@@ -861,8 +912,15 @@ export default {
         if (item.parentId) this.selectedSecondId = item.parentId;
       }
       // 连续定位时保留已选中项，新定位项去重追加（重复定位同一项不会取消勾选）
-      if (!this.checkedIds.includes(item.id)) {
-        this.checkedIds = [...this.checkedIds, item.id];
+      const checkedList = item.type === 'level1' || item.type === 'level2'
+        ? this.checkedCateIds
+        : this.checkedPluginIds;
+      if (!checkedList.includes(item.id)) {
+        if (checkedList === this.checkedCateIds) {
+          this.checkedCateIds = [...checkedList, item.id];
+        } else {
+          this.checkedPluginIds = [...checkedList, item.id];
+        }
       }
       this.$bkMessage({
         theme: 'success',
@@ -886,22 +944,42 @@ export default {
       const wrap = this.$refs.searchLocate;
       if (wrap && !wrap.contains(e.target)) this.isSearchPanelShow = false;
     },
+    onSelectLevelOne(id) {
+      const changed = this.selectedLevel1Id !== id;
+      this.handleSelectLevelOne(id);
+      if (changed) {
+        this.checkedCateIds = [];
+        this.checkedPluginIds = [];
+      }
+    },
+    onSelectSecond(sub) {
+      const changed = this.selectedSecondId !== sub.id;
+      this.handleSelectSecond(sub);
+      if (changed) {
+        this.checkedCateIds = [];
+        this.checkedPluginIds = [];
+      }
+    },
     handleSelectSecond(sub) {
       this.selectedSecondId = sub.id;
     },
-    toggleChecked(id) {
-      this.checkedIds = this.checkedIds.includes(id)
-        ? this.checkedIds.filter(item => item !== id)
-        : [...this.checkedIds, id];
+    toggleCateChecked(id) {
+      this.checkedCateIds = this.checkedCateIds.includes(id)
+        ? this.checkedCateIds.filter(item => item !== id)
+        : [...this.checkedCateIds, id];
+    },
+    togglePluginChecked(id) {
+      this.checkedPluginIds = this.checkedPluginIds.includes(id)
+        ? this.checkedPluginIds.filter(item => item !== id)
+        : [...this.checkedPluginIds, id];
     },
     // 勾选项中的插件 id（目录 id 不在此列，目录走树结构移动）
     getCheckedPluginIds() {
-      const ids = new Set(this.checkedIds);
-      return this.plugins.filter(plugin => ids.has(plugin.id)).map(plugin => plugin.id);
+      return this.checkedPluginIds;
     },
     resolveDragGroup(id, type) {
       return resolveDragGroup({
-        checkedIds: this.checkedIds,
+        checkedIds: type === 'plugin' ? this.checkedPluginIds : this.checkedCateIds,
         categories: this.categories,
         plugins: this.plugins,
         id,
@@ -946,7 +1024,7 @@ export default {
       this.dndGhost = {
         count: ids.length,
         type,
-        name: (startItem && startItem.name) || '',
+        name: (startItem && (type === 'plugin' ? startItem.plugin_name : startItem.name)) || '',
       };
       // 拖拽期间隐藏系统光标与文字选区（自定义光标由 .drag-cursor 提供）
       document.body.classList.add('is-dnd-dragging');
@@ -1016,8 +1094,8 @@ export default {
       }
       if (rowEl && rowEl.dataset.locateId) {
         const id = rowEl.dataset.locateId;
-        // 悬停在拖拽组自身行上：清空落点
-        if (this.dnd.ids.includes(id)) {
+        // 悬停在拖拽组自身行上：清空落点（需类型一致，目录/插件 id 可能撞号）
+        if (this.dnd.type === rowEl.dataset.dndType && this.dnd.ids.includes(id)) {
           if (this.dropState.intent || this.denyTip || this.colDrop.key) this.clearDropVisual();
           return;
         }
@@ -1047,9 +1125,9 @@ export default {
       } else if (columnKey === 'second') {
         intent = this.isUncategorized
           ? { kind: 'uncategorized', targetId: '' }
-          : { kind: 'into', targetId: this.selectedLevel1Id };
+          : { kind: 'into', targetId: this.selectedLevel1Id, targetType: 'dir' };
       } else if (columnKey === 'third' && this.selectedSecondId) {
-        intent = { kind: 'into', targetId: this.selectedSecondId };
+        intent = { kind: 'into', targetId: this.selectedSecondId, targetType: 'dir' };
       }
       if (!intent) {
         if (this.dropState.intent || this.denyTip || this.colDrop.key) this.clearDropVisual();
@@ -1088,7 +1166,7 @@ export default {
       }
       if (rowEl && rowEl.dataset.locateId) {
         const id = rowEl.dataset.locateId;
-        if (this.dnd.ids.includes(id)) {
+        if (this.dnd.type === rowEl.dataset.dndType && this.dnd.ids.includes(id)) {
           this.resetDnd();
           return;
         }
@@ -1234,7 +1312,7 @@ export default {
       });
       if (!changed) return false;
       // 归属变更需 $set 写入（未分类插件可能没有 category 字段，Vue2 无法自动响应）
-      updates.forEach(({ plugin, category }) => this.$set(plugin, 'category', category));
+      updates.forEach(({ plugin, directory_id: directoryId }) => this.$set(plugin, 'directory_id', directoryId));
       this.plugins = list;
       return true;
     },
@@ -1242,9 +1320,12 @@ export default {
     // 落点为一级目录时返回 ''（走一级序列原逻辑）
     getDirReorderParentId(intent) {
       const target = this.findCateInfo(intent.targetId);
-      if (target) return target.level === 2 ? target.parentId : '';
+      return target && target.level === 2 ? target.parentId : '';
+    },
+    // 落点为插件行时的混排序列父级 = 该插件归属（目录/插件 id 可能撞号，按 targetType 分流解析）
+    getPluginReorderParentId(intent) {
       const plugin = this.plugins.find(item => item.id === intent.targetId);
-      return plugin && plugin.category ? plugin.category : '';
+      return plugin && plugin.directory_id ? plugin.directory_id : '';
     },
     // 混排调序前提：勾选组内每一项都属于该父级的混排序列（子目录或直属插件）
     canUseMixedReorder(parentId, idSet) {
@@ -1258,8 +1339,13 @@ export default {
           hasItem = true;
           return;
         }
+        // 该 id 是其他目录（不在目标父 children 中）→ 不属于该混排序列；避免目录 id 撞号被误当插件检查归属
+        if (this.findCateInfo(id)) {
+          ok = false;
+          return;
+        }
         const plugin = this.plugins.find(item => item.id === id);
-        if (plugin && (plugin.category || '') === parentId) {
+        if (plugin && (plugin.directory_id || '') === parentId) {
           hasItem = true;
           return;
         }
@@ -1287,8 +1373,8 @@ export default {
       } else if (intent.kind === 'uncategorized') {
         // 插件移入未分类（category 置空）
         this.plugins.forEach((plugin) => {
-          if (idSet.has(plugin.id) && (plugin.category || '') !== '') {
-            this.$set(plugin, 'category', '');
+          if (idSet.has(plugin.id) && (plugin.directory_id || '') !== '') {
+            this.$set(plugin, 'directory_id', '');
             changed = true;
           }
         });
@@ -1297,8 +1383,8 @@ export default {
         if (type === 'plugin') {
           // 插件改归属：用 $set 写入，未分类插件可能没有 category 字段（Vue2 响应式）
           this.plugins.forEach((plugin) => {
-            if (idSet.has(plugin.id) && plugin.category !== intent.targetId) {
-              this.$set(plugin, 'category', intent.targetId);
+            if (idSet.has(plugin.id) && plugin.directory_id !== intent.targetId) {
+              this.$set(plugin, 'directory_id', intent.targetId);
               changed = true;
             }
           });
@@ -1314,8 +1400,8 @@ export default {
           }
           // 混合勾选（目录 + 插件）：其中的插件一并改归属到目标目录
           this.plugins.forEach((plugin) => {
-            if (idSet.has(plugin.id) && plugin.category !== intent.targetId) {
-              this.$set(plugin, 'category', intent.targetId);
+            if (idSet.has(plugin.id) && plugin.directory_id !== intent.targetId) {
+              this.$set(plugin, 'directory_id', intent.targetId);
               changed = true;
             }
           });
@@ -1332,9 +1418,11 @@ export default {
           }
         }
       } else if (type === 'dir') {
-        // 目录组 before/after：落点在二级目录或直属插件上时走「子目录 + 直属插件」混排序列
-        // （支持混合勾选组整组移动；一级序列调序保持原逻辑）
-        const mixedParentId = this.getDirReorderParentId(intent);
+    // 目录组 before/after：落点在二级目录或直属插件上时走「子目录 + 直属插件」混排序列
+    // （支持混合勾选组整组移动；一级序列调序保持原逻辑）
+    const mixedParentId = intent.targetType === 'plugin'
+      ? this.getPluginReorderParentId(intent)
+      : this.getDirReorderParentId(intent);
         if (mixedParentId && this.canUseMixedReorder(mixedParentId, idSet)) {
           const parent = this.categories.find(cate => cate.id === mixedParentId);
           const result = reorderMixedColumn({
@@ -1344,12 +1432,16 @@ export default {
             ids: [...idSet],
             targetId: intent.targetId,
             kind: intent.kind,
+            dragType: type,
+            targetKind: intent.targetType,
           });
           if (result.changed && parent) {
             this.$set(parent, 'children', result.children);
             this.plugins = result.plugins;
             changed = true;
           }
+        } else if (intent.targetType === 'plugin') {
+          // 目录组落到插件行但不满足混排前提：不落地（避免撞号 id 被 findCateInfo 误解析）
         } else if (!this.isReorderNoop(intent, moveIdSet, type)) {
           this.reorderCategories(intent, moveIdSet);
           changed = true;
@@ -1367,38 +1459,42 @@ export default {
       return this.colDrop.ok ? 'is-col-drop-ok' : 'is-col-drop-deny';
     },
     // 行的拖拽态 class：拖起行半透明 + 六种落点态（before/after/into × ok/deny）
-    rowStateCls(id) {
+    // type 用于过滤撞号：目录 id 与插件 id 是两套编号可能相同，落点/拖拽态只落在同类型行上
+    rowStateCls(id, type) {
       if (!this.dnd.active) return {};
       const cls = {};
-      if (this.dnd.ids.includes(id)) cls['is-dragging'] = true;
+      if (this.dnd.type === type && this.dnd.ids.includes(id)) cls['is-dragging'] = true;
       const { intent, ok } = this.dropState;
       if (intent && intent.targetId === id) {
-        cls[`is-drop-${intent.kind}-${ok ? 'ok' : 'deny'}`] = true;
+        // 落点态只显示在落点行同类型的行上（目录/插件 id 可能撞号，不能按 id 反查类型）
+        const targetType = intent.kind === 'uncategorized' ? 'plugin' : (intent.targetType || '');
+        if (!targetType || targetType === type) {
+          cls[`is-drop-${intent.kind}-${ok ? 'ok' : 'deny'}`] = true;
+        }
       }
       return cls;
     },
     // 移动至：插件改归属（可到未分类）+ 目录换父（只能挂到某个一级目录下）
     // 目标可选范围由面板按勾选内容收敛，这里只做落地的树/数据改动
+    // AI 推荐：调 ai_classify 拉取勾选插件的建议目录，有建议时面板内渲染推荐框，不关闭面板
     handleMoveTo({ categoryId, isAiRecommend }) {
       if (this.moveBlocked) {
         this.closeMovePopover();
         return;
       }
-      // AI 推荐：能力未接入（同顶部 AI 智能分类），提示后关闭面板，不做落地改动
       if (isAiRecommend) {
-        this.closeMovePopover();
-        this.$bkMessage({ message: this.$t('功能建设中，敬请期待'), theme: 'warning' });
+        this.fetchMoveAiRecommend();
         return;
       }
-      const idSet = new Set(this.checkedIds);
+      const idSet = new Set(this.checkedCateIds);
       // 1) 插件：直接改归属（一级或二级 id，空表示未分类）
       const pluginIdSet = new Set(this.getCheckedPluginIds());
       this.plugins.forEach((plugin) => {
         if (pluginIdSet.has(plugin.id)) {
-          this.$set(plugin, 'category', categoryId);
+          this.$set(plugin, 'directory_id', categoryId);
         }
       });
-      // 2) 目录：从原父节点摘除，再挂到目标一级目录下（含子目录的一级已由按钮守卫拦截）；
+      // 2) 目录：从原父节点摘除，再挂到目标一级目录下
       //    目标为二级目录时挂到其所属一级目录下；未分类（categoryId 为空）只移动插件，目录保持原位
       if (categoryId && this.hasCheckedCategory) {
         // 目标不能是被移动的目录自身（面板已用 excludeIds 过滤，这里兜底）
@@ -1442,7 +1538,8 @@ export default {
       } else if (!categoryId) {
         this.handleSelectLevelOne(UNCLASSIFIED);
       }
-      this.checkedIds = [];
+      this.checkedCateIds = [];
+      this.checkedPluginIds = [];
       this.dirty = true;
       this.closeMovePopover();
       // 混合勾选移动到未分类：插件已移动，目录保持原位（目录必须挂在某个一级目录下）
@@ -1452,8 +1549,29 @@ export default {
       }
       this.$bkMessage({ message: this.$t('移动成功'), theme: 'success' });
     },
+    async fetchMoveAiRecommend() {
+      if (this.moveAiLoading) return;
+      const pluginIds = [...this.checkedPluginIds];
+      if (!pluginIds.length) {
+        this.$bkMessage({ message: this.$t('请先勾选插件后再使用 AI 推荐'), theme: 'warning' });
+        return;
+      }
+      this.moveAiLoading = true;
+      try {
+        const res = await this.aiClassify({ space_id: this.spaceId, plugin_ids: pluginIds });
+        if (res && res.result === 'patch') {
+          this.moveAiRecommendIds = Object.values(res.patch || {}).map(id => String(id));
+        } else {
+          const reason = res && res.result === 'error' && res.message ? res.message : '';
+          this.$bkMessage({ message: reason || this.$t('AI 暂无推荐分类，请手动选择'), theme: 'warning' });
+        }
+      } catch (e) {
+        this.$bkMessage({ message: this.$t('AI 推荐获取失败，请手动选择'), theme: 'error' });
+      } finally {
+        this.moveAiLoading = false;
+      }
+    },
     closeMovePopover() {
-      // bk-popover 对外只暴露 showHandler / hideHandler（没有 hide），与 PluginList 批量移动保持一致
       const popover = this.$refs.movePopover;
       if (!popover) return;
       if (popover.hideHandler) {
@@ -1462,84 +1580,66 @@ export default {
         popover.hide();
       }
     },
-    // 每个目录的影响行（子目录 / 插件两类，0 的不显示）
-    getCategoryImpactRows(cate) {
-      const rows = [];
-      if (cate.subCount > 0) {
-        rows.push({
-          count: cate.subCount,
+    impactRows(item) {
+      return [
+        {
+          count: item.children_count,
           unit: this.$t('个子目录'),
-          change: this.$t('变成一级目录'),
-        });
-      }
-      if (cate.pluginCount > 0) {
-        rows.push({
-          count: cate.pluginCount,
+          change: item.children_effect,
+        },
+        {
+          count: item.plugin_count,
           unit: this.$t('个插件'),
-          change: this.$t('移入「未分类插件」'),
-        });
-      }
-      return rows;
+          change: item.plugin_effect,
+        },
+      ];
     },
-    // 打开删除确认弹窗（按钮守卫已保证勾选了目录）
-    handleDeleteChecked() {
+    async handleDeleteChecked() {
       if (!this.hasCheckedCategory) return;
       this.deleteDialogVisible = true;
-    },
-    // 确认删除：插件不可删除——被删目录的子目录提升为一级目录，
-    // 其下插件（含被误勾的插件）全部移入「未分类插件」
-    confirmDeleteChecked() {
-      const idSet = new Set(this.checkedIds);
-      // 提升未被勾选删除的子目录为一级目录
-      const promoted = [];
-      this.categories.forEach((cate) => {
-        if (idSet.has(cate.id)) {
-          (cate.children || []).forEach((sub) => {
-            if (!idSet.has(sub.id)) promoted.push({ ...sub, children: [] });
-          });
-        }
-      });
-      this.categories = this.categories
-        .filter(cate => !idSet.has(cate.id))
-        .map(cate => ({
-          ...cate,
-          children: (cate.children || []).filter(sub => !idSet.has(sub.id)),
-        }));
-      if (promoted.length) this.categories.push(...promoted);
-      // 插件归属失效的移入未分类（category 置空），不做真实删除
-      this.plugins.forEach((plugin) => {
-        if (plugin.category && idSet.has(plugin.category)) {
-          plugin.category = '';
-        }
-      });
-      // 选中项被删时重置联动
-      if (!this.isUncategorized && !this.selectedLevel1) {
-        this.resetSelection();
-      } else if (this.selectedSecondId && !this.selectedSecondName) {
-        const firstChild = this.selectedLevel1 && (this.selectedLevel1.children || [])[0];
-        this.selectedSecondId = firstChild ? firstChild.id : '';
+      this.deleteImpactItems = [];
+      this.deleteImpactLoading = true;
+      // 勾选目录 id
+      const directoryIds = this.checkedCateIds.join(',');
+      try {
+        const impact = await this.getCategoryDeleteImpact({
+          space_id: this.spaceId,
+          directory_ids: directoryIds,
+        });
+        this.deleteImpactItems = (impact && impact.items) || [];
+      } catch (e) {
+        console.log(e);
+      } finally {
+        this.deleteImpactLoading = false;
       }
-      this.checkedIds = [];
-      this.dirty = true;
-      this.deleteDialogVisible = false;
-      this.$bkMessage({ message: this.$t('删除成功'), theme: 'success' });
     },
-    // 打开新建目录（parentId 空）或新建子目录（parentId 为所选一级目录）共用弹窗
-    handleCreateCategory(parentId) {
-      this.createMode = parentId ? 'child' : 'root';
+    async confirmDeleteChecked() {
+      this.deleteDialogVisible = false;
+      const directoryIds = this.deleteImpactItems.map(item => String(item.id)).join(',');
+      this.checkedCateIds = [];
+      this.checkedPluginIds = [];
+      try {
+        await this.deleteCategory({
+          space_id: this.spaceId,
+          directory_ids: directoryIds,
+        });
+        await this.fetchData();
+        this.dirty = true;
+        this.$bkMessage({ message: this.$t('删除成功'), theme: 'success' });
+      } catch (e) {
+        console.log(e);
+        await this.fetchData();
+      }
+    },
+    handleCreateCategory(parentId, forceMode) {
+      this.createMode = forceMode || (parentId ? 'child' : 'root');
       this.createForm = {
         parentId: parentId || '',
         name: '',
       };
       this.createDialogVisible = true;
-      // 清空上一次的校验态（ref 在弹窗首次展开后才存在）
-      this.$nextTick(() => {
-        const form = this.$refs.createFormRef;
-        form && form.clearValidate();
-      });
     },
-    // 目录名是否与同级已有目录重名（重名校验：新建目录比对全部一级目录，
-    // 新建子目录只比对所属目录下的子目录）
+    // 目录名是否与同级已有目录重名
     isDuplicateName(name) {
       const keyword = name.trim().toLowerCase();
       if (this.createMode === 'root') {
@@ -1549,25 +1649,38 @@ export default {
       return ((parent && parent.children) || [])
         .some(item => item.name.trim().toLowerCase() === keyword);
     },
-    // 弹窗确认：校验（bk-form rules）通过后落本地数据（点「保存」统一提交）
     async confirmCreateCategory() {
+      if (!this.createDialogVisible) return;
       try {
-        // 校验不通过时 bk-form 会在对应表单项下展示错误提示，这里直接终止、弹窗不关闭
         await this.$refs.createFormRef.validate();
       } catch (e) {
         return;
       }
       const name = this.createForm.name.trim();
-      const node = { id: `cate_${Date.now()}`, name, desc: '', bindings: [], children: [] };
-      if (this.createMode === 'root') {
+      const isRoot = this.createMode === 'root';
+      // order 为同级排序号（必填整数，同级不可重复）
+      const parent = isRoot ? null : this.categories.find(item => item.id === this.createForm.parentId);
+      const siblings = isRoot ? this.categories : (parent.children || []);
+      const node = {
+        id: `new_${Date.now()}`,
+        parent_id: isRoot ? '' : String(this.createForm.parentId),
+        name,
+        order: siblings.length + 1,
+        children: [],
+      };
+      if (isRoot) {
         this.categories.push(node);
+        this.handleSelectLevelOne(node.id);
       } else {
-        const parent = this.categories.find(item => item.id === this.createForm.parentId);
-        parent.children = parent.children || [];
+        parent.children = siblings;
         parent.children.push(node);
+        if (this.selectedLevel1Id !== node.parent_id) {
+          this.handleSelectLevelOne(node.parent_id);
+        }
+        this.selectedSecondId = node.id;
       }
-      // 新建完成直接勾选新目录（替换原勾选），便于紧接着做移动 / 删除等后续操作
-      this.checkedIds = [node.id];
+      // 新建完成直接勾选新目录
+      this.checkedCateIds = [node.id];
       this.dirty = true;
       this.createDialogVisible = false;
       this.$bkMessage({ message: this.$t('创建成功'), theme: 'success' });
@@ -1581,30 +1694,38 @@ export default {
     },
     // 提交 AI 分类需求：Enter（不带 Shift）或点击箭头按钮触发
     submitAiClassify() {
-      const prompt = this.aiPrompt.trim();
-      // TODO: 接入 AI 智能分类接口（prompt 为自然语言分类需求，选填）
+      this.hideAiPanel();
+      // const prompt = this.aiPrompt.trim();
+      // TODO: 接入 AI 智能分类接口
       this.$bkMessage({
-        message: this.$t('功能建设中，敬请期待') + prompt,
+        message: this.$t('功能建设中，敬请期待'),
         theme: 'warning',
       });
       this.aiPrompt = '';
-      this.hideAiPanel();
     },
-    // 关闭 AI 输入面板：bk-popconfirm 内部是 bk-popover，Enter 提交时需手动关闭
     hideAiPanel() {
       const popconfirm = this.$refs.aiPopconfirm;
       const popover = popconfirm && popconfirm.$refs.popover;
-      if (popover && popover.hide) popover.hide();
+      if (popover && popover.hideHandler) popover.hideHandler();
     },
     async handleSave() {
       this.saving = true;
       try {
-        await saveCategoryManage({
-          spaceId: this.spaceId,
-          categories: this.categories,
-          plugins: this.plugins.map(plugin => ({ id: plugin.id, category: plugin.category })),
-          deletedPluginIds: this.deletedPluginIds,
+        // 整页保存：目录文档（order 必填整数）+ 插件归属（assignments 仅提交变化项）；成功后更新 revision 支持连续保存
+        const assignments = {};
+        this.plugins.forEach(({ id, directory_id: directoryId }) => {
+          const next = directoryId ? String(directoryId) : '';
+          if (this.originalAssignments[String(id)] !== next) {
+            assignments[String(id)] = next;
+          }
         });
+        const next = await this.saveDirectoryManage({
+          space_id: this.spaceId,
+          expected_revision: this.manageRevision,
+          directories: this.treeToDirectories(this.categories),
+          assignments,
+        });
+        if (next && next.revision !== undefined) this.manageRevision = next.revision;
         this.dirty = false;
         this.$bkMessage({ message: this.$t('保存成功'), theme: 'success' });
       } finally {
@@ -2073,7 +2194,7 @@ export default {
 
     .row-arrow {
       flex-shrink: 0;
-      font-size: 12px;
+      font-size: 20px;
       color: #8f9fbd;
     }
   }
@@ -2205,6 +2326,15 @@ export default {
 </style>
 
 <style lang="scss">
+.bk-message-wrap {
+  .bk-message-content {
+    white-space: normal;
+    word-break: break-all;
+    overflow: visible;
+    text-overflow: clip;
+    max-width: 100%;
+  }
+}
 .category-select-popover {
     background: #fff;
     .tippy-tooltip {
@@ -2344,6 +2474,10 @@ export default {
         line-height: 20px;
         color: #4E5E7A;
         font-family: "PingFang SC";
+    }
+
+    .impact-loading-wrap {
+        min-height: 80px;
     }
 
     .impact-table {
