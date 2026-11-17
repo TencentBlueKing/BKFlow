@@ -29,6 +29,7 @@ from bkflow.label.models import TemplateLabelRelation
 from bkflow.label.permissions import LabelPermission
 from bkflow.space.permissions import SpaceSuperuserPermission
 from bkflow.space.tenant import TenantScopeMixin
+from bkflow.template.models import Template
 from bkflow.utils.mixins import BKFLOWNoMaxLimitPagination
 from bkflow.utils.permissions import AdminPermission
 from bkflow.utils.views import AdminModelViewSet
@@ -198,11 +199,10 @@ class LabelViewSet(TenantScopeMixin, AdminModelViewSet):
         ser.is_valid(raise_exception=True)
         validated_params = ser.validated_data
 
+        space_id = validated_params["space_id"]
         label_ids = validated_params["label_ids"].split(",")
         # 过滤所有子标签
-        all_child_label_ids = Label.objects.filter(
-            space_id=validated_params["space_id"], parent_id__in=label_ids
-        ).values("id", "parent_id")
+        all_child_label_ids = Label.objects.filter(space_id=space_id, parent_id__in=label_ids).values("id", "parent_id")
         label_child_map = {}
         for item in all_child_label_ids:
             if not str(item["parent_id"]) in label_child_map:
@@ -214,15 +214,19 @@ class LabelViewSet(TenantScopeMixin, AdminModelViewSet):
             set(label_ids + [str(num) for value_list in label_child_map.values() for num in value_list])
         )
         # 调用任务组件接口获取任务引用数量
-        client = TaskComponentClient(space_id=validated_params["space_id"])
-        result = client.get_task_label_ref_count(validated_params["space_id"], ",".join(all_query_label_ids))
+        client = TaskComponentClient(space_id=space_id)
+        result = client.get_task_label_ref_count(space_id, ",".join(all_query_label_ids))
         if not result["result"]:
             return Response(result)
         label_task_ref_count_map = result["data"]
 
+        # 仅统计属于当前空间的模板，避免统计到其他空间的同名/共享模板
+        space_template_ids = Template.objects.filter(space_id=space_id).values_list("id", flat=True)
+
         # 获取模板引用数量
         aggregation_qs = (
             TemplateLabelRelation.objects.filter(label_id__in=all_query_label_ids)
+            .filter(template_id__in=space_template_ids)
             .values("label_id")
             .annotate(count=Count("id"))
         )
