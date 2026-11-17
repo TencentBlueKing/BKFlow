@@ -25,6 +25,8 @@ def get_label_ref_count(request, space_id):
     ser.is_valid(raise_exception=True)
 
     label_ids = ser.validated_data["label_ids"].split(",")
+    scope_type = ser.validated_data.get("scope_type")
+    scope_value = ser.validated_data.get("scope_value")
 
     all_child = Label.objects.filter(space_id=int(space_id), parent_id__in=label_ids).values("id", "parent_id")
     label_child_map = {}
@@ -35,13 +37,17 @@ def get_label_ref_count(request, space_id):
     all_query_label_ids = list(set(label_ids + [cid for ids in label_child_map.values() for cid in ids]))
 
     client = TaskComponentClient(space_id=int(space_id))
-    task_result = client.get_task_label_ref_count(int(space_id), ",".join(all_query_label_ids))
+    task_result = client.get_task_label_ref_count(int(space_id), ",".join(all_query_label_ids), scope_type, scope_value)
     if not task_result.get("result"):
         return task_result
     label_task_ref_count_map = task_result.get("data") or {}
 
-    # 仅统计属于当前空间的模板，避免统计到其他空间的同名/共享模板
-    space_template_ids = Template.objects.filter(space_id=int(space_id)).values_list("id", flat=True)
+    # 仅统计属于当前空间、且流程作用域匹配的模板，避免统计到其他空间或作用域的引用
+    space_template_filter = {"space_id": int(space_id)}
+    if scope_type is not None and scope_value is not None:
+        space_template_filter["scope_type"] = scope_type
+        space_template_filter["scope_value"] = scope_value
+    space_template_ids = Template.objects.filter(**space_template_filter).values_list("id", flat=True)
 
     aggregation_qs = (
         TemplateLabelRelation.objects.filter(label_id__in=all_query_label_ids)
