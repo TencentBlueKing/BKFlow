@@ -1,6 +1,7 @@
 """Regression coverage for ordinary-dict validated data in DRF 3.15."""
 
 import pytest
+from django.conf import settings
 from rest_framework.test import APIRequestFactory
 
 from bkflow.task.models import PeriodicTask
@@ -69,6 +70,8 @@ def test_partial_update_response_preserves_saved_config(is_enabled):
         format="json",
         HTTP_BKFLOW_INTERNAL_SPACE_ID="123",
     )
+    # 周期任务接口只接受内部调用，直接调用视图时补上中间件会解析出的凭证。
+    request.app_internal_token = settings.APP_INTERNAL_TOKEN
     response = PeriodicTaskViewSet.as_view({"post": "update_task"})(request)
     assert response.status_code == 200, response.data
     expected = {**config, "constants": {"value": "new"}}

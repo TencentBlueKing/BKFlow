@@ -33,8 +33,12 @@ from bkflow.pipeline_plugins.components.collections.python_code import (
     executor as executor_module,
 )
 from bkflow.pipeline_plugins.components.collections.python_code.executor import (
+    SUPPORTED_MODULES,
     PythonCodeExecutor,
 )
+
+# 这些用例关注执行和存储兼容性，用到模块时显式开放全部受支持模块。
+ALL_MODULES = list(SUPPORTED_MODULES)
 
 
 @pytest.mark.parametrize("phase", ["json", "wire"])
@@ -113,7 +117,7 @@ def test_safe_defaultdict_factories_survive_engine_storage(factory):
 
 def test_unknown_defaultdict_factory_falls_back_only_for_json_output():
     """旧引擎本就会存成普通字典的未知工厂输出仍应成功。"""
-    result = PythonCodeExecutor(Mock()).execute_code(
+    result = PythonCodeExecutor(Mock(), allowed_modules=ALL_MODULES).execute_code(
         'def main():\n    return collections.defaultdict(lambda: 1, {"present": [1, 2]})'
     )
     assert result.success is True, result.message
@@ -132,7 +136,7 @@ def test_unknown_defaultdict_input_is_not_silently_downgraded():
 
 def test_unknown_defaultdict_with_non_json_values_is_not_silently_downgraded():
     """不能将旧版需要 pickle 保型的输出静默降级为普通字典。"""
-    result = PythonCodeExecutor(Mock()).execute_code(
+    result = PythonCodeExecutor(Mock(), allowed_modules=ALL_MODULES).execute_code(
         "def main():\n    return collections.defaultdict(lambda: 1, {(1, 2): 3})"
     )
     assert result.success is False
@@ -160,7 +164,7 @@ def test_zoneinfo_dst_rules_survive_workflow_input():
     serializer = SerializerMixin()
     payload, kind = serializer._serialize(value)
     restored = serializer._deserialize(payload, kind)
-    result = PythonCodeExecutor(Mock()).execute_code(
+    result = PythonCodeExecutor(Mock(), allowed_modules=ALL_MODULES).execute_code(
         "def main(value):\n    return (value + datetime.timedelta(days=1)).isoformat()", {"value": restored}
     )
     assert result.success is True, result.message
@@ -212,7 +216,7 @@ def test_string_key_collections_keep_the_existing_engine_storage_contract():
     """协议保型不代表引擎 JSON 保型，保持旧存储规则即可。"""
     serializer = SerializerMixin()
     for code in ["collections.Counter({'key': 1})", "collections.defaultdict(list, {'key': 1})"]:
-        result = PythonCodeExecutor(Mock()).execute_code("def main():\n    return " + code)
+        result = PythonCodeExecutor(Mock(), allowed_modules=ALL_MODULES).execute_code("def main():\n    return " + code)
         assert result.success is True, result.message
         payload, kind = serializer._serialize(result.result)
         assert kind == "json"
@@ -221,7 +225,7 @@ def test_string_key_collections_keep_the_existing_engine_storage_contract():
 
 def test_nested_unknown_factory_is_not_downgraded_when_the_whole_output_needs_pickle():
     """兄弟字段迫使引擎走 pickle 时，不能单独把内部工厂字典当成 JSON 降级。"""
-    result = PythonCodeExecutor(Mock()).execute_code(
+    result = PythonCodeExecutor(Mock(), allowed_modules=ALL_MODULES).execute_code(
         'def main():\n    return {"factory": collections.defaultdict(uuid.uuid4, {"a": 1}), "special": {1}}'
     )
     assert result.success is False

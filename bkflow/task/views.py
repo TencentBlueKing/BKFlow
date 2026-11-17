@@ -771,6 +771,7 @@ class PeriodicTaskViewSet(
 ):
     queryset = PeriodicTask.objects.all()
     serializer_class = PeriodicTaskSerializer
+    permission_classes = [AdminPermission | AppInternalPermission]
 
     def create(self, request, *args, **kwargs):
         serializer = CreatePeriodicTaskSerializer(data=request.data)

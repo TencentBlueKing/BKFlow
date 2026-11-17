@@ -1468,6 +1468,8 @@ class TestPeriodicTaskViewSet:
         request.user = MagicMock()
         request.user.username = "test_user"
         request.user.is_superuser = False
+        # 周期任务接口只允许 interface 模块内部调用。
+        request.app_internal_token = settings.APP_INTERNAL_TOKEN
 
         return request
 

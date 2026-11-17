@@ -21,6 +21,7 @@ import base64
 import datetime
 import json
 import os
+import re
 from urllib.parse import urlparse
 
 from bamboo_engine.config import Settings as BambooSettings
@@ -254,11 +255,10 @@ BambooSettings.MAKO_TEMPLATE_NAME_EXTRA_WHITELIST = MAKO_TEMPLATE_NAME_EXTRA_WHI
 # 两个模块公共用到的 settings 变量
 BK_PAAS_ESB_HOST = env.BK_PAAS_ESB_HOST
 SKIP_APIGW_CHECK = env.SKIP_APIGW_CHECK
-BK_APIGW_NETLOC_PATTERN = (
-    env.BK_APIGW_NETLOC_PATTERN
-    if env.BKPAAS_ENGINE_REGION == "ieod"
-    else env.BK_APIGW_NETLOC_PATTERN.format(hostname=env.BKPAAS_DOMAIN)
-)
+_apigw_netloc_pattern = env.BK_APIGW_NETLOC_PATTERN
+if env.BKPAAS_ENGINE_REGION != "ieod" and _apigw_netloc_pattern:
+    _apigw_netloc_pattern = _apigw_netloc_pattern.format(hostname=re.escape(env.BKPAAS_DOMAIN))
+BK_APIGW_NETLOC_PATTERN = _apigw_netloc_pattern
 
 # 第三方插件
 PAASV3_APIGW_API_HOST = env.BK_APIGW_URL_TMPL.format(
@@ -275,6 +275,9 @@ ENABLE_EXAMPLE_COMPONENTS = False
 
 # 特定空间插件列表
 SPACE_PLUGIN_LIST = env.SPACE_PLUGIN_LIST_STR.split(",") if env.SPACE_PLUGIN_LIST_STR else []
+# Python 代码节点未开启时，只对系统插件白名单中的空间可见；执行仍由引擎模块的同名开关拦截。
+if not env.PYTHON_CODE_PLUGIN_ENABLED and "python_code" not in SPACE_PLUGIN_LIST:
+    SPACE_PLUGIN_LIST.append("python_code")
 
 # 静态资源文件(js,css等）在APP上线更新后, 由于浏览器有缓存,
 # 可能会造成没更新的情况. 所以在引用静态资源的地方，都把这个加上

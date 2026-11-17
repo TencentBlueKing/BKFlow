@@ -4,6 +4,9 @@
 
 Python代码插件节点允许在工作流中安全地执行Python代码。该插件使用RestrictedPython提供受限的执行环境，确保代码执行的安全性。
 
+节点默认关闭，开启后默认也不提供任何模块，需要平台管理员按下文“配置选项”开启并开放模块。升级说明见
+`docs/guide/security_hardening_upgrade.md`。
+
 ## 功能特性
 
 - ✅ 安全的代码执行环境（基于RestrictedPython）
@@ -19,10 +22,12 @@ Python代码插件节点允许在工作流中安全地执行Python代码。该�
 
 - ❌ 导入危险模块：`os`, `sys`, `subprocess`, `socket`, `urllib`, `requests`等
 - ❌ 使用危险函数：`eval()`, `exec()`, `compile()`, `open()`等
+- ❌ 使用 `import` 语句：可用模块由平台预先注入，直接通过模块名访问
 - ❌ 文件系统操作
 - ❌ 网络请求
 - ❌ 系统命令执行
 - ❌ 进程和线程操作
+- ❌ 访问开放模块的子模块（如 `uuid.os`、`fractions.sys`）和下文“模块白名单”中列出的不可用成员
 
 ### 允许的操作
 
@@ -30,7 +35,7 @@ Python代码插件节点允许在工作流中安全地执行Python代码。该�
 - ✅ 数学运算和逻辑运算
 - ✅ 字符串处理
 - ✅ 列表和字典操作
-- ✅ JSON序列化/反序列化（通过json模块）
+- ✅ JSON序列化/反序列化（开放 `json` 后通过 `json_loads`、`json_dumps`）
 - ✅ 基本的内置函数（len, range, sorted, min, max等）
 
 ## 使用方法
@@ -93,14 +98,14 @@ result = {
 
 ### 5. 使用JSON模块
 
+需要平台在 `PYTHON_CODE_PLUGIN_ALLOWED_MODULES` 中开放 `json`。不需要也不能写 `import json`：
+
 ```python
-import json
-
-# 解析JSON字符串
-data = json.loads(json_string)
-
-# 序列化为JSON
-result = json.dumps({"key": "value"})
+def main(json_string):
+    # 解析JSON字符串
+    data = json_loads(json_string)
+    # 序列化为JSON
+    return {"result": json_dumps({"key": data})}
 ```
 
 ## 输出说明
@@ -111,6 +116,40 @@ result = json.dumps({"key": "value"})
 2. **bk_execution_output**：标准输出和错误输出的文本
 
 ## 配置选项
+
+### 开启节点
+
+```bash
+# 默认关闭。接口模块控制是否对所有空间可见，引擎模块控制是否执行，两个模块都需要配置
+PYTHON_CODE_PLUGIN_ENABLED=true
+```
+
+接口模块未开启时，节点只对在空间插件配置中加入 `python_code` 的空间可见。引擎模块未开启时，节点直接失败并提示联系管理员；
+开启后可重试失败节点。
+
+### 模块白名单
+
+```bash
+# 引擎模块配置，逗号分隔；"*" 表示开放全部可选模块。默认为空，不提供任何模块
+PYTHON_CODE_PLUGIN_ALLOWED_MODULES=json,math,datetime
+```
+
+可选模块：`json`（以 `json_dumps`、`json_loads` 提供）、`jsonschema`（以 `jsonschema_module` 提供）、`math`、`statistics`、
+`decimal`、`fractions`、`datetime`、`collections`、`itertools`、`functools`、`string`、`textwrap`、`base64`、`hashlib`、
+`hmac`、`uuid`、`copy`。其他名称会被忽略并在节点日志中告警。
+
+开放的模块只提供公开成员，不提供子模块。以下成员可以读取函数全局变量、执行注解字符串或绕过格式化限制，也不提供：
+
+- `collections.UserString`
+- `copy.dispatch_table`
+- `datetime.datetime_CAPI`
+- `functools.singledispatch`、`functools.singledispatchmethod`、`functools.update_wrapper`、`functools.wraps`
+- `string.Formatter`
+
+`jsonschema_module` 只提供 `validate`、`ValidationError` 和 `SchemaError`。未声明 `$schema` 时按 Draft 4 校验；
+只解析当前 schema 内的引用，远程或文件 `$ref` 直接报错，不会发起请求。
+
+### 资源限制
 
 可以通过同名部署环境变量配置以下参数（均为整数）：
 
@@ -139,12 +178,14 @@ PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES = 0
 1. **代码长度限制**：代码不能超过配置的最大长度（默认10KB）
 2. **执行超时**：排队使用独立的 `PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT`；获取名额后，输入编码、子进程启动和编译共用准备阶段预算；`main` 开始后获得独立执行预算（包含返回结果编码和传输）。准备和执行阶段各使用 `PYTHON_CODE_PLUGIN_TIMEOUT`（默认各30秒），因此节点总耗时可能超过30秒。父进程同时读写子进程管道，收到执行开始标记后切换期限；`main` 未开始时报告执行等待超时
 3. **进程隔离**：代码在独立子进程内执行，超时后子进程会被终止
+   子进程只继承 `PATH`、`TZ` 和编码相关的环境变量，不继承密钥和数据库配置；会关闭继承的文件描述符，并限制可创建的进程数和可打开的文件数
 4. **并发限制**：每个 Worker 默认4个执行名额，从输入编码开始持有，直到子进程回收及父进程 JSON/协议解码完成后释放；超出额度的任务等待可用名额。这不等于修改 Celery Worker 的线程并发数
 5. **变量映射**：输入变量映射必须是有效的JSON格式
 6. **返回值**：支持 JSON 基础类型，以及 `complex`、`datetime`、`date`、`time`、`timedelta`、`Decimal`、`Fraction`、`UUID`、`set`、`frozenset`、`bytes`、`bytearray`、`tuple`、`range`、`deque`、`Counter`、`OrderedDict` 和 `defaultdict`。`defaultdict` 的默认工厂支持 `None`、`bool/int/float/complex/str/bytes/bytearray/list/dict/tuple/set/frozenset`，以及 `collections.Counter/OrderedDict/defaultdict/deque`、`decimal.Decimal`、`fractions.Fraction`、`datetime.timedelta`。未知工厂仅在整个选定输出可被旧引擎 JSON 保存时降级为普通字典；输入或需要 pickle 保型的输出仍明确报错，不传输任意 callable。其他容器子类仍按对应基础类型返回，不支持任意自定义对象
 7. **输出筛选和响应大小**：配置 `bk_output_key` 时，先在子进程中取出选定字段，再编码和检查响应大小，未选中的字段不参与编码。默认不新增响应大小门槛，以兼容存量大结果；内存限制、执行超时和并发限制仍生效。如需设置10MB响应上限，配置 `PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES=10485760`，超限错误会显示完整响应编码后的实际大小与上限
 8. **成功日志**：记录结果类型和可获取的长度；字符串/字节只预览前128个元素，容器不展开。节点实际输出保持完整
 9. **错误处理**：代码执行错误会在`bk_execution_output`中显示
+10. **已知问题**：`datetime` 对象的 `strftime()` 在沙箱中会报 `'__import__'` 错误（历史版本已存在），可暂用 `isoformat()` 代替
 
 发布前需在实际 Engine Pod 中验证突发并发、队列等待时间和内存水位。默认4个执行名额仍可能使等待超过队列期限的节点失败；并发数和队列期限应结合存量流量调整。响应上限默认关闭时，大结果的编码、传输和父进程解析会增加内存消耗，启用上限前应先核查存量结果大小。被旧实现降低进程资源硬限制的 Worker 无法自行恢复，部署后需滚动重启现有 er-e Pod。
 

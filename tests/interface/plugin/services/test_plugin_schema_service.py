@@ -22,6 +22,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from bkflow.plugin.models import OpenPluginCatalogIndex, SpaceOpenPluginAvailability
+from bkflow.plugin.services import plugin_schema_service
 from bkflow.plugin.services.plugin_schema_service import PluginSchemaService
 from bkflow.utils.api_client import HttpRequestResult
 
@@ -42,6 +43,12 @@ def uniform_meta_result(data, result=True, response_result=True, message=""):
 
 class TestListComponentPlugins:
     """测试内置插件列表查询"""
+
+    @pytest.fixture(autouse=True)
+    def no_space_restricted_plugins(self):
+        """列表用例不关注空间白名单，固定为空以免默认关闭的插件改变查询链。"""
+        with patch.object(plugin_schema_service.settings, "SPACE_PLUGIN_LIST", []):
+            yield
 
     @patch("bkflow.plugin.services.plugin_schema_service.SpacePluginConfigModel")
     @patch("bkflow.plugin.services.plugin_schema_service.SpaceConfig")

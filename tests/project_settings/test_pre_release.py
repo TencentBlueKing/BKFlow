@@ -40,6 +40,7 @@ def run_release(tmp_path, failed_step="", module="default", cache_table_exists=F
 @pytest.mark.parametrize(
     "step",
     [
+        "check_deploy_secrets",
         "migrate",
         "createcachetable",
         "update_component_models",
@@ -63,8 +64,7 @@ def test_existing_cache_table_does_not_stop_release(tmp_path, module):
     result, steps = run_release(tmp_path, module=module, cache_table_exists=True)
     assert result.returncode == 0
     assert "django_cache already exists, skip createcachetable" in result.stderr
-    assert steps[0] == "migrate"
-    assert steps[1] == "createcachetable"
+    assert steps[:3] == ["check_deploy_secrets", "migrate", "createcachetable"]
     assert "update_component_models" in steps
 
 
@@ -73,7 +73,14 @@ def test_release_success_and_optional_notice_compatibility(tmp_path, module):
     """正常发布保持原有顺序，通知注册失败仍可继续且输出提示。"""
     result, steps = run_release(tmp_path, "register_bkflow_to_bknotice", module)
     assert result.returncode == 0
-    expected = ["migrate", "createcachetable", "update_component_models", "update_variable_models", "sync_superuser"]
+    expected = [
+        "check_deploy_secrets",
+        "migrate",
+        "createcachetable",
+        "update_component_models",
+        "update_variable_models",
+        "sync_superuser",
+    ]
     if module == "default":
         expected += ["sync_saas_apigw", "sync_default_module", "register_bkflow_to_bknotice", "sync_webhook_events"]
         assert "optional notice registration failed" in result.stderr

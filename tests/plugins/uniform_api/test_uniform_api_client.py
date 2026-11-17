@@ -17,7 +17,10 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+from unittest import mock
+
 import pytest
+import requests
 from django.conf import settings
 
 from bkflow.exceptions import APIRequestError, ValidationError
@@ -28,7 +31,7 @@ from bkflow.pipeline_plugins.query.uniform_api.utils import (
     UniformAPIClient,
     resolve_meta_url,
 )
-from bkflow.utils.api_client import HttpRequestResult
+from bkflow.utils.api_client import ApiGwClient, HttpRequestResult
 
 
 @pytest.fixture
@@ -368,3 +371,20 @@ class TestUniformAPIClient:
 
         assert not serializer.is_valid()
         assert "non_field_errors" in serializer.errors
+
+
+@pytest.mark.parametrize("client_class", [UniformAPIClient, ApiGwClient])
+def test_signed_request_never_follows_redirect(client_class):
+    """带网关签名的请求即使调用方传入 allow_redirects=True 也不跟随跳转。"""
+    response = requests.Response()
+    response.status_code = 200
+    response._content = b'{"result": true, "data": {}}'
+
+    with mock.patch("bkflow.utils.api_client.requests.get", return_value=response) as mocked_get:
+        result = client_class(from_apigw_check=False).request(
+            method="GET", url="https://bkapi.example.com/api", data={}, allow_redirects=True
+        )
+
+    assert result.result is True
+    assert mocked_get.call_args.kwargs["allow_redirects"] is False
+    assert "X-Bkapi-Authorization" in mocked_get.call_args.kwargs["headers"]

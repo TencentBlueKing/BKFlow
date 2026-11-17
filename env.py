@@ -25,10 +25,15 @@ from bkflow.contrib.diagnostics.config import resolve_switches
 _DIAGNOSTICS_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
-def _diagnostics_bool(name, default=False):
-    """解析流程诊断布尔环境变量，避免字符串 ``"0"`` 被当成真值。"""
+def _env_bool(name, default=False):
+    """严格解析布尔环境变量：只有 1/true/yes/on（忽略大小写和首尾空白）为真，``"0"``、``"false"`` 等均为假。"""
     raw = os.getenv(name)
     return default if raw is None else raw.strip().lower() in _DIAGNOSTICS_TRUE_VALUES
+
+
+def _diagnostics_bool(name, default=False):
+    """解析流程诊断布尔环境变量，避免字符串 ``"0"`` 被当成真值。"""
+    return _env_bool(name, default)
 
 
 def _diagnostics_csv(name, default=""):
@@ -83,7 +88,8 @@ BKAPP_REDIS_DB = os.getenv("REDIS_DB")
 BKAPP_REDIS_SENTINEL_PASSWORD = os.getenv("REDIS_SENTINEL_PASSWORD")
 
 # 模块间调用相关配置
-APP_INTERNAL_VALIDATION_SKIP = bool(os.getenv("APP_INTERNAL_VALIDATION_SKIP", False))
+# 安全相关开关按严格布尔解析，避免 "0"、"false" 被误判为开启。
+APP_INTERNAL_VALIDATION_SKIP = _env_bool("APP_INTERNAL_VALIDATION_SKIP", False)
 # 本模块被调用允许通过的 token
 APP_INTERNAL_TOKEN = os.getenv("APP_INTERNAL_TOKEN", "")
 # 任务模块调用 Interface 模块的 token
@@ -117,6 +123,9 @@ BKAPP_DEFAULT_ENGINE_MODULE_ENTRY = os.getenv("BKAPP_DEFAULT_ENGINE_MODULE_ENTRY
 BKAPP_API_PLUGIN_REQUEST_TIMEOUT = int(os.getenv("BKAPP_API_PLUGIN_REQUEST_TIMEOUT", 30))
 
 # Python 代码节点子进程执行限制
+# 节点默认关闭；开启后仍只注入 PYTHON_CODE_PLUGIN_ALLOWED_MODULES 列出的模块，"*" 表示全部受支持模块。
+PYTHON_CODE_PLUGIN_ENABLED = _env_bool("PYTHON_CODE_PLUGIN_ENABLED", False)
+PYTHON_CODE_PLUGIN_ALLOWED_MODULES = _diagnostics_csv("PYTHON_CODE_PLUGIN_ALLOWED_MODULES")
 PYTHON_CODE_PLUGIN_TIMEOUT = int(os.getenv("PYTHON_CODE_PLUGIN_TIMEOUT", 30))
 PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT = int(os.getenv("PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT", PYTHON_CODE_PLUGIN_TIMEOUT))
 PYTHON_CODE_PLUGIN_MAX_LENGTH = int(os.getenv("PYTHON_CODE_PLUGIN_MAX_LENGTH", 10240))
@@ -182,7 +191,7 @@ MEMBER_SELECTOR_DATA_HOST = os.getenv("MEMBER_SELECTOR_DATA_HOST", os.getenv("BK
 PLUGIN_DISTRIBUTOR_NAME = os.getenv("PLUGIN_DISTRIBUTOR_NAME", os.getenv("BKAPP_PLUGIN_DISTRIBUTOR_NAME"))
 
 # 跳过 APIGW 校验
-SKIP_APIGW_CHECK = bool(os.getenv("SKIP_APIGW_CHECK", False))
+SKIP_APIGW_CHECK = _env_bool("SKIP_APIGW_CHECK", False)
 BK_APIGW_REQUIRE_EXEMPT = bool(os.getenv("BK_APIGW_REQUIRE_EXEMPT", False))
 
 # 网关管理员

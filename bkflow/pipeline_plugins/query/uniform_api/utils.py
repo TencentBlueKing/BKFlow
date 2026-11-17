@@ -287,6 +287,8 @@ class UniformAPIClient(ApigwClientMixin, HttpRequestMixin):
             )
 
         timeout = kwargs.pop("timeout", self.TIMEOUT)
+        # 网关签名头会随重定向发送到新地址，请求统一 API 时不跟随跳转。
+        kwargs["allow_redirects"] = False
         return self.http_request(
             url=url,
             method=method,

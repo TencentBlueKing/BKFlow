@@ -1,8 +1,9 @@
 from unittest import TestCase
 
 import pytest
-from django.test import RequestFactory
+from django.conf import settings
 from rest_framework import status
+from rest_framework.test import APIRequestFactory
 
 from bkflow.task.views import PeriodicTaskViewSet
 
@@ -10,8 +11,15 @@ from bkflow.task.views import PeriodicTaskViewSet
 @pytest.mark.django_db
 class TestPeriodicTask(TestCase):
     def setUp(self):
-        self.factory = RequestFactory()
+        self.factory = APIRequestFactory()
         self.view = PeriodicTaskViewSet.as_view({"post": "create", "delete": "batch_delete"})
+
+    def _request(self, method, path, data):
+        """构造带内部调用凭证的周期任务请求。"""
+        request = getattr(self.factory, method)(path, data, format="json")
+        request.user = type("User", (), {"is_active": True, "is_superuser": False, "username": "admin"})()
+        request.app_internal_token = settings.APP_INTERNAL_TOKEN
+        return request
 
     def test_create_periodic_task_success(self):
         data = {
@@ -28,7 +36,7 @@ class TestPeriodicTask(TestCase):
             "creator": "admin",
             "config": {},
         }
-        request = self.factory.post("/task/periodic_task/", data=data, content_type="application/json")
+        request = self._request("post", "/task/periodic_task/", data)
         response = self.view(request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["data"].name, "test_periodic_task")
@@ -48,7 +56,7 @@ class TestPeriodicTask(TestCase):
             "creator": "admin",
             "config": {},
         }
-        request = self.factory.post("/task/periodic_task/", data=data, content_type="application/json")
+        request = self._request("post", "/task/periodic_task/", data)
         response = self.view(request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["data"].name, "test_periodic_task")
@@ -69,7 +77,7 @@ class TestPeriodicTask(TestCase):
             "config": {},
         }
 
-        request = self.factory.post("/task/periodic_task/update/", data=data, content_type="application/json")
+        request = self._request("post", "/task/periodic_task/update/", data)
         response = view(request)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["data"]["name"], "test_periodic_task_new")
@@ -89,13 +97,24 @@ class TestPeriodicTask(TestCase):
             "creator": "admin",
             "config": {},
         }
-        request = self.factory.post("/task/periodic_task/", data=data, content_type="application/json")
+        request = self._request("post", "/task/periodic_task/", data)
         response = self.view(request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["data"].name, "test_periodic_task")
 
-        request = self.factory.delete(
-            "/task/periodic_task/batch_delete/", data={"trigger_ids": [3]}, content_type="application/json"
-        )
+        request = self._request("delete", "/task/periodic_task/batch_delete/", {"trigger_ids": [3]})
         response = self.view(request)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_periodic_task_requires_internal_permission(self):
+        """普通登录用户没有内部凭证时不能创建周期任务。"""
+        request = self.factory.post("/task/periodic_task/", {"trigger_id": 4}, format="json")
+        request.user = type(
+            "User", (), {"is_active": True, "is_authenticated": True, "is_superuser": False, "username": "user"}
+        )()
+        request.app_internal_token = ""
+
+        response = self.view(request)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["result"])
+        self.assertEqual(response.data["message"], "您没有执行该操作的权限。")

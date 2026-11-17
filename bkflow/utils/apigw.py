@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 TencentBlueKing is pleased to support the open source community by making
 蓝鲸流程引擎服务 (BlueKing Flow Engine Service) available.
@@ -28,8 +27,13 @@ def check_url_from_apigw(url: str) -> bool:
         return True
     if url is None:
         return False
-    netloc = urlparse(url).netloc
+    parsed_url = urlparse(url)
+    if parsed_url.username is not None or parsed_url.password is not None:
+        return False
+    hostname = parsed_url.hostname
+    if not hostname:
+        return False
     pattern = getattr(settings, "BK_APIGW_NETLOC_PATTERN", None)
     if not pattern:
         return False
-    return bool(re.match(pattern, netloc))
+    return bool(re.fullmatch(pattern, hostname))

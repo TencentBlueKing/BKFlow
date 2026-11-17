@@ -80,6 +80,8 @@ def main():
             "BKFLOW_REHEARSAL_VERSION": args.version,
             "PRIVATE_SECRET": "test_secret_key_32_bytes_long!",
             "ENABLE_BK_PLUGIN_AUTHORIZATION": "1",
+            # 升级演练用 python_code 制造失败和重试节点，需要显式开启该节点。
+            "PYTHON_CODE_PLUGIN_ENABLED": "1",
         }
     )
     if "pytest" in args.command:
