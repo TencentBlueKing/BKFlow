@@ -200,7 +200,7 @@
               :class="['column-body', columnBodyCls('level1')]"
               data-col-key="level1">
               <div
-                :class="['cate-row', rowStateCls('uncategorized'), { 'is-active': selectedLevel1Id === 'uncategorized' }]"
+                :class="['cate-row', rowStateCls('uncategorized', 'plugin'), { 'is-active': selectedLevel1Id === 'uncategorized' }]"
                 data-dnd-type="uncat"
                 @click="onSelectLevelOne('uncategorized')">
                 <span
@@ -223,7 +223,7 @@
                 :key="cate.id"
                 :data-locate-id="cate.id"
                 data-dnd-type="dir"
-                :class="['cate-row', rowStateCls(cate.id), { 'is-active': selectedLevel1Id === cate.id, 'is-flash': flashId === cate.id }]"
+                :class="['cate-row', rowStateCls(cate.id, 'dir'), { 'is-active': selectedLevel1Id === cate.id, 'is-flash': flashType === 'level1' && flashId === cate.id }]"
                 @click="onSelectLevelOne(cate.id)"
                 @mousedown="handleRowDragMousedown(cate.id, 'dir', $event)">
                 <i class="commonicon-icon common-icon-drawable" />
@@ -264,7 +264,7 @@
                   :key="`dir-${sub.id}`"
                   :data-locate-id="sub.id"
                   data-dnd-type="dir"
-                  :class="['cate-row', rowStateCls(sub.id, 'dir'), { 'is-active': selectedSecondId === sub.id, 'is-flash': flashId === sub.id }]"
+                  :class="['cate-row', rowStateCls(sub.id, 'dir'), { 'is-active': selectedSecondId === sub.id, 'is-flash': flashType === 'level2' && flashId === sub.id }]"
                   @click="onSelectSecond(sub)"
                   @mousedown="handleRowDragMousedown(sub.id, 'dir', $event)">
                   <i class="commonicon-icon common-icon-drawable" />
@@ -287,7 +287,7 @@
                   :key="`plugin-${plugin.id}`"
                   :data-locate-id="plugin.id"
                   data-dnd-type="plugin"
-                  :class="['cate-row', rowStateCls(plugin.id, 'plugin'), { 'is-flash': flashId === plugin.id }]"
+                  :class="['cate-row', rowStateCls(plugin.id, 'plugin'), { 'is-flash': flashType === 'plugin' && flashId === plugin.id }]"
                   @click="togglePluginChecked(plugin.id)"
                   @mousedown="handleRowDragMousedown(plugin.id, 'plugin', $event)">
                   <i class="commonicon-icon common-icon-drawable" />
@@ -331,7 +331,7 @@
                   :key="plugin.id"
                   :data-locate-id="plugin.id"
                   data-dnd-type="plugin"
-                  :class="['cate-row', rowStateCls(plugin.id, 'plugin'), { 'is-flash': flashId === plugin.id }]"
+                  :class="['cate-row', rowStateCls(plugin.id, 'plugin'), { 'is-flash': flashType === 'plugin' && flashId === plugin.id }]"
                   @click="togglePluginChecked(plugin.id)"
                   @mousedown="handleRowDragMousedown(plugin.id, 'plugin', $event)">
                   <i class="commonicon-icon common-icon-drawable" />
@@ -526,6 +526,7 @@ export default {
       keyword: '',
       isSearchPanelShow: false,
       flashId: '',
+      flashType: '',
       flashTimer: null,
       dirty: false,
       // AI 智能分类：自然语言分类需求（选填）
@@ -929,12 +930,15 @@ export default {
       });
       // 橙色背景闪烁两次
       this.flashId = item.id;
+      this.flashType = item.type;
       clearTimeout(this.flashTimer);
       this.flashTimer = setTimeout(() => {
         this.flashId = '';
+        this.flashType = '';
       }, 1400);
       this.$nextTick(() => {
-        const row = this.$el.querySelector(`[data-locate-id="${item.id}"]`);
+        const dndType = item.type === 'plugin' ? 'plugin' : 'dir';
+        const row = this.$el.querySelector(`[data-locate-id="${item.id}"][data-dnd-type="${dndType}"]`);
         if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
       });
     },

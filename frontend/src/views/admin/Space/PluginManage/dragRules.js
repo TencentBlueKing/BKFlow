@@ -123,7 +123,7 @@ export function validateDrop({ categories = [], plugins = [], dnd, intent, t = k
   const pluginTarget = targetType === DRAG_TYPE_PLUGIN
     ? plugins.find(plugin => plugin.id === intent.targetId) || null
     : null;
-  if ((!cateTarget && !pluginTarget) || ids.includes(intent.targetId)) {
+  if ((!cateTarget && !pluginTarget) || (targetType === type && ids.includes(intent.targetId))) {
     return { ok: false, reason: '' };
   }
   if (intent.kind === DROP_INTO) {
