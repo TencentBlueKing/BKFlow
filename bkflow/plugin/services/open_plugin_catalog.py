@@ -391,4 +391,8 @@ class OpenPluginCatalogService:
         credential_name = SpaceConfig.get_config(space_id=space_id, config_name=ApiGatewayCredentialConfig.name)
         if not credential_name:
             return None
+
+        # 凭证配置可能是字典，需要取默认值
+        if isinstance(credential_name, dict):
+            credential_name = credential_name.get("default")
         return Credential.objects.filter(space_id=space_id, name=credential_name).first()
