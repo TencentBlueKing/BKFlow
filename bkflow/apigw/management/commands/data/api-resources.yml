@@ -7903,3 +7903,40 @@ paths:
         descriptionEn: Render current constants
         enableWebsocket: false
         pluginConfigs: [ ]
+  /sdk/task/get_task_detail/{task_id}/:
+    get:
+      operationId: sdk_get_task_detail
+      description: 获取任务详情
+      parameters:
+        - in: header
+          name: X-Bk-Tenant-Id
+          required: false
+          schema:
+            type: string
+            maxLength: 32
+          description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: [ ]
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: { }
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}/task/get_task_detail/{task_id}/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: [ ]
+        descriptionEn: Get task detail
+        enableWebsocket: false
+        pluginConfigs: [ ]
