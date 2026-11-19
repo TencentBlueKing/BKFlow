@@ -49,6 +49,7 @@ from bkflow.space.configs import (
     UniformAPIConfigHandler,
 )
 from bkflow.space.models import Credential, SpaceConfig
+from bkflow.utils.admin import get_admin_username
 from plugin_service.plugin_client import PluginServiceApiClient
 
 logger = logging.getLogger("root")
@@ -338,7 +339,7 @@ class PluginSchemaService:
             headers = client.gen_default_apigw_header(
                 app_code=credential.content["bk_app_code"],
                 app_secret=credential.content["bk_app_secret"],
-                username=self.username or "admin",
+                username=self.username or get_admin_username(),
                 headers=api_entry.headers or {},
             )
             list_result = client.request(
@@ -346,7 +347,7 @@ class PluginSchemaService:
                 method="GET",
                 data={"limit": 200, "offset": 0},
                 headers=headers,
-                username=self.username or "admin",
+                username=self.username or get_admin_username(),
             )
             api_list = list_result.json_resp.get("data", {}).get("apis", [])
             cache.set(cache_key, api_list, PLUGIN_SCHEMA_CACHE_TTL)
@@ -456,7 +457,7 @@ class PluginSchemaService:
         headers = client.gen_default_apigw_header(
             app_code=credential.content["bk_app_code"],
             app_secret=credential.content["bk_app_secret"],
-            username=self.username or "admin",
+            username=self.username or get_admin_username(),
             headers=get_source_headers(self.space_id, api_item.get("source_key") or resolved_source_key),
         )
         meta_result = client.request(
@@ -464,7 +465,7 @@ class PluginSchemaService:
             method="GET",
             data={},
             headers=headers,
-            username=self.username or "admin",
+            username=self.username or get_admin_username(),
         )
         try:
             meta = extract_uniform_api_meta_data(
