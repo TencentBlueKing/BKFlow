@@ -23,17 +23,17 @@ def get_admin_username():
     """
     获取系统默认管理员用户名
 
-    返回系统配置的管理员用户名，支持通过环境变量进行配置，未配置时返回默认值 "admin"
+    返回系统配置的管理员用户名，支持通过环境变量进行配置，未配置时返回默认值 "bk_admin"
 
-    环境变量配置（优先级从高到低）：
-        1. BK_ADMIN_USERNAME - 标准大写命名（兼容配置）
-        2. bkAdminUsername - 小驼峰命名（项目约定，PaaS 平台规范）
+    环境变量配置：
+        - BKPAAS_ADMIN_USERNAME: 蓝鲸 PaaS 平台统一规范（大写下划线）
+        - 未配置时默认值为 "bk_admin"
 
     实现说明：
-        从 settings.BK_ADMIN_USERNAME 读取，该值在 env.py 中从环境变量加载
+        从 settings.BK_ADMIN_USERNAME 读取，该值在 env.py 中从环境变量 BKPAAS_ADMIN_USERNAME 加载
 
     Returns:
-        str: 管理员用户名
+        str: 管理员用户名，默认为 "bk_admin"
 
     """
     return getattr(settings, "BK_ADMIN_USERNAME", "admin")
