@@ -35,7 +35,7 @@ class Command(BaseCommand):
             raise CommandError("Single-tenant mode only initializes the default tenant")
 
         # ITSM 集成兼容性：保持历史默认操作员为 bk_admin
-        # 只有显式配置了 bkAdminUsername 时才使用新值，未配置时使用历史兼容值
+        # 只有显式配置了 BKPAAS_ADMIN_USERNAME 时才使用新值，未配置时使用历史兼容值
         username = get_admin_username()
         if username == "admin":  # 检测到默认值，使用历史兼容值
             username = "bk_admin"
