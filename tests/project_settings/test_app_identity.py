@@ -111,7 +111,10 @@ def test_gateway_configuration_precedence(configured_name):
     assert settings["BK_APIGW_NAME"] == (configured_name or "bk_flow_engine").replace("_", "-")
 
 
-@pytest.mark.parametrize("app_code,gateway", [(None, None), ("bk_flow_engine", "legacy-gateway")])
+@pytest.mark.parametrize(
+    "app_code,gateway",
+    [(None, None), ("bk_flow_engine", "legacy-gateway"), ("bk_flow", None), ("legacy-bkflow", "legacy-gateway")],
+)
 def test_render_smart_description_keeps_application_and_module_references_consistent(tmp_path, app_code, gateway):
     """生成的包同时更新自身服务发现，外部用户服务和仓库源文件保持原值。"""
     source_path = ROOT / "app_desc.yaml"
@@ -132,17 +135,19 @@ def test_render_smart_description_keeps_application_and_module_references_consis
     assert result.returncode == 0, result.stderr
     description = yaml.safe_load(output.read_text())
     expected_code = app_code or "bk_flow_engine"
-    assert description["app"]["bk_app_code"] == expected_code
+    assert description["specVersion"] == 3
+    assert description["app"]["bkAppCode"] == expected_code
     assert source_path.read_bytes() == source
-    interface = description["modules"]["default"]
-    engine = description["modules"]["default-engine"]
-    assert interface["svc_discovery"]["bk_saas"] == [
-        {"bk_app_code": "bk-user"},
-        {"bk_app_code": expected_code},
-        {"bk_app_code": expected_code, "module_name": "default-engine"},
+    modules = {module["name"]: module["spec"] for module in description["modules"]}
+    interface = modules["default"]
+    engine = modules["default-engine"]
+    assert interface["svcDiscovery"]["bkSaaS"] == [
+        {"bkAppCode": "bk-user"},
+        {"bkAppCode": expected_code},
+        {"bkAppCode": expected_code, "moduleName": "default-engine"},
     ]
-    assert engine["svc_discovery"]["bk_saas"] == [{"bk_app_code": expected_code}]
-    gateway_variables = [item["value"] for item in interface["env_variables"] if item["key"] == "BK_APIGW_NAME"]
+    assert engine["svcDiscovery"]["bkSaaS"] == [{"bkAppCode": expected_code}]
+    gateway_variables = [item["value"] for item in interface["configuration"]["env"] if item["name"] == "BK_APIGW_NAME"]
     assert gateway_variables == ([gateway] if gateway else [])
 
 
