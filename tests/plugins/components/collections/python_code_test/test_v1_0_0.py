@@ -21,7 +21,7 @@ import logging
 from unittest.mock import MagicMock, Mock, patch
 
 from bamboo_engine.eri import ContextValue, ContextValueType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from pipeline.component_framework.test import (
     Call,
     CallAssertion,
@@ -41,6 +41,7 @@ from bkflow.pipeline_plugins.components.collections.python_code.v1_0_0 import (
 )
 
 
+@override_settings(PYTHON_CODE_PLUGIN_ENABLED=True)
 class PythonCodeComponentTest(TestCase, ComponentTestMixin):
     def setUp(self):
         PythonCodeService.top_pipeline_id = "test_pipeline_id"
@@ -416,6 +417,21 @@ MISSING_OUTPUT_KEY_CASE = ComponentTestCase(
 )
 
 
+@override_settings(PYTHON_CODE_PLUGIN_ENABLED=False)
+def test_disabled_python_code_node_does_not_call_executor():
+    """已有节点进入执行服务时，开关关闭应阻止脚本执行。"""
+    service = PythonCodeService()
+    service.logger = Mock()
+    service.executor = Mock()
+    data = Mock()
+
+    assert service.plugin_execute(data, None) is False
+    assert data.outputs.ex_data == "Python代码节点未启用"
+    data.get_one_of_inputs.assert_not_called()
+    service.executor.execute_code.assert_not_called()
+
+
+@override_settings(PYTHON_CODE_PLUGIN_ENABLED=True)
 def test_large_result_log_is_bounded_without_changing_output(caplog):
     """大字符串和嵌套大结果仍完整输出，但成功日志不能包含完整内容。"""
     service = PythonCodeService()

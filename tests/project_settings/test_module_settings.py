@@ -85,7 +85,8 @@ def test_bkflow_database_config(env_insert_fixture, original_value_fixture):
     assert bkflow_module == original_value_fixture
 
 
-def test_python_code_plugin_settings_are_loaded_from_environment():
+@pytest.mark.parametrize(("enabled_value", "expected_enabled"), [(None, False), ("0", False), ("true", True)])
+def test_python_code_plugin_settings_are_loaded_from_environment(enabled_value, expected_enabled):
     """Python 代码节点的运行参数应能通过部署环境变量调整。"""
     process_env = os.environ.copy()
     process_env.update(
@@ -104,11 +105,16 @@ def test_python_code_plugin_settings_are_loaded_from_environment():
             "PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES": "654321",
         }
     )
+    if enabled_value is None:
+        process_env.pop("PYTHON_CODE_PLUGIN_ENABLED", None)
+    else:
+        process_env["PYTHON_CODE_PLUGIN_ENABLED"] = enabled_value
     script = """
 import json
 from django.conf import settings
 
 print(json.dumps([
+    settings.PYTHON_CODE_PLUGIN_ENABLED,
     settings.PYTHON_CODE_PLUGIN_TIMEOUT,
     settings.PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT,
     settings.PYTHON_CODE_PLUGIN_MAX_LENGTH,
@@ -123,4 +129,4 @@ print(json.dumps([
     )
 
     assert completed_process.returncode == 0, completed_process.stderr
-    assert json.loads(completed_process.stdout.splitlines()[-1]) == [9, 3, 12345, 384, 7, 654321]
+    assert json.loads(completed_process.stdout.splitlines()[-1]) == [expected_enabled, 9, 3, 12345, 384, 7, 654321]

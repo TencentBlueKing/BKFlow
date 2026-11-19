@@ -35,6 +35,7 @@ from bkflow.pipeline_plugins.components.collections.python_code.executor import 
 )
 
 __group_name__ = _("蓝鲸服务(BK)")
+__register_ignore__ = getattr(settings, "PYTHON_CODE_PLUGIN_ENABLED", False) is not True
 
 DEFAULT_TIMEOUT = getattr(settings, "PYTHON_CODE_PLUGIN_TIMEOUT", 30)
 QUEUE_TIMEOUT = getattr(settings, "PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT", DEFAULT_TIMEOUT)
@@ -102,6 +103,12 @@ class PythonCodeService(BKFlowBaseService):
 
     def plugin_execute(self, data, parent_data):
         """执行Python代码"""
+        if getattr(settings, "PYTHON_CODE_PLUGIN_ENABLED", False) is not True:
+            error_msg = "Python代码节点未启用"
+            self.logger.error(error_msg)
+            data.outputs.ex_data = error_msg
+            return False
+
         python_code = data.get_one_of_inputs("bk_python_code")
         input_vars_config = data.get_one_of_inputs("bk_input_vars") or {}
         output_key = data.get_one_of_inputs("bk_output_key") or ""
