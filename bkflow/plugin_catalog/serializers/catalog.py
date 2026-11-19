@@ -192,6 +192,19 @@ class BatchCategorySerializer(serializers.Serializer):
     directory_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
 
+class AiClassifySerializer(serializers.Serializer):
+    """AI 分类建议的入参：单个或多个插件条目 id。
+
+    - 单个：设计稿里「给某个插件单独设置目录」——传 1 个 id
+    - 多个：新插件策略的批量场景——传一批 id 一次拿一批建议
+
+    只返回建议、**不写库**，前端应用后再自行保存。
+    """
+
+    space_id = serializers.IntegerField(help_text=_("空间ID"))
+    ids = serializers.ListField(child=serializers.IntegerField(), min_length=1, help_text=_("插件条目 id 列表"))
+
+
 class BatchStatusItemSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     target_directory_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)

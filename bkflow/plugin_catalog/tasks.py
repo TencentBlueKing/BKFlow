@@ -22,8 +22,14 @@ import logging
 from celery import shared_task
 from django.db import transaction
 
-from bkflow.plugin_catalog.models import PluginCatalogStatus, SpacePluginCatalogEntry
+from bkflow.plugin_catalog.models import (
+    CatalogChangeSource,
+    CatalogChangeType,
+    PluginCatalogStatus,
+    SpacePluginCatalogEntry,
+)
 from bkflow.plugin_catalog.services.ai_classify_service import AiClassifyService
+from bkflow.plugin_catalog.services.change_record_service import CatalogChangeRecordService
 
 logger = logging.getLogger("celery")
 
@@ -112,24 +118,36 @@ def apply_automatic_classification_task(space_id, plugin_keys, request_id, ai_sc
     新插件策略"全部直接通过 / AI 自动决定分类"及"设条件自动通过"条件组里 after_pass=ai 的
     异步落位任务。
 
-    只处理仍为 review 态、且未被同一 request_id 处理过的条目，晚到/重复结果不覆盖人工
-    已经处理过的记录；AI 服务返回空建议/失败时保持 review，交由人工在待审核列表处理。
+    只处理仍为待审核（或 free 范围内已启用未分类）的条目，晚到/重复结果不覆盖人工
+    已经处理过的记录。
+
+    三态处理（开发文档 04 任务 11「人工空不动、自动空入未分类」、05 L30「空结果入未分类；
+    错误与空结果分开记录，不改审核」）：
+
+    - `patch`：AI 给了分类建议 -> 落「启用 + 建议的目录」
+    - `empty`：AI 正常响应但没给出建议 -> 落「启用 + 未分类」（不卡住插件可见性）
+    - `error`：AI 调用失败 / 响应不可用 -> **保持待审核**，交人工处理（不改审核）
     """
     result = AiClassifyService.classify(
         space_id=space_id, plugin_keys=plugin_keys, ai_scope=ai_scope, request_id=request_id
     )
 
-    if result["result"] != AiClassifyService.RESULT_PATCH:
+    if result["result"] == AiClassifyService.RESULT_ERROR:
         logger.info(
-            "AI 自动分类无建议或失败，保持待审核: space_id=%s, request_id=%s, result=%s",
+            "AI 自动分类失败，保持待审核: space_id=%s, request_id=%s, message=%s",
             space_id,
             request_id,
-            result["result"],
+            result.get("message", ""),
         )
         return result
 
+    # empty：AI 没给建议 -> 统一按「未分类」落位（启用 + 无目录）
+    patch = result["patch"] if result["result"] == AiClassifyService.RESULT_PATCH else {}
+    if not patch:
+        patch = {plugin_key: None for plugin_key in plugin_keys}
+
     applied, skipped = [], []
-    for plugin_key, directory_id in result["patch"].items():
+    for plugin_key, directory_id in patch.items():
         plugin_type, source_key, plugin_code = plugin_key.split(":", 2)
         with transaction.atomic():
             entry = (
@@ -142,16 +160,23 @@ def apply_automatic_classification_task(space_id, plugin_keys, request_id, ai_sc
                 )
                 .first()
             )
-            if not entry or entry.status != PluginCatalogStatus.PENDING_REVIEW:
-                # 记录不存在，或已被人工处理过（不再是待审核），晚到结果不覆盖
+            if not entry:
                 skipped.append(plugin_key)
                 continue
-            if entry.applied_ai_request_id == request_id:
-                # 同一 request_id 已应用过一次，重复投递直接跳过
+            if ai_scope == "free":
+                # 自由范围：允许给「已启用但还没归类」的存量插件补目录
+                # （已经在目录里的不动——那是人工/既有分类结果）
+                if entry.directory_id is not None or entry.status not in (
+                    PluginCatalogStatus.PENDING_REVIEW,
+                    PluginCatalogStatus.ENABLE,
+                ):
+                    skipped.append(plugin_key)
+                    continue
+            elif entry.status != PluginCatalogStatus.PENDING_REVIEW:
+                # 增量范围：只处理待审核的；已被人工处理过（不再是待审核）的不覆盖
                 skipped.append(plugin_key)
                 continue
-
-            entry.applied_ai_request_id = request_id
+            before_value = CatalogChangeRecordService.entry_snapshot(entry)
             entry.status = PluginCatalogStatus.ENABLE
             entry.directory_id = directory_id
             entry.ever_enabled = True
@@ -161,10 +186,21 @@ def apply_automatic_classification_task(space_id, plugin_keys, request_id, ai_sc
                     "status",
                     "directory_id",
                     "ever_enabled",
-                    "applied_ai_request_id",
                     "updated_by",
                     "update_at",
                 ]
+            )
+            # AI 自动分类的变更也写入记录（同事务），便于排障追溯"这个插件为什么被改到这个目录"
+            CatalogChangeRecordService.record_entry_change(
+                space_id=space_id,
+                entry=entry,
+                before_value=before_value,
+                operate_type=CatalogChangeType.AI_CLASSIFY,
+                operator="system",
+                method="apply_automatic_classification_task",
+                reason=f"AI 自动分类（{ai_scope}）",
+                request_id=request_id,
+                operate_source=CatalogChangeSource.AI,
             )
             applied.append(plugin_key)
 

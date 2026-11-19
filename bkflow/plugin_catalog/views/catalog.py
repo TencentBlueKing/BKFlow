@@ -24,6 +24,7 @@ from rest_framework.response import Response
 from bkflow.plugin_catalog.models import SpacePluginCatalogEntry
 from bkflow.plugin_catalog.permissions import PLUGIN_CATALOG_ADMIN_PERMISSIONS
 from bkflow.plugin_catalog.serializers.catalog import (
+    AiClassifySerializer,
     BatchCategorySerializer,
     BatchStatusSerializer,
     EntryListQuerySerializer,
@@ -34,6 +35,7 @@ from bkflow.plugin_catalog.serializers.catalog import (
     ReferenceListQuerySerializer,
     SpaceIdQuerySerializer,
 )
+from bkflow.plugin_catalog.services.ai_classify_service import AiClassifyService
 from bkflow.plugin_catalog.services.catalog_service import PluginCatalogService
 from bkflow.plugin_catalog.services.query_service import PluginCatalogQueryService
 from bkflow.plugin_catalog.services.reference_service import PluginReferenceService
@@ -164,6 +166,24 @@ class PluginCatalogAdminViewSet(PluginCatalogErrorMixin, TenantScopeMixin, Simpl
         return Response(PluginCatalogQueryService.serialize_entries(data["space_id"], [entry])[0])
 
     # ------------------------------------------------------------------- 批量操作 ----
+
+    def ai_classify(self, request, *args, **kwargs):
+        """AI 分类建议（**只给建议、不写库**）。
+
+        - 单个 id：设计稿「给某个插件单独设置目录」
+        - 多个 id：新插件策略的批量场景
+
+        返回 `patch` 是 `{插件条目 id: 目录 id}`，目录 id 为 null 表示建议放"未分类"；
+        前端把建议应用到自己的编辑副本，确认后再调 `plugins/<id>/` 保存。
+        """
+        ser = AiClassifySerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        result = AiClassifyService.classify_by_entry_ids(
+            space_id=data["space_id"],
+            entry_ids=data["ids"],
+        )
+        return Response(result)
 
     def batch_category(self, request, *args, **kwargs):
         ser = BatchCategorySerializer(data=request.data)

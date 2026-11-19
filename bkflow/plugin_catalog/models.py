@@ -233,16 +233,6 @@ class SpacePluginCatalogEntry(CommonModel):
             "一次性使用：唤醒后即清空。取值为 PluginCatalogStatus 枚举，空串表示无记忆"
         ),
     )
-    applied_ai_request_id = models.CharField(
-        _("已应用的 AI 分类请求 ID"),
-        max_length=128,
-        blank=True,
-        default="",
-        help_text=_(
-            "AI 自动分类的幂等标记：同一 request_id 的结果重复投递时直接跳过，"
-            "不覆盖人工已处理的记录。长期保留"
-        ),
-    )
 
     class Meta:
         verbose_name = _("空间插件目录条目")
@@ -314,6 +304,7 @@ class CatalogChangeType:
     CANCEL_RECOMMEND = "cancel_recommend"
     DIRECTORY_SAVE = "directory_save"
     DIRECTORY_DELETE = "directory_delete"
+    AI_CLASSIFY = "ai_classify"
 
     CHOICES = (
         (INITIALIZE, _("初始化插件目录")),
@@ -326,6 +317,7 @@ class CatalogChangeType:
         (CANCEL_RECOMMEND, _("取消空间推荐")),
         (DIRECTORY_SAVE, _("保存目录")),
         (DIRECTORY_DELETE, _("删除目录")),
+        (AI_CLASSIFY, _("AI 自动分类")),
     )
 
 
@@ -335,11 +327,13 @@ class CatalogChangeSource:
     WEB = "web"
     APIGW = "apigw"
     COMMAND = "command"
+    AI = "ai"
 
     CHOICES = (
         (WEB, _("管理前端")),
         (APIGW, _("对外网关")),
         (COMMAND, _("初始化命令")),
+        (AI, _("AI 自动分类")),
     )
 
 

@@ -49,6 +49,11 @@ plugin_entry_urlpatterns = [
         name="plugin_catalog_entry-recommend-list",
     ),
     re_path(
+        r"^plugins/ai_classify/$",
+        _entry_views({"post": "ai_classify"}, basename=_PLUGIN_CATALOG_ENTRY_BASENAME),
+        name="plugin_catalog_entry-ai-classify",
+    ),
+    re_path(
         r"^plugins/batch_category/$",
         _entry_views({"post": "batch_category"}, basename=_PLUGIN_CATALOG_ENTRY_BASENAME),
         name="plugin_catalog_entry-batch-category",

@@ -100,8 +100,11 @@ class ExecuteDeleteSerializer(serializers.Serializer):
 
 
 class AiClassifySerializer(serializers.Serializer):
-    space_id = serializers.IntegerField(help_text=_("空间ID"))
-    scope = serializers.ChoiceField(choices=["free", "selected"], default="free", help_text=_("free=全部未分类；selected=指定插件"))
-    plugin_ids = serializers.ListField(
-        child=serializers.IntegerField(), required=False, default=list, help_text=_("scope=selected 时必填")
-    )
+    """AI 智能分类的 body 参数（space_id 走 query）。
+
+    - `content`：用户本次提的需求，追加到固定 prompt
+    - `thread_id`：智能体会话 id，用户接着追问时带上，智能体读取历史记录
+    """
+
+    content = serializers.CharField(required=False, allow_blank=True, default="", help_text=_("用户的需求内容"))
+    thread_id = serializers.CharField(required=False, allow_blank=True, default="", help_text=_("智能体会话 id"))
