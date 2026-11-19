@@ -22,13 +22,13 @@ import os
 
 from bkflow.contrib.diagnostics.config import resolve_switches
 
-_DIAGNOSTICS_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+_TRUE_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
-def _diagnostics_bool(name, default=False):
-    """解析流程诊断布尔环境变量，避免字符串 ``"0"`` 被当成真值。"""
+def _env_bool(name, default=False):
+    """解析布尔环境变量，避免字符串 ``"0"`` 被当成真值。"""
     raw = os.getenv(name)
-    return default if raw is None else raw.strip().lower() in _DIAGNOSTICS_TRUE_VALUES
+    return default if raw is None else raw.strip().lower() in _TRUE_ENV_VALUES
 
 
 def _diagnostics_csv(name, default=""):
@@ -117,6 +117,7 @@ BKAPP_DEFAULT_ENGINE_MODULE_ENTRY = os.getenv("BKAPP_DEFAULT_ENGINE_MODULE_ENTRY
 BKAPP_API_PLUGIN_REQUEST_TIMEOUT = int(os.getenv("BKAPP_API_PLUGIN_REQUEST_TIMEOUT", 30))
 
 # Python 代码节点子进程执行限制
+PYTHON_CODE_PLUGIN_ENABLED = _env_bool("PYTHON_CODE_PLUGIN_ENABLED")
 PYTHON_CODE_PLUGIN_TIMEOUT = int(os.getenv("PYTHON_CODE_PLUGIN_TIMEOUT", 30))
 PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT = int(os.getenv("PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT", PYTHON_CODE_PLUGIN_TIMEOUT))
 PYTHON_CODE_PLUGIN_MAX_LENGTH = int(os.getenv("PYTHON_CODE_PLUGIN_MAX_LENGTH", 10240))
@@ -284,7 +285,7 @@ DIAGNOSTICS_SCAN_BATCH = int(os.getenv("BKAPP_DIAGNOSTICS_SCAN_BATCH", 200))
 DIAGNOSTICS_SCAN_MAX_SILENT_SECONDS = int(os.getenv("BKAPP_DIAGNOSTICS_SCAN_MAX_SILENT_SECONDS", 7 * 24 * 3600))
 DIAGNOSTICS_SECOND_CONFIRM_SECONDS = int(os.getenv("BKAPP_DIAGNOSTICS_SECOND_CONFIRM_SECONDS", 3))
 DIAGNOSTICS_SCAN_CRON = os.getenv("BKAPP_DIAGNOSTICS_SCAN_CRON", "*/10 * * * *")
-DIAGNOSTICS_CLEANUP_ENABLED = _diagnostics_bool("BKAPP_DIAGNOSTICS_CLEANUP_ENABLED")
+DIAGNOSTICS_CLEANUP_ENABLED = _env_bool("BKAPP_DIAGNOSTICS_CLEANUP_ENABLED")
 DIAGNOSTICS_CLEANUP_CRON = os.getenv("BKAPP_DIAGNOSTICS_CLEANUP_CRON", "30 3 * * *")
 DIAGNOSTICS_EVENT_RETENTION_DAYS = int(os.getenv("BKAPP_DIAGNOSTICS_EVENT_RETENTION_DAYS", 30))
 DIAGNOSTICS_CASE_RETENTION_DAYS = int(os.getenv("BKAPP_DIAGNOSTICS_CASE_RETENTION_DAYS", 365))

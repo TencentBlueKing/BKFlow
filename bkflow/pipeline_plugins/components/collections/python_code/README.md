@@ -112,6 +112,10 @@ result = json.dumps({"key": "value"})
 
 ## 配置选项
 
+Python 代码组件默认关闭。关闭时组件不注册，已有流程中的 Python 节点也无法执行。
+如确需运行可信脚本，由部署管理员在 Interface 和负责执行的 Engine 模块显式设置
+`PYTHON_CODE_PLUGIN_ENABLED=true`，并重新部署这些模块。开启后仍需遵守空间插件配置。
+
 可以通过同名部署环境变量配置以下参数（均为整数）：
 
 ```python
