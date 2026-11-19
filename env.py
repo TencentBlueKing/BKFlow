@@ -184,14 +184,6 @@ PLUGIN_DISTRIBUTOR_NAME = os.getenv("PLUGIN_DISTRIBUTOR_NAME", os.getenv("BKAPP_
 # 跳过 APIGW 校验
 SKIP_APIGW_CHECK = bool(os.getenv("SKIP_APIGW_CHECK", False))
 BK_APIGW_REQUIRE_EXEMPT = bool(os.getenv("BK_APIGW_REQUIRE_EXEMPT", False))
-
-# 系统默认管理员用户名（支持随机化）
-# 注意：项目约定使用 bkAdminUsername（小驼峰，PaaS 平台规范）
-# 为兼容常规 UPPER_SNAKE_CASE 配置习惯，同时支持 BK_ADMIN_USERNAME（优先级更高）
-BK_ADMIN_USERNAME = os.getenv("BK_ADMIN_USERNAME") or os.getenv("bkAdminUsername", "admin")
-
-# 网关管理员（使用系统管理员作为默认值）
-BK_APIGW_MANAGER_MAINTAINERS = os.getenv("BK_APIGW_MANAGER_MAINTAINERS", BK_ADMIN_USERNAME).split(",")
 BK_APIGW_GRANT_APPS = os.getenv("BK_APIGW_GRANT_APPS").split(",") if os.getenv("BK_APIGW_GRANT_APPS") else []
 
 # APIGW API SERVER服务地址
@@ -381,6 +373,13 @@ BKPAAS_IAM_URL = os.getenv("BKPAAS_IAM_URL")
 ENABLE_MULTI_TENANT_MODE = (
     os.getenv("BKPAAS_MULTI_TENANT_MODE", os.getenv("ENABLE_MULTI_TENANT_MODE", "false")).lower() == "true"
 )
+
+# 系统默认管理员用户名（支持随机化）
+BK_ADMIN_USERNAME = os.getenv("bkAdminUsername", "bk_admin" if ENABLE_MULTI_TENANT_MODE else "admin")
+
+# 网关管理员（使用系统管理员作为默认值）
+BK_APIGW_MANAGER_MAINTAINERS = os.getenv("BK_APIGW_MANAGER_MAINTAINERS", BK_ADMIN_USERNAME).split(",")
+
 BK_PLUGIN_SYNC_TENANTS = list(
     dict.fromkeys(
         tenant.strip() for tenant in os.getenv("BK_PLUGIN_SYNC_TENANTS", "system").split(",") if tenant.strip()
