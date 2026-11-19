@@ -42,7 +42,7 @@ def test_node_detail_renders_without_mutating_execution_data(value, expected):
     router.register("task", TaskInstanceViewSet, basename="task")
     path = "/task/123/get_task_node_detail/node_1/"
     match = resolve(path, urlconf=tuple(router.urls))
-    request = APIRequestFactory().get(path, {"component_code": "python_code"}, HTTP_BKFLOW_INTERNAL_SPACE_ID="1")
+    request = APIRequestFactory().get(path, {"component_code": "bk_display"}, HTTP_BKFLOW_INTERNAL_SPACE_ID="1")
     force_authenticate(request, user=SimpleNamespace(is_superuser=False, username="tester"))
     request.app_internal_token = settings.APP_INTERNAL_TOKEN
     task = Mock(space_id=1)
