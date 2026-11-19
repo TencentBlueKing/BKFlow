@@ -1,5 +1,5 @@
 specVersion: 3
-appVersion: "1.12.0"
+appVersion: "1.12.1"
 app:
   region: default
   bkAppCode: bk_flow_engine
