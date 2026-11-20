@@ -341,3 +341,11 @@ BK_PLUGIN_SYNC_TENANTS = list(
         tenant.strip() for tenant in os.getenv("BK_PLUGIN_SYNC_TENANTS", "system").split(",") if tenant.strip()
     )
 ) or ["system"]
+
+# 插件目录 AI 智能体（aidev）接入配置。
+# 智能体是固定配置的（不随空间变化），用户侧不暴露、也不允许配置，
+# 因此应用凭证与调用身份统一走环境变量；网关地址复用系统已有的 BK_API_URL_TMPL。
+PLUGIN_CATALOG_AI_APP_CODE = os.getenv("PLUGIN_CATALOG_AI_APP_CODE", "")
+PLUGIN_CATALOG_AI_APP_SECRET = os.getenv("PLUGIN_CATALOG_AI_APP_SECRET", "")
+PLUGIN_CATALOG_AI_USERNAME = os.getenv("PLUGIN_CATALOG_AI_USERNAME", "")
+PLUGIN_CATALOG_AI_APIGW_URL_TMPL = os.getenv("PLUGIN_CATALOG_AI_APIGW_URL_TMPL", "")

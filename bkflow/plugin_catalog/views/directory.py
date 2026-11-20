@@ -96,15 +96,24 @@ class DirectoryManageViewSet(PluginCatalogErrorMixin, TenantScopeMixin, SimpleGe
         )
         return Response(result)
 
-    @swagger_auto_schema(method="post", operation_summary="AI 智能分类建议", request_body=AiClassifySerializer)
+    @swagger_auto_schema(
+        method="post",
+        operation_summary="AI 智能分类建议",
+        query_serializer=SpaceIdQuerySerializer,
+        request_body=AiClassifySerializer,
+    )
     @action(detail=False, methods=["POST"], url_path="ai_classify")
     def ai_classify(self, request, *args, **kwargs):
-        ser = AiClassifySerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        data = ser.validated_data
+        # 空间 id 走 query；body 可选带用户需求和智能体会话 id
+        space_ser = SpaceIdQuerySerializer(data=request.query_params)
+        space_ser.is_valid(raise_exception=True)
+        body_ser = AiClassifySerializer(data=request.data)
+        body_ser.is_valid(raise_exception=True)
         return Response(
             DirectoryService.ai_classify(
-                space_id=data["space_id"], scope=data["scope"], plugin_ids=data["plugin_ids"]
+                space_id=space_ser.validated_data["space_id"],
+                content=body_ser.validated_data.get("content", ""),
+                thread_id=body_ser.validated_data.get("thread_id", ""),
             )
         )
 

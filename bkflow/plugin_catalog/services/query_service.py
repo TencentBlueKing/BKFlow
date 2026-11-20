@@ -129,6 +129,7 @@ class PluginCatalogQueryService:
                     "directory_name": " / ".join(directory_paths.get(entry.directory_id, [])),
                     "status": entry.status,
                     "recommended": entry.recommended,
+                    "ever_enabled":entry.ever_enabled,
                     # 建议替换插件：只给 id，前端按需回查或直接跳转到该插件
                     "replace_plugin_id": entry.replace_plugin_id,
                     "ref_count": stat["ref_count"],

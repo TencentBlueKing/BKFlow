@@ -17,10 +17,12 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 
+import hashlib
 import logging
 
 from django.db import transaction
 from django.utils import timezone
+
 from bkflow.plugin.services.open_plugin_catalog import OpenPluginCatalogService
 from bkflow.plugin_catalog.models import (
     PluginCatalogStatus,
@@ -50,32 +52,50 @@ class PluginCatalogSyncService:
 
         `source_keys` 只对 API 插件生效：**快速重试**时只重试指定来源，其它来源
         这一轮既不采集也**不判定失效**（否则会被误判成"来源里没有了"）。
+
+        本次同步新发现、且策略判定为「AI 自动决定分类」的插件，在这里**按 AI 范围分组
+        后统一投递**自动分类任务——不再逐个插件投递，避免"N 个新插件 = N 次 AI 调用"。
         """
-        return {
-            PluginType.BUILTIN: cls.sync_builtin(space_id),
-            PluginType.BK_PLUGIN: cls.sync_bk_plugin(space_id),
-            PluginType.API: cls.sync_api(space_id, username=username, source_keys=source_keys),
+        # 需要 AI 分类的插件（按 AI 范围分组）：由三类来源同步共同收集，
+        # 最后统一投递——不再逐个插件投递，避免"N 个新插件 = N 次 AI 调用"
+        ai_scoped_keys = {}
+        stats = {
+            PluginType.BUILTIN: cls.sync_builtin(space_id, ai_collector=ai_scoped_keys),
+            PluginType.BK_PLUGIN: cls.sync_bk_plugin(space_id, ai_collector=ai_scoped_keys),
+            PluginType.API: cls.sync_api(
+                space_id, username=username, source_keys=source_keys, ai_collector=ai_scoped_keys
+            ),
         }
+        cls._dispatch_auto_classify(space_id, ai_scoped_keys)
+        return stats
 
     @classmethod
-    def sync_builtin(cls, space_id):
+    def sync_builtin(cls, space_id, ai_collector=None):
         # 元信息跟数据一次取回：code / name / version 一次查询，避免同一个来源查两遍表。
         # 功能性内置插件（子画布等）不参与目录管理，在采集阶段就排除，不会写进目录条目表。
         plugins = SourceGroupService.collect_builtin_metadata()
         return cls._sync_plugin_type(
-            space_id=space_id, plugin_type=PluginType.BUILTIN, source_key="", plugins=plugins
+            space_id=space_id,
+            plugin_type=PluginType.BUILTIN,
+            source_key="",
+            plugins=plugins,
+            ai_collector=ai_collector,
         )
 
     @classmethod
-    def sync_bk_plugin(cls, space_id):
+    def sync_bk_plugin(cls, space_id, ai_collector=None):
         # 元信息跟数据一次取回：code / name / introduction 一次查询
         plugins = SourceGroupService.collect_bk_plugin_metadata(space_id)
         return cls._sync_plugin_type(
-            space_id=space_id, plugin_type=PluginType.BK_PLUGIN, source_key="", plugins=plugins
+            space_id=space_id,
+            plugin_type=PluginType.BK_PLUGIN,
+            source_key="",
+            plugins=plugins,
+            ai_collector=ai_collector,
         )
 
     @classmethod
-    def sync_api(cls, space_id, username="admin", source_keys=None):
+    def sync_api(cls, space_id, username="admin", source_keys=None, ai_collector=None):
         """
         API 插件同步，覆盖 V2/V3/V4 全部协议版本，统一写入 SpacePluginCatalogEntry：
 
@@ -172,6 +192,7 @@ class PluginCatalogSyncService:
                 plugin_type=PluginType.API,
                 source_key=source_key,
                 plugins=plugins,
+                ai_collector=ai_collector,
             )
             total_created += stat["created"]
             total_invalidated += stat["invalidated"]
@@ -201,13 +222,15 @@ class PluginCatalogSyncService:
         return invalidated
 
     @classmethod
-    def _sync_plugin_type(cls, space_id, plugin_type, source_key, plugins):
+    def _sync_plugin_type(cls, space_id, plugin_type, source_key, plugins, ai_collector=None):
         """
         同步单一来源类型的插件目录条目。
 
         :param plugins: `{plugin_code: (name, desc)}`——由调用方（各来源的采集逻辑）准备好。
             元信息跟着数据一次取回，本方法不再自己去外部只读表补查，避免同一份数据查两遍；
             API 插件的元信息直接来自现场响应（V2/V3/V4 都有），不依赖只收录 V4 的缓存表。
+        :param ai_collector: 可选的收集器（`{scope: [plugin_key, ...]}`），用于把本次新发现、
+            且策略判定为「AI 自动决定分类」的插件收集起来，由调用方统一投递 AI 分类任务。
         """
         existing = {
             entry.plugin_code: entry
@@ -224,7 +247,15 @@ class PluginCatalogSyncService:
 
         created = 0
         for code in current_codes - set(existing.keys()):
-            cls._create_entry(space_id, plugin_type, source_key, code, now, metadata.get(code, ("", "")))
+            cls._create_entry(
+                space_id,
+                plugin_type,
+                source_key,
+                code,
+                now,
+                metadata.get(code, ("", "")),
+                ai_collector=ai_collector,
+            )
             created += 1
 
         # 之前失效、这一轮又重新出现的插件，唤醒回失效前的状态
@@ -279,7 +310,13 @@ class PluginCatalogSyncService:
             SpacePluginCatalogEntry.objects.bulk_update(to_update, ["plugin_name", "plugin_desc"])
 
     @classmethod
-    def _create_entry(cls, space_id, plugin_type, source_key, plugin_code, now, metadata=("", "")):
+    def _create_entry(cls, space_id, plugin_type, source_key, plugin_code, now, metadata=("", ""), ai_collector=None):
+        """新建一条目录条目。
+
+        策略判定为「AI 自动决定分类」时（`decision.need_ai`），条目先落"待审核"占位，
+        并把插件身份收集到 `ai_collector` 里（`{scope: [plugin_key, ...]}`），
+        由 `sync_space_catalog` 统一投递自动分类任务——**不在这里逐个投递**。
+        """
         decision = PluginAdmissionStrategyService.decide(
             space_id=space_id, plugin_type=plugin_type, source_key=source_key
         )
@@ -297,27 +334,66 @@ class PluginCatalogSyncService:
             last_synced_at=now,
             updated_by="system",
         )
-        if decision.need_ai:
-            cls._dispatch_auto_classify(entry, ai_scope=decision.ai_scope)
+        if decision.need_ai and ai_collector is not None:
+            plugin_key = f"{entry.plugin_type}:{entry.source_key}:{entry.plugin_code}"
+            ai_collector.setdefault(decision.ai_scope or "increment", []).append(plugin_key)
         return entry
 
+    # 单次 AI 分类请求里最多带多少个插件（prompt 长度保护，超出分批）
+    AI_CLASSIFY_BATCH_SIZE = 50
+
     @classmethod
-    def _dispatch_auto_classify(cls, entry, ai_scope):
+    def _dispatch_auto_classify(cls, space_id, ai_scoped_keys):
+        """按 AI 范围分组投递自动分类任务。
+
+        - `increment`：只处理**本次同步新发现**的一批插件（不触碰历史数据）
+        - `free`：除本次增量外，还要把**空间里全部未分类的存量插件**一起纳入整理
+
+        每个范围一次同步只投递一个任务（插件过多时按批拆分），不再"每个新插件调一次 AI"。
+        """
         # 延迟 import：Celery 的任务模块由 worker 启动时的 autodiscovery 加载，
         # 这里保持"用时才导入"，避免应用加载阶段就把任务模块拉进来（与
         # bkflow/statistics/tasks/ 的写法保持一致）。这不是循环依赖导致的绕行。
         from bkflow.plugin_catalog.tasks import apply_automatic_classification_task
 
-        plugin_key = f"{entry.plugin_type}:{entry.source_key}:{entry.plugin_code}"
-        request_id = f"auto-sync-{entry.id}"
-        transaction.on_commit(
-            lambda: apply_automatic_classification_task.delay(
-                space_id=entry.space_id,
-                plugin_keys=[plugin_key],
-                request_id=request_id,
-                ai_scope=ai_scope,
-            )
-        )
+        for scope, plugin_keys in (ai_scoped_keys or {}).items():
+            plugin_keys = list(dict.fromkeys(plugin_keys or []))
+            if not plugin_keys:
+                continue
+            if scope == "free":
+                plugin_keys = cls._merge_unclassified_keys(space_id, plugin_keys)
+            for batch in cls._chunk(plugin_keys, cls.AI_CLASSIFY_BATCH_SIZE):
+                request_id = cls._ai_request_id(space_id, scope, batch)
+                transaction.on_commit(
+                    lambda batch=batch, request_id=request_id, scope=scope: apply_automatic_classification_task.delay(
+                        space_id=space_id,
+                        plugin_keys=batch,
+                        request_id=request_id,
+                        ai_scope=scope,
+                    )
+                )
+
+    @classmethod
+    def _merge_unclassified_keys(cls, space_id, plugin_keys):
+        """自由范围：把空间里**全部未分类**的存量插件与本次增量合并（增量一定保留）。"""
+        unclassified = [
+            f"{entry.plugin_type}:{entry.source_key}:{entry.plugin_code}"
+            for entry in SpacePluginCatalogEntry.objects.filter(
+                space_id=space_id, directory__isnull=True, is_deleted=False
+            ).only("plugin_type", "source_key", "plugin_code")
+        ]
+        return list(dict.fromkeys(unclassified + list(plugin_keys)))
+
+    @staticmethod
+    def _chunk(items, size):
+        for index in range(0, len(items), size):
+            yield items[index : index + size]
+
+    @staticmethod
+    def _ai_request_id(space_id, scope, plugin_keys):
+        """同一批插件 -> 同一个幂等标识：重复投递不会重复应用。"""
+        token = hashlib.md5("|".join(sorted(plugin_keys)).encode("utf-8")).hexdigest()[:12]
+        return f"auto-sync-{space_id}-{scope}-{token}"
 
     @classmethod
     def _mark_invalid(cls, entry, now):

@@ -189,13 +189,16 @@ class DirectoryService:
         directories: {提交id(str): {"id":..., "parent_id":..., "name":..., "order":...}}
         返回 {提交id: 真实pk} 映射，供 `_apply_assignments` 解析 assignments 里可能引用的新建目录。
 
-        只做 upsert，不把"文档里没出现 = 需要删除"当成推断依据——删除走独立的
-        `preview_delete`/`execute_delete` 接口，与整页保存解耦。
+        **整页替换语义**：`directories` 是该空间目录树的最终完整状态——
+        - 提交里有、库里也有 → 更新；
+        - 提交里有、库里没有 → 新建；
+        - 库里有、提交里没有 → 删除（视为用户删掉了该目录）。
 
         分两轮处理：先一级（parent_id 为空）后二级，使二级目录可以引用"同一批提交里刚新建
         的一级目录"的前端临时 id。
         """
         existing = {directory.id: directory for directory in PluginDirectory.objects.filter(space_id=space_id)}
+        original_ids = set(existing.keys())
         submitted = directories or {}
 
         def resolve_existing_pk(raw_id):
@@ -257,6 +260,24 @@ class DirectoryService:
                 cls._save_directory(directory)
             existing[directory.id] = directory
             id_mapping[item["id"]] = directory.id
+
+        # 整页替换：库里原本存在、但本次没提交的目录，视为用户删掉。
+        # （新建目录用的是前端临时 id，不会落进 submitted_real_ids，不会被误删）
+        submitted_real_ids = set()
+        for raw_id in submitted:
+            pk = resolve_existing_pk(raw_id)
+            if pk is not None:
+                submitted_real_ids.add(pk)
+
+        for pk in original_ids - submitted_real_ids:
+            directory = existing[pk]
+            # 子目录仍在提交里：先提升为一级，避免 parent 的 CASCADE 把它一起删掉
+            for child in directory.children.all():
+                if child.id in submitted_real_ids:
+                    child.parent = None
+                    child.save(update_fields=["parent", "update_time"])
+            # 删除目录后，挂在其下的插件由外键 on_delete=SET_NULL 回到「未分类」
+            directory.delete()
 
         return id_mapping
 
@@ -586,40 +607,82 @@ class DirectoryService:
     # ---------------------------------------------------------------- AI 分类 ----
 
     @classmethod
-    def ai_classify(cls, space_id, scope, plugin_ids=None):
+    def ai_classify(cls, space_id, content=None, thread_id=None):
         """
         AI 智能分类建议（整理场景），复用 06 新插件策略同一个 `AiClassifyService`。
-        不写库，只返回建议，前端把 `patch` 合并进本地编辑副本的 `assignments`，随
-        `manage_save` 一起提交；用户撤销由前端自行维护本地快照，后端无需支持。
 
-        scope: "free"（全部未分类插件） | "selected"（指定 plugin_ids）
+        默认整理**该空间全部未分类插件**（目录为空的那些），不需要前端圈定范围。
+
+        :param content: 用户额外提的需求，追加到固定 prompt 末尾
+        :param thread_id: 智能体会话 id；传了就延续该会话（智能体读取历史记录）
+
+        **返回与 `GET directories/manage_data` 完全同构的目录文档**，前端可直接转成
+        `manage_save` 的入参（整页替换）。外加三个字段：
+
+        - `result` / `message`：AI 调用状态
+        - `thread_id`：本次会话 id，用户接着追问时传回本接口
+
+        AI 新建目录用临时 key、删除空目录直接从 `directories` 里去掉；接口本身不写库。
         """
-        if scope == "selected":
-            if not plugin_ids:
-                return {"result": AiClassifyService.RESULT_EMPTY, "patch": {}, "message": ""}
-            queryset = SpacePluginCatalogEntry.objects.filter(
-                space_id=space_id, id__in=plugin_ids, is_deleted=False
+        queryset = SpacePluginCatalogEntry.objects.filter(
+            space_id=space_id, directory__isnull=True, is_deleted=False
+        )
+        plugin_keys = [
+            f"{entry.plugin_type}:{entry.source_key}:{entry.plugin_code}"
+            for entry in queryset.only("id", "plugin_type", "source_key", "plugin_code")
+        ]
+        empty = {"result": AiClassifyService.RESULT_EMPTY, "thread_id": thread_id or ""}
+        if not plugin_keys:
+            return cls._ai_manage_document(space_id, empty)
+
+        plan = AiClassifyService.classify_for_directory_manage(
+            space_id=space_id, plugin_keys=plugin_keys, content=content, thread_id=thread_id
+        )
+        return cls._ai_manage_document(space_id, plan)
+
+    @classmethod
+    def _ai_manage_document(cls, space_id, plan):
+        """把 AI 的整理方案组装成 `manage_data` 同构的文档。"""
+        base = cls.get_manage_data(space_id)
+
+        # --- 目录树 = 现有目录 + AI 新建的 - AI 判定删掉的（空目录）---
+        directories = dict(base["directories"])
+        for omit_id in plan.get("omit_directory_ids") or []:
+            directories.pop(str(omit_id), None)
+        for item in plan.get("new_directories") or []:
+            key = item["key"]
+            directories[key] = {
+                "id": key,
+                "parent_id": item.get("parent_key") or "",
+                "name": item["name"],
+                "order": item.get("order", 0),
+            }
+
+        # --- 插件归属：AI 分配的覆盖原值（没提到的插件保持原样）---
+        assignments = plan.get("assignments") or {}
+        entry_by_id = {
+            entry.id: entry
+            for entry in SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False).only(
+                "id", "plugin_type", "source_key", "plugin_code"
             )
-        else:
-            queryset = SpacePluginCatalogEntry.objects.filter(
-                space_id=space_id, directory__isnull=True, is_deleted=False
-            )
-
-        id_by_key = {}
-        plugin_keys = []
-        for entry in queryset.only("id", "plugin_type", "source_key", "plugin_code"):
-            key = f"{entry.plugin_type}:{entry.source_key}:{entry.plugin_code}"
-            plugin_keys.append(key)
-            id_by_key[key] = entry.id
-
-        # ai_scope 此处固定传 "free"：08 页面是管理员手动圈定范围（由上面的 scope 决定候选插件），
-        # 与 06 自动同步场景里"increment/free"控制 AI 决策范围的语义不同，这里只是复用同一个
-        # 请求通道，不代表真的做"自由范围"决策，接入真实 bkaidev 时如需区分再细化。
-        result = AiClassifyService.classify(space_id=space_id, plugin_keys=plugin_keys, ai_scope="free")
-        if result["result"] != AiClassifyService.RESULT_PATCH:
-            return result
-
-        patch_by_entry_id = {
-            str(id_by_key[key]): directory_id for key, directory_id in result["patch"].items() if key in id_by_key
         }
-        return {"result": result["result"], "patch": patch_by_entry_id, "message": result.get("message", "")}
+        plugins = []
+        for plugin in base["plugins"]:
+            entry = entry_by_id.get(plugin["id"])
+            if entry is not None:
+                key = f"{entry.plugin_type}:{entry.source_key}:{entry.plugin_code}"
+                if key in assignments:
+                    plugin = dict(plugin)
+                    # directory_key 为 None 表示建议放「未分类」
+                    plugin["directory_id"] = assignments[key] or ""
+            plugins.append(plugin)
+
+        return {
+            "result": plan.get("result", AiClassifyService.RESULT_EMPTY),
+            "message": plan.get("message", ""),
+            # 智能体会话 id：用户接着追问时传回本接口的 thread_id
+            "thread_id": plan.get("thread_id", ""),
+            "revision": base["revision"],
+            "directories": directories,
+            "plugins": plugins,
+        }
