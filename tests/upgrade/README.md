@@ -75,7 +75,7 @@ newrun engine "$PROBE" resume "$OUT/forward.json"
 newrun engine "$PROBE" verify "$OUT/forward.json"
 ```
 
-`seed` 创建等待回调、90 秒定时、失败 Python 节点和禁用的周期任务。
+`seed` 创建等待回调、90 秒定时、一个因无效输入失败的定时节点和禁用的周期任务。
 `queue` 在无消费者时发送普通任务；`resume` 回调、重试并读取序列化时间及周期配置；
 `verify` 检查任务全部完成以及回调、重试输出。各探针均有超时，失败时保留日志及数据库供排查。
 

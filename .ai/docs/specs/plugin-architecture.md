@@ -477,7 +477,6 @@ interval = StaticIntervalGenerator(10)  # 每 10 秒
 | 变量赋值 | `bkflow/pipeline_plugins/components/collections/value_assign/v1_0_0.py` |
 | 展示 | `bkflow/pipeline_plugins/components/collections/display/v1_0.py` |
 | DMN 决策 | `bkflow/pipeline_plugins/components/collections/dmn_plugin/v1_0_0.py` |
-| Python 脚本 | `bkflow/pipeline_plugins/components/collections/python_code/v1_0_0.py` |
 
 ### 框架文件（依赖包）
 

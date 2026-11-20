@@ -93,12 +93,7 @@ def seed(manifest):
     items = {
         "callback": create("lts-callback", "pause_node", {}),
         "timer": create("lts-timer", "sleep_timer", {"bk_timing": "90", "force_check": True}),
-        "retry": create(
-            "lts-retry",
-            "python_code",
-            {"bk_python_code": "def main():\n    return 1 / 0", "bk_input_vars": {}},
-            "v1.0.0",
-        ),
+        "retry": create("lts-retry", "sleep_timer", {"bk_timing": "invalid", "force_check": True}),
     }
     manifest.write_text(json.dumps(items, indent=2))
     wait_for(items["callback"], "RUNNING")
@@ -156,7 +151,7 @@ def resume(manifest):
     retry = items["retry"]
     result = TaskNodeOperation(TaskInstance.objects.get(id=retry["task_id"]), retry["node_id"]).retry(
         operator="local-rehearsal",
-        inputs={"bk_python_code": "def main():\n    return {'result': 42}", "bk_input_vars": {}},
+        inputs={"bk_timing": "0", "force_check": True},
     )
     assert result.result, result
     print("RESUME_OK", manifest)
@@ -176,7 +171,8 @@ def verify(manifest):
     outputs = api.get_execution_data(runtime, items["callback"]["node_id"]).data["outputs"]
     assert outputs["callback_data"]["value"] == 42
     outputs = api.get_execution_data(runtime, items["retry"]["node_id"]).data["outputs"]
-    assert outputs["output"] == {"result": 42}, outputs
+    assert isinstance(outputs["timing_time"], datetime.datetime), outputs
+    assert outputs["timing_time"].tzinfo is not None, outputs
     manifest.with_suffix(".result.json").write_text(json.dumps(results, indent=2))
     print("VERIFY_OK", json.dumps(results))
 
