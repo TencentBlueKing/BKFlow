@@ -51,6 +51,7 @@ from bkflow.space.configs import (
     SpaceConfigVerifyNotSupported,
     SpacePluginConfig,
     SuperusersConfig,
+    UniformApiConfig,
 )
 from bkflow.space.exceptions import SpaceConfigDefaultValueNotExists
 from bkflow.space.models import (
@@ -549,6 +550,19 @@ class SpaceConfigAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewS
         if PluginCatalogMigrationService.is_ready(space_id):
             raise ValidationError("本空间已启用插件目录，插件的可见/隐藏/下架与分类请前往「插件管理」维护")
 
+    def _trigger_plugin_catalog_sync(self, space_id):
+        """界面保存 API 插件配置后，异步触发一次插件目录同步。
+
+        更新方法内部事务在返回时已提交，这里直接投递任务，worker 能读到最新配置。
+        投递失败只记日志——配置已保存成功，最多退回 30 分钟周期同步兜底。
+        """
+        from bkflow.plugin_catalog.tasks import sync_space_plugin_catalog_task
+
+        try:
+            sync_space_plugin_catalog_task.delay(space_id=space_id, trigger="config_change")
+        except Exception:
+            logger.exception("[插件目录同步] 配置保存后触发同步失败，等周期调度: space_id=%s", space_id)
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -559,6 +573,8 @@ class SpaceConfigAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewS
             err_msg = f"创建空间配置失败: {str(e)}"
             logger.error(err_msg)
             return Response(exception=True, data={"detail": err_msg})
+        if serializer.validated_data.get("name") == UniformApiConfig.name:
+            self._trigger_plugin_catalog_sync(request.data["space_id"])
         return Response(serializer.validated_data)
 
     def partial_update(self, request, *args, **kwargs):
@@ -572,6 +588,8 @@ class SpaceConfigAdminViewSet(TenantScopeMixin, ModelViewSet, SimpleGenericViewS
             SpaceConfig.objects.update_space_config(
                 space_id=request.data["space_id"], data=serializer.validated_data, instance=instance
             )
+            if instance.name == UniformApiConfig.name:
+                self._trigger_plugin_catalog_sync(request.data["space_id"])
             return Response(serializer.validated_data)
         except Exception as e:
             err_msg = f"更新空间配置失败: {str(e)}"

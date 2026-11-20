@@ -46,6 +46,7 @@ def sync_space_plugin_catalog_task(space_id, trigger="schedule", source_keys=Non
     不同触发原因，**不另建 retry task**、不新增 Beat 入口）：
 
     - `schedule`：周期调度（Beat 30 分钟一轮）
+    - `config_change`：界面保存 API 插件配置后由 space view 触发，不等周期调度
     - `retry`：失败后的快速重试（按 `SourceSyncState` 里的 `next_retry_at` 决定间隔，
       10/20/40 秒退避、最多 3 次、抖动不超过 20%）
 
