@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>08 全局变量列表中的聚合变量</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="ext.css"></head>
+<body>
+<div class="stage">
+  <div class="app" style="height:960px">
+    <div data-topbar></div>
+    <div class="frame">
+      <div data-sidenav="流程"></div>
+      <div data-editor></div>
+    </div>
+    <div class="mask"></div>
+    <div id="slider"></div>
+  </div>
+  <div class="notes">
+    <div class="kicker">设计稿 08 · 流程编排人员</div>
+    <h2>全局变量列表中的聚合变量</h2>
+    <div class="sub">接设计稿 07：删除「华北区资源检查」时取消了降级。现在 ${result} 有 2 个来源，${check_log} 只剩 1 个来源。从顶栏打开「全局变量」。</div>
+    <div class="note"><b class="n">1</b><span>聚合变量在 KEY 下方显示「聚合」标记和聚合方式（列表 / 字典），不另设健康检查页。</span></div>
+    <div class="note"><b class="n">2</b><span>来源数可点击，浮层按分支标识列出来源节点，点节点名在画布上定位。</span></div>
+    <div class="note"><b class="n">3</b><span>只剩 1 个来源时显示「建议降级」，悬停说明原因。只是提示，不影响保存和执行。</span></div>
+    <div class="note"><b class="n">4</b><span>「编辑」打开变量配置：名称、说明、聚合方式可改；来源由画布决定，只读；底部提供「降级为普通变量」。</span></div>
+    <div class="note"><b class="n" style="background:#979ba5">i</b><span>聚合变量属于节点输出，「显示（入参）」开关不可用，与现有输出变量一致。</span></div>
+  </div>
+</div>
+<script src="frame.js"></script>
+<script src="flow.js"></script>
+<script src="agg.js"></script>
+<script>
+  const f = FLOWS.se();
+  renderEditor(document.querySelector('[data-editor]'), { tpl: '多区域资源巡检', saveEnabled: true, varsOn: true, nodes: f.nodes, edges: f.edges });
+  const row = function (name, key, sub, cited, type, show, out, extra) {
+    return '<tr><td class="name">' + name + '</td><td><span class="var">' + key + '</span>' + (sub ? '<div class="k2">' + sub + '</div>' : '') + (extra || '') + '</td>' +
+      '<td class="link">' + cited + '</td><td>' + type + '</td><td><span class="sw ' + show + '"></span></td><td><span class="sw ' + out + '"></span></td>' +
+      '<td class="link">编辑<span class="muted" style="margin-left:12px">' + ic('more', 's14') + '</span></td></tr>';
+  };
+  document.getElementById('slider').outerHTML =
+    '<div class="slider" style="width:800px">' +
+    '<div class="hd"><span class="close">' + ic('right', 's14') + '</span>全局变量</div>' +
+    '<div class="bd">' +
+    '<div class="gv-bar"><button class="btn primary">新建</button><span class="ml-auto check on">隐藏系统变量</span><span class="muted">' + ic('info', 's14') + '</span></div>' +
+    '<div class="rel"><div class="tb-wrap" style="overflow:visible"><table class="tb gv-tb"><colgroup><col style="width:110px"><col><col style="width:64px"><col style="width:84px"><col style="width:96px"><col style="width:56px"><col style="width:84px"></colgroup>' +
+    '<thead><tr><th>名称</th><th>KEY</th><th>引用</th><th>类型</th><th>显示（入参）</th><th>输出</th><th>操作</th></tr></thead><tbody>' +
+    row('巡检批次', '${batch_id}', '', '3', '输入框', 'on', '', '') +
+    row('检查结果', '${result}', '<span class="tag sm primary">聚合 · 列表</span><span class="link">2 个来源</span>', '3', '--', 'dis', '', '') +
+    row('巡检日志', '${check_log}', '<span class="tag sm primary">聚合 · 字典</span><span class="muted">1 个来源</span><span class="tag sm warning rel">建议降级</span>', '1', '--', 'dis', '', '') +
+    row('执行结果', '${_result}', '', '0', '--', 'dis', '', '') +
+    '</tbody></table></div>' +
+    '<i class="mk" style="left:103px;top:127px">1</i>' +
+    '<i class="mk" style="left:222px;top:102px">2</i>' +
+    '<i class="mk" style="left:326px;top:182px">3</i>' +
+    '<i class="mk" style="right:-12px;top:116px">4</i>' +
+    // 来源浮层
+    '<div class="pop left" style="left:252px;top:104px;width:270px">' +
+    '<div class="dark" style="margin-bottom:6px">${result} 的来源（2）</div>' +
+    '<div class="row gap8"><span class="mono dark" style="width:64px">branch_1</span><span>分支 1 ·</span><span class="link">华南区资源检查</span></div>' +
+    '<div class="row gap8"><span class="mono dark" style="width:64px">branch_2</span><span>分支 2 ·</span><span class="link">华东区资源检查</span></div>' +
+    '</div>' +
+    // 建议降级提示
+    '<div class="pop dark up" style="left:222px;top:212px;width:300px">只剩 1 个来源（华南区资源检查），聚合已没有意义。可在「编辑」中降级为普通变量。</div>' +
+    '</div>' +
+    '</div></div>';
+</script>
+<script>document.querySelectorAll('[data-ic]').forEach(function (el) { el.outerHTML = ic(el.getAttribute('data-ic'), el.getAttribute('class') || ''); });</script>
+</body>
+</html>
