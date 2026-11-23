@@ -60,6 +60,9 @@ class DecisionTable(CommonModel):
         if not template:
             raise ValueError(f"Template {self.template_id} does not exist")
 
+        if not template.pipeline_tree:
+            return (False, [])
+
         try:
             matched_node_ids = []
             for node in template.pipeline_tree[PE.activities].values():

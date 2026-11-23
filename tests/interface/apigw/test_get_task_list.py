@@ -22,6 +22,7 @@ from unittest import mock
 from django.test import TestCase, override_settings
 
 from bkflow.space.models import Space
+from bkflow.template.models import Template, TemplateSnapshot
 
 
 class TestGetTaskList(TestCase):
@@ -69,3 +70,33 @@ class TestGetTaskList(TestCase):
         self.assertFalse(resp_data["result"])
         self.assertIn("task_id_list", str(resp_data.get("message", "")))
         mock_client_class.assert_not_called()
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @mock.patch("bkflow.apigw.views.get_task_list.TaskComponentClient")
+    def test_get_task_list_enriches_template_name(self, mock_client_class):
+        """顶层 template_name 按当前模板名回填，跨空间与不存在的模板兜底空串"""
+        space = self.create_space()
+        snapshot = TemplateSnapshot.create_snapshot({"activities": {}}, "admin", "1.0.0")
+        template = Template.objects.create(name="流程A", space_id=space.id, snapshot_id=snapshot.id)
+        other_space_template = Template.objects.create(name="其他空间流程", space_id=space.id + 1, snapshot_id=snapshot.id)
+        mock_client = mock_client_class.return_value
+        mock_client.task_list.return_value = {
+            "result": True,
+            "data": {
+                "count": 3,
+                "results": [
+                    {"id": 1, "template_id": template.id},
+                    {"id": 2, "template_id": other_space_template.id},
+                    {"id": 3, "template_id": 99999},
+                ],
+            },
+        }
+
+        resp = self.client.get(f"/apigw/space/{space.id}/get_task_list/")
+        resp_data = json.loads(resp.content)
+
+        self.assertEqual(resp.status_code, 200)
+        results = resp_data["data"]["results"]
+        self.assertEqual([item["template_name"] for item in results], ["流程A", "", ""])

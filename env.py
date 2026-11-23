@@ -20,13 +20,15 @@ to the current version of the project delivered to anyone in the future.
 import json
 import os
 
-_DIAGNOSTICS_TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
+from bkflow.contrib.diagnostics.config import resolve_switches
+
+_TRUE_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
-def _diagnostics_bool(name, default=False):
-    """解析流程诊断布尔环境变量，避免字符串 ``"0"`` 被当成真值。"""
+def _env_bool(name, default=False):
+    """解析布尔环境变量，避免字符串 ``"0"`` 被当成真值。"""
     raw = os.getenv(name)
-    return default if raw is None else raw.strip().lower() in _DIAGNOSTICS_TRUE_VALUES
+    return default if raw is None else raw.strip().lower() in _TRUE_ENV_VALUES
 
 
 def _diagnostics_csv(name, default=""):
@@ -115,6 +117,7 @@ BKAPP_DEFAULT_ENGINE_MODULE_ENTRY = os.getenv("BKAPP_DEFAULT_ENGINE_MODULE_ENTRY
 BKAPP_API_PLUGIN_REQUEST_TIMEOUT = int(os.getenv("BKAPP_API_PLUGIN_REQUEST_TIMEOUT", 30))
 
 # Python 代码节点子进程执行限制
+PYTHON_CODE_PLUGIN_ENABLED = _env_bool("PYTHON_CODE_PLUGIN_ENABLED")
 PYTHON_CODE_PLUGIN_TIMEOUT = int(os.getenv("PYTHON_CODE_PLUGIN_TIMEOUT", 30))
 PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT = int(os.getenv("PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT", PYTHON_CODE_PLUGIN_TIMEOUT))
 PYTHON_CODE_PLUGIN_MAX_LENGTH = int(os.getenv("PYTHON_CODE_PLUGIN_MAX_LENGTH", 10240))
@@ -132,6 +135,34 @@ OPEN_PLUGIN_CALLBACK_TOKEN_TTL = int(_OPEN_PLUGIN_CALLBACK_TOKEN_TTL) if _OPEN_P
 OPEN_PLUGIN_CALLBACK_REF_CLEAN_CRONTAB = os.getenv("BKAPP_OPEN_PLUGIN_CALLBACK_REF_CLEAN_CRONTAB", "0 * * * *")
 
 CALLBACK_KEY = os.getenv("BKFLOW_DEFAULT_CALLBACK_KEY", "").encode("utf-8")
+
+
+# 启动时校验关键敏感变量
+def _validate_critical_env_vars():
+    """校验关键环境变量是否已配置，防止运行时错误"""
+    critical_vars = {
+        "APP_INTERNAL_TOKEN": APP_INTERNAL_TOKEN,
+        "BKFLOW_DEFAULT_CALLBACK_KEY": os.getenv("BKFLOW_DEFAULT_CALLBACK_KEY", ""),
+    }
+
+    missing_vars = [name for name, value in critical_vars.items() if not value]
+
+    if missing_vars:
+        import sys
+
+        error_msg = (
+            f"Critical environment variables are missing or empty: {', '.join(missing_vars)}\n"
+            f"These variables are required for internal service communication and callbacks.\n"
+            f"If KMS is enabled, ensure these variables are marked as 'sensitive' in the platform.\n"
+            f"If KMS is not enabled, set them in app_desc.yaml or environment configuration."
+        )
+        print(f"ERROR: {error_msg}", file=sys.stderr)
+        # 不立即退出，让 Django 启动完成后在使用时报错，方便调试
+
+
+# 执行校验
+_validate_critical_env_vars()
+
 
 BK_PAAS_ESB_HOST = os.getenv("BK_COMPONENT_API_URL", "")
 
@@ -154,9 +185,6 @@ PLUGIN_DISTRIBUTOR_NAME = os.getenv("PLUGIN_DISTRIBUTOR_NAME", os.getenv("BKAPP_
 # 跳过 APIGW 校验
 SKIP_APIGW_CHECK = bool(os.getenv("SKIP_APIGW_CHECK", False))
 BK_APIGW_REQUIRE_EXEMPT = bool(os.getenv("BK_APIGW_REQUIRE_EXEMPT", False))
-
-# 网关管理员
-BK_APIGW_MANAGER_MAINTAINERS = os.getenv("BK_APIGW_MANAGER_MAINTAINERS", "admin").split(",")
 BK_APIGW_GRANT_APPS = os.getenv("BK_APIGW_GRANT_APPS").split(",") if os.getenv("BK_APIGW_GRANT_APPS") else []
 
 # APIGW API SERVER服务地址
@@ -237,44 +265,54 @@ PIPELINE_RERUN_MAX_TIMES = int(os.getenv("PIPELINE_RERUN_MAX_TIMES", 100))
 PIPELINE_LOOP_OUTPUTS_INNER_KEY = os.getenv("PIPELINE_LOOP_OUTPUTS_INNER_KEY", "outputs")
 BAMBOO_DJANGO_ERI_NODE_RERUN_LIMIT = int(os.getenv("BAMBOO_DJANGO_ERI_NODE_RERUN_LIMIT", 100))
 
+# 流程卡住治理开关：统一入口未设置时沿用旧环境变量，冲突在启动时报错。
+# 说明见 docs/guide/stuck_governance_switches.md。
+_diagnostics_switches = resolve_switches(os.environ)
+DIAGNOSTICS_DETECTION_ENABLED = _diagnostics_switches["DIAGNOSTICS_DETECTION_ENABLED"]
+DIAGNOSTICS_SCANNERS = _diagnostics_switches["DIAGNOSTICS_SCANNERS"]
+PIPELINE_FENCE_MODE = _diagnostics_switches["PIPELINE_FENCE_MODE"]
+DIAGNOSTICS_RECOVERY_POLICY = _diagnostics_switches["DIAGNOSTICS_RECOVERY_POLICY"]
+DIAGNOSTICS_MANUAL_APPLY_ENABLED = _diagnostics_switches["DIAGNOSTICS_MANUAL_APPLY_ENABLED"]
+DIAGNOSTICS_OBSERVABILITY_MODE = _diagnostics_switches["DIAGNOSTICS_OBSERVABILITY_MODE"]
+
 # 流程卡住诊断默认全部关闭，按“发现 -> 防重复 -> 人工恢复 -> 自动恢复”顺序逐步开启。
-DIAGNOSTICS_EVENT_ENABLED = _diagnostics_bool("BKAPP_DIAGNOSTICS_EVENT_ENABLED")
-DIAGNOSTICS_SCAN_ENABLED = _diagnostics_bool("BKAPP_DIAGNOSTICS_SCAN_ENABLED")
-DIAGNOSTICS_ALERT_ENABLED = _diagnostics_bool("BKAPP_DIAGNOSTICS_ALERT_ENABLED")
-DIAGNOSTICS_APPLY_ENABLED = _diagnostics_bool("BKAPP_DIAGNOSTICS_APPLY_ENABLED")
+DIAGNOSTICS_EVENT_ENABLED = _diagnostics_switches["DIAGNOSTICS_EVENT_ENABLED"]
+DIAGNOSTICS_SCAN_ENABLED = _diagnostics_switches["DIAGNOSTICS_SCAN_ENABLED"]
+DIAGNOSTICS_ALERT_ENABLED = _diagnostics_switches["DIAGNOSTICS_ALERT_ENABLED"]
+DIAGNOSTICS_APPLY_ENABLED = _diagnostics_switches["DIAGNOSTICS_APPLY_ENABLED"]
 DIAGNOSTICS_STALL_THRESHOLD_SECONDS = int(os.getenv("BKAPP_DIAGNOSTICS_STALL_THRESHOLD_SECONDS", 3600))
 DIAGNOSTICS_SCAN_BATCH = int(os.getenv("BKAPP_DIAGNOSTICS_SCAN_BATCH", 200))
 DIAGNOSTICS_SCAN_MAX_SILENT_SECONDS = int(os.getenv("BKAPP_DIAGNOSTICS_SCAN_MAX_SILENT_SECONDS", 7 * 24 * 3600))
 DIAGNOSTICS_SECOND_CONFIRM_SECONDS = int(os.getenv("BKAPP_DIAGNOSTICS_SECOND_CONFIRM_SECONDS", 3))
 DIAGNOSTICS_SCAN_CRON = os.getenv("BKAPP_DIAGNOSTICS_SCAN_CRON", "*/10 * * * *")
-DIAGNOSTICS_CLEANUP_ENABLED = _diagnostics_bool("BKAPP_DIAGNOSTICS_CLEANUP_ENABLED")
+DIAGNOSTICS_CLEANUP_ENABLED = _env_bool("BKAPP_DIAGNOSTICS_CLEANUP_ENABLED")
 DIAGNOSTICS_CLEANUP_CRON = os.getenv("BKAPP_DIAGNOSTICS_CLEANUP_CRON", "30 3 * * *")
 DIAGNOSTICS_EVENT_RETENTION_DAYS = int(os.getenv("BKAPP_DIAGNOSTICS_EVENT_RETENTION_DAYS", 30))
 DIAGNOSTICS_CASE_RETENTION_DAYS = int(os.getenv("BKAPP_DIAGNOSTICS_CASE_RETENTION_DAYS", 365))
 DIAGNOSTICS_AUDIT_RETENTION_DAYS = int(os.getenv("BKAPP_DIAGNOSTICS_AUDIT_RETENTION_DAYS", 365))
 
-DIAGNOSTICS_WINDOW_SCAN_ENABLED = _diagnostics_bool("BKAPP_DIAGNOSTICS_WINDOW_SCAN_ENABLED")
+DIAGNOSTICS_WINDOW_SCAN_ENABLED = _diagnostics_switches["DIAGNOSTICS_WINDOW_SCAN_ENABLED"]
 DIAGNOSTICS_WINDOW_TIERS = tuple(int(item) for item in _diagnostics_csv("BKAPP_DIAGNOSTICS_WINDOW_TIERS", "3600,86400"))
 DIAGNOSTICS_WINDOW_MAX_ROOTS = int(os.getenv("BKAPP_DIAGNOSTICS_WINDOW_MAX_ROOTS", 1000))
-DIAGNOSTICS_SIGNATURE_SCAN_ENABLED = _diagnostics_bool("BKAPP_DIAGNOSTICS_SIGNATURE_SCAN_ENABLED")
+DIAGNOSTICS_SIGNATURE_SCAN_ENABLED = _diagnostics_switches["DIAGNOSTICS_SIGNATURE_SCAN_ENABLED"]
 DIAGNOSTICS_SIGNATURE_FAST_THRESHOLD_SECONDS = int(os.getenv("BKAPP_DIAGNOSTICS_SIGNATURE_FAST_THRESHOLD_SECONDS", 300))
 DIAGNOSTICS_SIGNATURE_SLOW_THRESHOLD_SECONDS = int(
     os.getenv("BKAPP_DIAGNOSTICS_SIGNATURE_SLOW_THRESHOLD_SECONDS", 1800)
 )
 DIAGNOSTICS_POLL_EXCLUDE_CODES = _diagnostics_csv("BKAPP_DIAGNOSTICS_POLL_EXCLUDE_CODES", "sleep_timer")
-DIAGNOSTICS_CALLBACK_SCAN_ENABLED = _diagnostics_bool("BKAPP_DIAGNOSTICS_CALLBACK_SCAN_ENABLED")
+DIAGNOSTICS_CALLBACK_SCAN_ENABLED = _diagnostics_switches["DIAGNOSTICS_CALLBACK_SCAN_ENABLED"]
 DIAGNOSTICS_CALLBACK_CONFIRM_SECONDS = int(os.getenv("BKAPP_DIAGNOSTICS_CALLBACK_CONFIRM_SECONDS", 120))
 DIAGNOSTICS_SIGNATURE_SCAN_CRON = os.getenv("BKAPP_DIAGNOSTICS_SIGNATURE_SCAN_CRON", "* * * * *")
 DIAGNOSTICS_CALLBACK_SCAN_INTERVAL = int(os.getenv("BKAPP_DIAGNOSTICS_CALLBACK_SCAN_INTERVAL", 30))
 
-PIPELINE_FENCE_EMIT_ENABLED = _diagnostics_bool("BKAPP_PIPELINE_FENCE_EMIT_ENABLED")
-PIPELINE_FENCE_ENFORCE = _diagnostics_bool("BKAPP_PIPELINE_FENCE_ENFORCE")
+PIPELINE_FENCE_EMIT_ENABLED = _diagnostics_switches["PIPELINE_FENCE_EMIT_ENABLED"]
+PIPELINE_FENCE_ENFORCE = _diagnostics_switches["PIPELINE_FENCE_ENFORCE"]
 
-DIAGNOSTICS_RECOVERY_ENABLED = _diagnostics_bool("BKAPP_DIAGNOSTICS_RECOVERY_ENABLED")
+DIAGNOSTICS_RECOVERY_ENABLED = _diagnostics_switches["DIAGNOSTICS_RECOVERY_ENABLED"]
 DIAGNOSTICS_RECOVERY_SETTLE_SECONDS = int(os.getenv("BKAPP_DIAGNOSTICS_RECOVERY_SETTLE_SECONDS", 180))
 DIAGNOSTICS_RECOVERY_BATCH = int(os.getenv("BKAPP_DIAGNOSTICS_RECOVERY_BATCH", 200))
 DIAGNOSTICS_RECOVERY_CRON = os.getenv("BKAPP_DIAGNOSTICS_RECOVERY_CRON", "* * * * *")
-DIAGNOSTICS_RECOVERY_MODE = os.getenv("BKAPP_DIAGNOSTICS_RECOVERY_MODE", "preview").strip().lower()
+DIAGNOSTICS_RECOVERY_MODE = _diagnostics_switches["DIAGNOSTICS_RECOVERY_MODE"]
 if DIAGNOSTICS_RECOVERY_MODE not in {"preview", "apply"}:
     raise ValueError("BKAPP_DIAGNOSTICS_RECOVERY_MODE must be preview or apply")
 DIAGNOSTICS_AUTO_REPLAY_TYPES = _diagnostics_csv("BKAPP_DIAGNOSTICS_AUTO_REPLAY_TYPES")
@@ -336,6 +374,13 @@ BKPAAS_IAM_URL = os.getenv("BKPAAS_IAM_URL")
 ENABLE_MULTI_TENANT_MODE = (
     os.getenv("BKPAAS_MULTI_TENANT_MODE", os.getenv("ENABLE_MULTI_TENANT_MODE", "false")).lower() == "true"
 )
+
+# 系统默认管理员用户名（支持随机化）
+BK_ADMIN_USERNAME = os.getenv("BKPAAS_ADMIN_USERNAME", "bk_admin")
+
+# 网关管理员（使用系统管理员作为默认值）
+BK_APIGW_MANAGER_MAINTAINERS = os.getenv("BK_APIGW_MANAGER_MAINTAINERS", BK_ADMIN_USERNAME).split(",")
+
 BK_PLUGIN_SYNC_TENANTS = list(
     dict.fromkeys(
         tenant.strip() for tenant in os.getenv("BK_PLUGIN_SYNC_TENANTS", "system").split(",") if tenant.strip()
@@ -349,3 +394,12 @@ PLUGIN_CATALOG_AI_APP_CODE = os.getenv("PLUGIN_CATALOG_AI_APP_CODE", "")
 PLUGIN_CATALOG_AI_APP_SECRET = os.getenv("PLUGIN_CATALOG_AI_APP_SECRET", "")
 PLUGIN_CATALOG_AI_USERNAME = os.getenv("PLUGIN_CATALOG_AI_USERNAME", "")
 PLUGIN_CATALOG_AI_APIGW_URL_TMPL = os.getenv("PLUGIN_CATALOG_AI_APIGW_URL_TMPL", "")
+
+# 草稿记录最大数量
+MAX_TEMPLATE_DRAFT_COUNT = int(os.getenv("MAX_TEMPLATE_DRAFT_COUNT", 20))
+# 自动保存最大数量
+MAX_AUTO_SAVE_SNAPSHOT_COUNT = int(os.getenv("MAX_AUTO_SAVE_SNAPSHOT_COUNT", 20))
+AUTO_SAVE_SNAPSHOT_RETENTION_DAYS = int(os.getenv("AUTO_SAVE_SNAPSHOT_RETENTION_DAYS", 1))
+AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL = tuple(os.getenv("AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL", "30 0 * * *").split())
+
+AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED = bool(os.getenv("AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED", False))

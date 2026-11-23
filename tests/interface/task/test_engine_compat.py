@@ -23,6 +23,7 @@ from unittest.mock import MagicMock
 from bkflow.interface.task.engine_compat import (
     empty_wrapped_result,
     enrich_task_list_result_labels,
+    enrich_task_list_result_template_names,
     fallback_if_engine_route_missing,
     is_engine_route_missing,
     parse_task_ids,
@@ -253,6 +254,65 @@ class TestEnrichTaskListResultLabels:
     def test_passthrough_failed_engine_result(self):
         failed = {"result": False, "message": "boom"}
         assert enrich_task_list_result_labels(failed, labels_map_getter=lambda ids: {}) == failed
+
+
+class TestEnrichTaskListResultTemplateNames:
+    """任务列表 template_name 回填：一次批量查询、空间隔离、缺字段兜底。"""
+
+    def test_fills_names_in_one_batch_with_space_id(self):
+        """整页模板 ID 只查一次，且携带 space_id"""
+        result = {
+            "result": True,
+            "data": {
+                "results": [
+                    {"id": 1, "template_id": 616},
+                    {"id": 2, "template_id": 617},
+                    {"id": 3, "template_id": 616},
+                ]
+            },
+        }
+        getter = mock.Mock(return_value={616: "流程A", 617: "流程B"})
+
+        enrich_task_list_result_template_names(result, 240, names_map_getter=getter)
+
+        assert [item["template_name"] for item in result["data"]["results"]] == ["流程A", "流程B", "流程A"]
+        getter.assert_called_once_with({616, 617}, 240)
+
+    def test_accepts_string_template_ids(self):
+        """旧 engine 返回字符串 ID 时仍能匹配"""
+        result = {"result": True, "data": {"results": [{"id": 1, "template_id": "616"}]}}
+
+        enrich_task_list_result_template_names(result, 240, names_map_getter=lambda ids, sid: {616: "流程A"})
+
+        assert result["data"]["results"][0]["template_name"] == "流程A"
+
+    def test_fills_empty_when_template_is_missing(self):
+        """模板不存在或无 template_id 时统一兜底空串"""
+        result = {
+            "result": True,
+            "data": {"results": [{"id": 1, "template_id": None}, {"id": 2, "template_id": 999}]},
+        }
+        getter = mock.Mock(return_value={})
+
+        enrich_task_list_result_template_names(result, 240, names_map_getter=getter)
+
+        assert all(item["template_name"] == "" for item in result["data"]["results"])
+        getter.assert_called_once_with({999}, 240)
+
+    def test_skips_query_for_legacy_engine_items(self):
+        """旧 engine 无 template_id 时不触发查询也不报错"""
+        result = {"result": True, "data": {"results": [{"id": 1, "name": "legacy"}]}}
+        getter = mock.Mock()
+
+        enrich_task_list_result_template_names(result, 240, names_map_getter=getter)
+
+        assert result["data"]["results"][0]["template_name"] == ""
+        getter.assert_not_called()
+
+    def test_passthrough_failed_engine_result(self):
+        """下游失败时原样透传"""
+        failed = {"result": False, "message": "boom"}
+        assert enrich_task_list_result_template_names(failed, 240, names_map_getter=mock.Mock()) == failed
 
 
 class TestGetTaskListOldEngineLabels:

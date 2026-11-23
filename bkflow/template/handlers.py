@@ -35,7 +35,8 @@ def pipeline_template_post_save_handler(sender, instance, created, **kwargs):
 
     with transaction.atomic():
         TemplateReference.objects.filter(root_template_id=template.id).delete()
-        acts = list(template.pipeline_tree[PE.activities].values())
+        pipeline_tree = template.pipeline_tree or {}
+        acts = list(pipeline_tree.get(PE.activities, {}).values())
         subprocess_nodes = [act for act in acts if act["type"] == PE.SubProcess]
         rs = []
         for sp in subprocess_nodes:

@@ -120,7 +120,8 @@ def get_template_detail(request, space_id, template_id):
                 copy_pipeline_tree = preview_data["pipeline_tree"]
 
     flow_version_config = SpaceConfig.get_config(space_id=space_id, config_name=FlowVersioning.name) == "true"
-    copy_pipeline_tree = replace_subprocess_version(copy_pipeline_tree, flow_version_config)
+    if copy_pipeline_tree:
+        copy_pipeline_tree = replace_subprocess_version(copy_pipeline_tree, flow_version_config)
 
     triggers = Trigger.objects.filter(template_id=template.id, is_deleted=False)
     response["data"]["triggers"] = TriggerSerializer(triggers, many=True).data

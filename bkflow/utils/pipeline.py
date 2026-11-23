@@ -368,11 +368,85 @@ DEFAULT_STAGE_PIPELINE_TREE = {
     "stage_canvas_constants": [],
 }
 
+DEFAULT_EMPTY_PIPELINE_DATA = {
+    "activities": {
+        "n1348a2f0c0a32af8016fd598d194f9d": {
+            "id": "n1348a2f0c0a32af8016fd598d194f9d",
+            "name": "",
+            "stage_name": "",
+            "type": "ServiceActivity",
+            "component": {"code": "", "data": {}, "version": ""},
+            "error_ignorable": False,
+            "retryable": True,
+            "skippable": True,
+            "optional": False,
+            "auto_retry": {"enable": False, "interval": 0, "times": 1},
+            "timeout_config": {"enable": False, "seconds": 10, "action": "forced_fail"},
+            "incoming": ["l4e2e50f642434679e9731121ed8d3c4"],
+            "outgoing": "l30f4c634906339da2e0648473c09685",
+        }
+    },
+    "gateways": {},
+    "flows": {
+        "l4e2e50f642434679e9731121ed8d3c4": {
+            "id": "l4e2e50f642434679e9731121ed8d3c4",
+            "is_default": False,
+            "source": "n17303641ca538928fe2f8bffde303e9",
+            "target": "n1348a2f0c0a32af8016fd598d194f9d",
+        },
+        "l30f4c634906339da2e0648473c09685": {
+            "id": "l30f4c634906339da2e0648473c09685",
+            "is_default": False,
+            "source": "n1348a2f0c0a32af8016fd598d194f9d",
+            "target": "n846d80cf07a3091a48fd99d983eb53a",
+        },
+    },
+    "location": [
+        {"id": "n17303641ca538928fe2f8bffde303e9", "type": "startpoint", "x": 40, "y": 150, "name": "开始"},
+        {"id": "n846d80cf07a3091a48fd99d983eb53a", "type": "endpoint", "x": 540, "y": 150, "name": "结束"},
+        {"id": "n1348a2f0c0a32af8016fd598d194f9d", "type": "tasknode", "x": 222, "y": 146, "name": ""},
+    ],
+    "line": [
+        {
+            "id": "l4e2e50f642434679e9731121ed8d3c4",
+            "source": {"arrow": "Right", "id": "n17303641ca538928fe2f8bffde303e9"},
+            "target": {"arrow": "Left", "id": "n1348a2f0c0a32af8016fd598d194f9d"},
+        },
+        {
+            "id": "l30f4c634906339da2e0648473c09685",
+            "source": {"arrow": "Right", "id": "n1348a2f0c0a32af8016fd598d194f9d"},
+            "target": {"arrow": "Left", "id": "n846d80cf07a3091a48fd99d983eb53a"},
+        },
+    ],
+    "start_event": {
+        "id": "n17303641ca538928fe2f8bffde303e9",
+        "name": "",
+        "type": "EmptyStartEvent",
+        "incoming": "",
+        "outgoing": "l4e2e50f642434679e9731121ed8d3c4",
+        "labels": [],
+    },
+    "end_event": {
+        "id": "n846d80cf07a3091a48fd99d983eb53a",
+        "name": "",
+        "type": "EmptyEndEvent",
+        "incoming": ["l30f4c634906339da2e0648473c09685"],
+        "outgoing": "",
+        "labels": [],
+    },
+    "constants": {},
+    "outputs": [],
+    "canvas_mode": "horizontal",
+    "canvas_version": "v1",
+    "id": "n751348aaafe3cf498d40227e216fd57",
+}
+
 
 CANVAS_TEMPLATE_MAP = {
     "horizontal": DEFAULT_HORIZONTAL_PIPELINE_TREE,
     "vertical": DEFAULT_VERTICAL_PIPELINE_TREE,
     "stage": DEFAULT_STAGE_PIPELINE_TREE,
+    "empty": DEFAULT_EMPTY_PIPELINE_DATA,
 }
 
 

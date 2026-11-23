@@ -24,8 +24,8 @@ Get task details
 | id                | string | No  | Template IDs, separated by commas                 |
 | name              | string | No  | Workflow name, fuzzy match                   |
 | label             | string | No  | Tag name                         |
-| creator           | string | No  | Creator, exact match                   |
-| updated_by        | string | No  | Updater, exact match                   |
+| creator           | string | No  | Creator, fuzzy match                   |
+| updated_by        | string | No  | Updater, fuzzy match                   |
 | scope_type        | string | No  | Workflow scope type, exact match                  |
 | scope_value       | string | No  | Workflow scope value, exact match                 |
 | create_at_start   | string | No  | Creation time range start, such as 2023-08-25 07:49:45 |

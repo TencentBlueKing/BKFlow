@@ -183,7 +183,7 @@ DebugService 是唯一编排入口：管理 `DebugContext` 状态机与并发锁
 | DebugNodeState 初始化（首次进上下文 / 新增节点） | 默认 `real` |
 | 旧数据迁移（req6） | `TemplateMockScheme` 勾选过的节点 → 初始 `mock` |
 | 调用 `node_mock` 设置输出 | **同时置 `execution_mode=mock`** |
-| 调用 `node_mock` 且 `enable=false`（切回真跑） | 置 `execution_mode=real`，**保留** `mock_outputs` / `mock_result` / `mock_error` 作为预设 |
+| 调用 `node_mock` 且 `enable=false`（切回真跑） | 从 `mock` 切回 `real` 时重置本节点结果为 `not_run`，删除本节点绑定的产出变量；**保留** `mock_outputs` / `mock_result` / `mock_error` 作为预设。重复关闭不再次清理 |
 
 `reset` / `reset_impact` / `step_run` **不改** `execution_mode`。
 
@@ -426,14 +426,14 @@ DebugService 是唯一编排入口：管理 `DebugContext` 状态机与并发锁
 ```json
 // 请求：配置 mock（enable 省略或 true）→ 同时置 execution_mode=mock
 {"template_id": 123, "node_id": "node_xxx", "enable": true, "mock_result": "success", "mock_outputs": {"k": "v"}, "mock_error": ""}
-// 请求：切回真跑 → 置 execution_mode=real，保留 mock_* 预设
+// 请求：从 mock 切回真跑 → 重置本节点结果并删除绑定的产出变量，保留 mock_* 预设
 {"template_id": 123, "node_id": "node_xxx", "enable": false}
 // 响应 data
 {"node_id": "node_xxx", "execution_mode": "mock", "updated_global_vars": {"${job_id}": 789}}
 ```
 
 - `enable` 省略时默认 `true`（设置 mock 输出即进入 mock 模式）。
-- `enable=false` 仅切 `execution_mode=real` 并保留预设，不改 `mock_outputs` / `mock_result` / `mock_error`。
+- `enable=false` 从 `mock` 切回 `real` 时，在同一事务内重置本节点当前状态及快照为 `not_run`、清空执行结果、删除当前草稿中绑定到本节点的全部产出变量。保留配置输入及 `mock_*` 预设，不恢复旧全局调试值，不级联重置下游；下游默认真实单步沿用缺失变量检查。已是 `real` 时重复关闭不清理结果。
 
 **POST `/debug/context_var/`** — 编辑上下文变量（req10）
 

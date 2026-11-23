@@ -24,8 +24,8 @@
 | id                | string | 否  | 模板ID，多个以逗号分割                 |
 | name              | string | 否  | 流程名   模糊匹配                   |
 | label             | string | 否  | 标签名称                         |
-| creator           | string | 否  | 创建者   精确匹配                   |
-| updated_by        | string | 否  | 更新人   精确匹配                   |
+| creator           | string | 否  | 创建者   模糊匹配                   |
+| updated_by        | string | 否  | 更新人   模糊匹配                   |
 | scope_type        | string | 否  | 流程范围   精确匹配                  |
 | scope_value       | string | 否  | 流程范围值   精确匹配                 |
 | create_at_start   | string | 否  | 创建起始时间，如 2023-08-25 07:49:45 |

@@ -142,7 +142,7 @@ All gateways have `execution_mode=real`. After debugging a conditional gateway, 
 | debug_snapshot.nodes[].node_id / node_type / node_name | string | Template node ID, type and debug-time name. |
 | debug_snapshot.nodes[].config_changed | bool | Saved name or execution configuration differs from the reliable debug baseline; defaults to false without a baseline. |
 | debug_snapshot.nodes[].node_deleted | bool | Node no longer exists in the saved draft. Its previous result and log reference remain available. |
-| debug_snapshot.nodes[].execution_mode | string | Actual mode used for this result: real / mock; independent of current Mock settings. |
+| debug_snapshot.nodes[].execution_mode | string | Actual mode used for this result: real / mock. Editing Mock presets preserves existing results; disabling Mock clears this node's result and sets this field to real. |
 | debug_snapshot.nodes[].status / waiting_reason | string / string or null | Same runtime state and waiting reason meanings as existing node states. |
 | debug_snapshot.nodes[].inputs / outputs | object | Recorded input/output values. Gateway outputs contain selected_flow_ids and condition_results. Inputs are {} if not collected. |
 | debug_snapshot.nodes[].configured_inputs | object / null | Configuration inputs frozen when debugging starts, mapped by parameter name. Preserves expressions, nested structures and empty values without variable substitution, using existing credential masking rules. Available for unexecuted nodes too; null when historical configuration is unavailable. Never reconstructed from the current draft. |
@@ -154,6 +154,7 @@ All gateways have `execution_mode=real`. After debugging a conditional gateway, 
 - Ordering follows the frozen control flow: predecessors precede successors and joins follow all branches. Parallel branches use a stable node-ID order, not chronological execution order. Loop back-edges are not expanded repeatedly. A subcanvas is one node; start/end events are excluded.
 - A newly stepped node is inserted according to that run's flow order without reordering previous entries. The next global run establishes a new full ordering.
 - Explicit node reset clears only that result; full reset clears the snapshot. Termination preserves completed results and resets active nodes to not_run, as before.
+- Switching from Mock to real with `node_mock(enable=false)` resets only that node's current state and snapshot result to `not_run`, clears execution results and changes the result entry's `execution_mode` to `real`, while retaining configured inputs. Its bound output variables are removed; consumers of these missing variables expose `can_step=false` and `missing_vars`. Other nodes retain their historical results. Disabling an already-real node does not reset it again.
 - Reading this endpoint does not automatically backfill legacy names or snapshots; `backfill_debug_snapshots` can recover them from reliable historical tasks. Existing configuration hashes remain valid; a new attempt establishes a name baseline. Restoring the original name/configuration clears the marker.
 - `node_deleted` and `config_changed` compare against the saved draft only. The frontend handles unsaved edits, canvas linking and user-facing hints. Deleted result nodes are not executable controls.
 

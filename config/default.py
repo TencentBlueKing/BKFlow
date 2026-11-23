@@ -425,7 +425,13 @@ def logging_addition_settings(logging_dict: dict, environment="prod"):
 
 # 初始化管理员列表，列表中的人员将拥有预发布环境和正式环境的管理员权限
 # 注意：请在首次提测和上线前修改，之后的修改将不会生效
-INIT_SUPERUSER = ["admin"]
+INIT_SUPERUSER = [env.BK_ADMIN_USERNAME]
+
+# 系统管理员用户名
+BK_ADMIN_USERNAME = env.BK_ADMIN_USERNAME
+
+# 系统 API 调用账号（使用系统管理员）
+SYSTEM_USE_API_ACCOUNT = env.BK_ADMIN_USERNAME
 
 # AJAX 请求弹窗续期登陆设置
 IS_AJAX_PLAIN_MODE = True
@@ -575,3 +581,11 @@ def setup_django42_allowed_hosts():
         return [host.strip() for host in _allowed_hosts_str.split(",") if host.strip()]
 
     return None
+
+
+MAX_TEMPLATE_DRAFT_COUNT = env.MAX_TEMPLATE_DRAFT_COUNT
+MAX_AUTO_SAVE_SNAPSHOT_COUNT = env.MAX_AUTO_SAVE_SNAPSHOT_COUNT
+AUTO_SAVE_SNAPSHOT_RETENTION_DAYS = env.AUTO_SAVE_SNAPSHOT_RETENTION_DAYS
+AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL = env.AUTO_SAVE_SNAPSHOT_CLEAN_INTERVAL
+
+AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED = env.AUTO_SAVE_SNAPSHOT_CLEAN_ENABLED

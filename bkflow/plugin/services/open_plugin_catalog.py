@@ -29,6 +29,7 @@ from bkflow.plugin.models import (
     OpenPluginCatalogIndex,
     SpaceOpenPluginAvailability,
 )
+from bkflow.utils.admin import get_admin_username
 from bkflow.space.configs import (
     ApiGatewayCredentialConfig,
     UniformApiConfig,
@@ -53,13 +54,15 @@ class OpenPluginCatalogService:
         return catalog_qs.exists()
 
     @classmethod
-    def sync_space_plugins(cls, space_id, source_key=None, username="admin"):
+    def sync_space_plugins(cls, space_id, source_key=None, username=None):
         """
         同步开放插件目录（仅 V4 协议，`_refresh_catalog_index` 内部过滤），
         供画布"缓存优先"展示路径使用，详见 bkflow/pipeline_plugins/query/uniform_api/uniform_api.py。
         返回值契约（`list(来源 key)`）保持不变，被现有测试 `test_sync_space_plugins_aggregates_*`
         直接断言，不要改成返回原始数据，若需要原始数据请用 `sync_space_plugins_with_meta`。
         """
+        if username is None:
+            username = get_admin_username()
         source_plugins = cls._collect_source_plugins(space_id=space_id, source_key=source_key, username=username)
 
         for current_source_key, plugins_by_id in source_plugins.items():
