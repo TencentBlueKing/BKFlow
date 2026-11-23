@@ -41,7 +41,7 @@
         v-if=" categories.length > 0"
         class="cate-divider" />
       <div
-        v-bkloading="{ isLoading: loading, color: 'transparent' }"
+        v-bkloading="{ isLoading: loading, color: '#f2f6fc' }"
         class="cate-tree">
         <div
           v-for="node in visibleNodes"

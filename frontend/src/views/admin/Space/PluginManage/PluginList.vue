@@ -129,8 +129,7 @@
             <template slot="content">
               <category-select-panel
                 :category-tree="categoryTree"
-                :ai-recommend-ids="batchAiRecommendIds"
-                :ai-recommend-loading="aiRecommendLoading"
+                :show-ai-recommend="false"
                 @select="handleBatchMoveCategory" />
             </template>
           </bk-popover>
@@ -160,8 +159,7 @@
             <template slot="content">
               <category-select-panel
                 :category-tree="categoryTree"
-                :ai-recommend-ids="batchAiRecommendIds"
-                :ai-recommend-loading="aiRecommendLoading"
+                :show-ai-recommend="false"
                 @select="handleBatchMoveCategory" />
             </template>
           </bk-popover>
@@ -258,9 +256,11 @@
               :width="280"
               :arrow="false"
               :transfer="true"
-              @show="activeCategoryPopId = row.id; quickAiRecommendRowId = ''; quickAiRecommendIds = []"
+              :disabled="quickAiLoadingIds.includes(row.id)"
+              @show="handleQuickPopShow(row)"
               @hide="activeCategoryPopId === row.id && (activeCategoryPopId = '')">
               <div
+                v-bkloading="{ isLoading: quickAiLoadingIds.includes(row.id), opacity: 1, color: '#fff', theme: 'primary', mode: 'spin', size: 'mini' }"
                 :class="['category-chip', { 'is-active': activeCategoryPopId === row.id }]">
                 <span>{{ categoryPath(row.directory_id) }}</span>
               </div>
@@ -268,8 +268,6 @@
                 <category-select-panel
                   :category-tree="categoryTree"
                   :active-id="row.directory_id"
-                  :ai-recommend-ids="row.id === quickAiRecommendRowId ? quickAiRecommendIds : []"
-                  :ai-recommend-loading="aiRecommendLoading"
                   @select="payload => handleQuickCategorySelect(row, payload)" />
               </template>
             </bk-popover>
@@ -379,10 +377,13 @@
                       :width="315"
                       :arrow="false"
                       :transfer="true"
+                      :disabled="passAiLoading"
                       :tippy-options="{ zIndex: 10002 }"
                       @show="activePassCategoryPop = true"
                       @hide="activePassCategoryPop = false">
-                      <div :class="['pass-category-select', { 'is-active': activePassCategoryPop }]">
+                      <div
+                        v-bkloading="{ isLoading: passAiLoading, opacity: 1, color: '#fff', theme: 'primary', mode: 'spin', size: 'mini'}"
+                        :class="['pass-category-select', { 'is-active': activePassCategoryPop }]">
                         <span>{{ passCategoryLabel || $t('未分类') }}</span>
                         <i class="bk-icon icon-angle-down" />
                       </div>
@@ -390,8 +391,6 @@
                         <category-select-panel
                           :category-tree="categoryTree"
                           :active-id="passCategory"
-                          :ai-recommend-ids="passAiRecommendIds"
-                          :ai-recommend-loading="aiRecommendLoading"
                           @select="handlePassCategorySelect" />
                       </template>
                     </bk-popover>
@@ -400,25 +399,34 @@
                 <bk-button
                   text
                   theme="primary"
+                  :disabled="row.status === 'expired' || (passAiLoading && passRow && passRow.id === row.id)"
                   @click="handlePassClick(row)">
                   {{ $t('启用') }}
                 </bk-button>
               </bk-popconfirm>
-              <!-- 待审核：不启用；未启用：停用配置 -->
-              <bk-button
-                v-if="isReviewTab"
-                text
-                theme="primary"
-                @click="handleRowStatus(row, 'disabled')">
-                {{ $t('不启用') }}
-              </bk-button>
-              <bk-button
-                v-else-if="row.status === 'disabled'"
-                text
-                theme="primary"
-                @click="openDisabledConfigDialog(row)">
-                {{ $t('停用配置') }}
-              </bk-button>
+              <!-- 待审核：不启用；未启用/已过期：停用配置 -->
+              <template v-if="isReviewTab">
+                <bk-button
+                  text
+                  theme="primary"
+                  @click="handleRowStatus(row, 'disabled')">
+                  {{ $t('不启用') }}
+                </bk-button>
+              </template>
+              <span
+                v-else-if="['expired', 'disabled'].includes(row.status)"
+                v-bk-tooltips="{
+                  content: row.disable_reason || $t('该插件从未启用，暂无停用配置'),
+                  disabled: !!row.ever_enabled,
+                }">
+                <bk-button
+                  text
+                  theme="primary"
+                  :disabled="!row.ever_enabled"
+                  @click="openDisabledConfigDialog(row)">
+                  {{ $t('停用配置') }}
+                </bk-button>
+              </span>
             </template>
           </div>
         </template>
@@ -430,7 +438,6 @@
       </div>
     </bk-table>
 
-    <!-- 插件详情侧滑（点击插件名打开） -->
     <plugin-detail-slider
       :visible.sync="isDetailSliderShow"
       :plugin="detailPlugin"
@@ -438,7 +445,6 @@
       :category-tree="categoryTree"
       @viewFlow="handleDetailViewFlow" />
 
-    <!-- 停用确认弹窗 -->
     <bk-dialog
       v-model="disabledDialogVisible"
       ext-cls="disabled-confirm-dialog"
@@ -634,46 +640,41 @@
               {{ $t('所属目录') }}
               <span class="required">*</span>
             </div>
-            <bk-select
-              v-model="editForm.category"
-              :searchable="true">
-              <bk-option-group
-                v-if="editAiRecommendations.length"
-                :name="$t('AI 推荐')">
+            <div class="edit-category-select">
+              <bk-select
+                v-model="editForm.category"
+                :searchable="true"
+                :loading="editAiLoading"
+                :disabled="editAiLoading">
                 <bk-option
-                  v-for="item in editAiRecommendations"
+                  v-for="item in editCategoryOptions"
                   :id="item.id"
                   :key="item.id"
-                  :name="item.name" />
-              </bk-option-group>
-              <bk-option
-                v-for="item in editCategoryOptions"
-                :id="item.id"
-                :key="item.id"
-                :name="item.name"
-                :class="{ 'category-option-divider': item.divider }">
-                <span
-                  v-if="item.special === 'ai'"
-                  class="category-ai-option">
-                  <img
-                    :src="item.icon"
-                    class="ai-icon"
-                    alt="">
-                  <span class="ai-name">{{ item.label }}</span>
-                </span>
-                <span
-                  v-else-if="item.special === 'uncategorized'"
-                  class="category-uncat-option">
-                  <i class="bk-icon icon-question-circle" />
-                  <span>{{ item.label }}</span>
-                </span>
-                <span
-                  v-else
-                  :class="item.isSub ? 'category-sub-option' : 'category-top-option'">
-                  {{ item.isSub ? item.subName : item.label }}
-                </span>
-              </bk-option>
-            </bk-select>
+                  :name="item.name"
+                  :class="{ 'category-option-divider': item.divider }">
+                  <span
+                    v-if="item.special === 'ai'"
+                    class="category-ai-option">
+                    <img
+                      :src="item.icon"
+                      class="ai-icon"
+                      alt="">
+                    <span class="ai-name">{{ item.label }}</span>
+                  </span>
+                  <span
+                    v-else-if="item.special === 'uncategorized'"
+                    class="category-uncat-option">
+                    <i class="bk-icon icon-question-circle" />
+                    <span>{{ item.label }}</span>
+                  </span>
+                  <span
+                    v-else
+                    :class="item.isSub ? 'category-sub-option' : 'category-top-option'">
+                    {{ item.isSub ? item.subName : item.label }}
+                  </span>
+                </bk-option>
+              </bk-select>
+            </div>
           </div>
           <div class="edit-form-item">
             <div class="edit-form-label">
@@ -821,15 +822,9 @@ export default {
       },
       passRow: null,
       passCategory: '',
-      // 编辑弹窗 AI 推荐
-      editAiRecommendIds: [],
-      // 列表行内快捷分类的 AI 推荐建议
-      quickAiRecommendRowId: '',
-      quickAiRecommendIds: [],
-      // AI 推荐
-      batchAiRecommendIds: [],
-      passAiRecommendIds: [],
-      aiRecommendLoading: false,
+      editAiLoading: false,
+      passAiLoading: false,
+      quickAiLoadingIds: [], // 行内快捷分类 AI 请求中的行 id 列表
       activePassCategoryPop: false,
       passTippyOptions: {
         hideOnClick: false,
@@ -898,21 +893,6 @@ export default {
     },
     isRecommend() {
       return this.category === 'recommend';
-    },
-    editAiRecommendations() {
-      const ids = new Set((this.editAiRecommendIds || []).map(id => String(id)));
-      const options = [];
-      (this.categoryTree || []).forEach((group) => {
-        if (ids.has(String(group.id))) {
-          options.push({ id: group.id, name: group.name });
-        }
-        (group.children || []).forEach((sub) => {
-          if (ids.has(String(sub.id))) {
-            options.push({ id: sub.id, name: `${group.name}/${sub.name}` });
-          }
-        });
-      });
-      return options;
     },
     editCategoryOptions() {
       const options = [
@@ -1361,32 +1341,41 @@ export default {
       }
       this.$emit('categoryChange', { row, categoryId });
     },
+    // 行内快捷分类 popover 展开钩子
+    handleQuickPopShow(row) {
+      this.activeCategoryPopId = row.id;
+    },
     // 行内快捷分类面板
     handleQuickCategorySelect(row, { categoryId, isAiRecommend }) {
       if (isAiRecommend) {
+        const popRef = this.$refs[`categoryPop-${row.id}`];
+        if (popRef && popRef[0]) popRef[0].hideHandler();
+        this.quickAiLoadingIds.push(row.id);
         this.fetchAiRecommendIds([row.id]).then((ids) => {
-          if (ids) {
-            this.quickAiRecommendRowId = row.id;
-            this.quickAiRecommendIds = ids;
-          }
+          if (!ids) return;
+          this.handleQuickChangeCategory(row, ids[0] === '' ? '' : ids[0]);
+          // this.$bkMessage({ message: this.$t('AI 推荐已应用'), theme: 'success' });
+        })
+        .finally(() => {
+          this.quickAiLoadingIds = this.quickAiLoadingIds.filter(id => id !== row.id);
         });
         return;
       }
-      this.quickAiRecommendRowId = '';
-      this.quickAiRecommendIds = [];
       this.handleQuickChangeCategory(row, categoryId);
     },
+    // 请求 AI 建议（纯请求层，不含任何互斥判断，可多入口并行调用）
     async fetchAiRecommendIds(pluginIds) {
-      if (this.aiRecommendLoading) return null;
       if (!pluginIds.length) {
         this.$bkMessage({ message: this.$t('请先勾选插件后再使用 AI 推荐'), theme: 'warning' });
         return null;
       }
-      this.aiRecommendLoading = true;
       try {
-        const res = await this.aiClassify({ space_id: this.spaceId, plugin_ids: pluginIds });
-        if (res && res.result === 'patch') {
-          return Object.values(res.patch || {}).map(id => String(id));
+        const res = await this.aiClassify({ space_id: this.spaceId, ids: pluginIds });
+        const ids = res && res.result === 'patch'
+          ? Object.values(res.patch || {}).map(id => (id == null ? '' : String(id)))
+          : [];
+        if (ids.some(id => id !== '')) {
+          return ids;
         }
         const reason = res && res.result === 'error' && res.message ? res.message : '';
         this.$bkMessage({ message: reason || this.$t('AI 暂无推荐分类，请手动选择'), theme: 'warning' });
@@ -1394,18 +1383,10 @@ export default {
       } catch (e) {
         this.$bkMessage({ message: this.$t('AI 推荐获取失败，请手动选择'), theme: 'error' });
         return null;
-      } finally {
-        this.aiRecommendLoading = false;
       }
     },
     // 批量移动
-    handleBatchMoveCategory({ categoryId, isAiRecommend }) {
-      if (isAiRecommend) {
-        this.fetchAiRecommendIds(this.selection.map(row => row.id)).then((ids) => {
-          if (ids) this.batchAiRecommendIds = ids;
-        });
-        return;
-      }
+    handleBatchMoveCategory({ categoryId }) {
       const popRef = this.$refs.batchMovePopover;
       if (popRef) {
         popRef.hideHandler();
@@ -1422,8 +1403,14 @@ export default {
     handlePassCategorySelect({ categoryId, isAiRecommend }) {
       if (isAiRecommend) {
         if (!this.passRow) return;
+        this.hidePassCategoryPop();
+        this.passAiLoading = true;
         this.fetchAiRecommendIds([this.passRow.id]).then((ids) => {
-          if (ids) this.passAiRecommendIds = ids;
+          if (!ids) return;
+          this.passCategory = ids[0];
+          this.$bkMessage({ message: this.$t('AI 推荐已应用'), theme: 'success' });
+        }).finally(() => {
+          this.passAiLoading = false;
         });
         return;
       }
@@ -1434,18 +1421,25 @@ export default {
       this.$nextTick(() => {
         this.editForm.category = previousVal === undefined ? '' : previousVal;
       });
-      if (this.aiRecommendLoading) return;
-      const ids = await this.fetchAiRecommendIds([this.editingPlugin.id]);
-      this.editAiRecommendIds = ids || [];
+      this.editAiLoading = true;
+      try {
+        const ids = await this.fetchAiRecommendIds([this.editingPlugin.id]);
+        if (!ids) return;
+        const target = ids[0] === ''
+          ? EDIT_UNCATEGORIZED
+          : (this.editCategoryOptions.find(item => !item.special && String(item.id) === ids[0]) || {}).id;
+        if (target !== undefined) {
+          this.editForm.category = target;
+          this.$bkMessage({ message: this.$t('AI 推荐已应用'), theme: 'success' });
+        }
+      } finally {
+        this.editAiLoading = false;
+      }
     },
     hidePassCategoryPop() {
-      const poppers = document.querySelectorAll('.tippy-popper.pass-category-popover');
-      for (const popper of poppers) {
-        if (popper._tippy) {
-          popper._tippy.hide();
-        }
-      }
-      this.activePassCategoryPop = false;
+      // popover 在 popconfirm 行级插槽内，$refs 拿不到实例，只能从渲染出的 popper 根节点关
+      const popper = document.querySelector('.pass-category-popover');
+      if (popper && popper._tippy) popper._tippy.hide();
     },
     handleReviewPassConfirm(row) {
       this.$emit('statusChange', {
@@ -1606,7 +1600,6 @@ export default {
     openEditDialog(row) {
       this.editingPlugin = row;
       this.editMode = 'edit';
-      this.editAiRecommendIds = [];
       this.editForm = {
         category: row.directory_id || EDIT_UNCATEGORIZED,
         recommended: !!row.recommended,
@@ -2097,6 +2090,7 @@ export default {
   }
   .category-cell {
     .category-chip {
+      position: relative;
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -2122,6 +2116,10 @@ export default {
         }
       }
     }
+  }
+
+  .edit-category-select {
+    position: relative;
   }
 
   .row-more-icon {
@@ -2475,6 +2473,7 @@ export default {
 
 .review-pass-pop {
     .pass-category-select {
+        position: relative;
         display: flex;
         align-items: center;
         justify-content: space-between;

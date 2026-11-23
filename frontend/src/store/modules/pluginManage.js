@@ -1,11 +1,5 @@
 /**
- * 插件管理接口 store（/api/plugin_catalog/）：只负责发请求与返回业务数据。
- * 不做任何数据加工——状态映射、计数统计、策略/树结构转换、软删除编排等
- * 全部由调用方（组件）完成。
- *
- * 约定：action 的 data 即后端参数原文（snake_case 平铺）。
- * GET / 无 body 的 DELETE 用 URL query 传参；POST（含带 body 的 DELETE）只走请求体。
- * 失败由 ajax.js 拦截器统一弹错。
+ * 插件管理接口
  */
 import axios from 'axios';
 
@@ -44,7 +38,7 @@ export default {
       return axios.post(`api/plugin_catalog/plugins/${pluginId}/`, params)
         .then(response => response.data.data);
     },
-    // 编辑未启用配置（原因 + 建议替换插件，接口 1.7）
+    // 编辑未启用配置
     updateDisableConfig({}, data) {
       const { plugin_id: pluginId, ...params } = data;
       return axios.post(`api/plugin_catalog/plugins/${pluginId}/reason/`, params)
@@ -87,10 +81,17 @@ export default {
       return axios.post('api/plugin_catalog/directories/preview_delete/', data)
         .then(response => response.data.data);
     },
-    // AI 智能分类建议
+    // AI 分类建议
     aiClassify({}, data) {
-      return axios.post('api/plugin_catalog/directories/ai_classify/', data)
+      return axios.post('api/plugin_catalog/plugins/ai_classify/', data)
         .then(response => response.data.data);
+    },
+    // AI 智能分类
+    aiSmartClassify({}, data) {
+      const { space_id: spaceId, ...body } = data;
+      return axios.post('api/plugin_catalog/directories/ai_classify/', body, {
+        params: { space_id: spaceId },
+      }).then(response => response.data.data);
     },
     // 保存新插件策略
     savePluginStrategy({}, data) {

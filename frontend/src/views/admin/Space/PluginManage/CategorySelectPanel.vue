@@ -9,27 +9,9 @@
     </div>
     <template v-if="showAiRecommend || showUnclassified">
       <div
-        v-if="aiRecommendOptions.length"
-        class="ai-recommend-box">
-        <div class="ai-recommend-header">
-          <img
-            :src="aiBluekingIcon"
-            class="ai-icon"
-            alt="">
-          <span class="option-name ai-recommend-name">{{ $t('AI 推荐') }}</span>
-        </div>
-        <div
-          v-for="opt in aiRecommendOptions"
-          :key="opt.id"
-          class="panel-option ai-recommend-item"
-          @click="handleSelect(opt.id)">
-          <span class="option-name">{{ opt.name }}</span>
-        </div>
-      </div>
-      <div
-        v-else-if="showAiRecommend"
+        v-if="showAiRecommend"
         :class="['panel-option', { 'is-ai-loading': aiRecommendLoading }]"
-        @click="handleSelect('', false, true)">
+        @click="!aiRecommendLoading && handleSelect('', false, true)">
         <img
           :src="aiBluekingIcon"
           class="ai-icon"
@@ -153,26 +135,6 @@ export default {
         acc.push({ ...group, children });
         return acc;
       }, []);
-    },
-    // AI 建议目录项
-    aiRecommendOptions() {
-      const ids = new Set((this.aiRecommendIds || []).map(id => String(id)));
-      if (!ids.size) return [];
-      const onlyLevel1 = this.selectableLevel === 'level1';
-      const options = [];
-      (this.optionTree || []).forEach((group) => {
-        if (ids.has(String(group.id))) {
-          options.push({ id: group.id, name: group.name });
-        }
-        if (!onlyLevel1) {
-          (group.children || []).forEach((sub) => {
-            if (ids.has(String(sub.id))) {
-              options.push({ id: sub.id, name: `${group.name}/${sub.name}` });
-            }
-          });
-        }
-      });
-      return options;
     },
   },
   methods: {
