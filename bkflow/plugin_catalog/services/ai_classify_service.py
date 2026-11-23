@@ -208,10 +208,12 @@ class AiClassifyService:
 
     @classmethod
     def _build_manage_prompt(cls, space_id, plugin_keys, content=None):
-        """拼给智能体的指令：现有目录树 + 待整理插件 + 严格的输出格式要求。
+        """拼给智能体的指令：现有目录 + 全部插件 + 完全重组的输出要求。
 
-        比普通分类多两件事：**可以新建目录**、**可以删除空目录**。
-        `content` 是用户额外提的需求，追加到固定指令末尾一起发给智能体。
+        这次是**完全重组**：现有目录只是参考（合理可沿用 id、不合理就别放进结果=删除），
+        全部插件都要重新给出归属。服务端对结果不再做"是否该删/是否合理"的裁剪，
+        所以规则全部写在这里约束模型。
+        `content` 是用户额外提的需求，追加到固定指令末尾一起发给智能体（优先级最高）。
         """
         directories = list(
             PluginDirectory.objects.filter(space_id=space_id)
@@ -235,153 +237,89 @@ class AiClassifyService:
         plugins_text = json.dumps(cls._load_plugins_for_prompt(space_id, plugin_keys), ensure_ascii=False)
 
         return (
-            "你是「蓝鲸流程引擎」空间插件目录的整理助手。请把下面这些插件安排到合适的目录里；"
-            "必要时可以新建目录，也可以删除多余的空目录。\n\n"
-            f"【现有目录】\n{directories_text}\n\n"
-            f"【待整理插件】\n{plugins_text}\n\n"
+            "你是「蓝鲸流程引擎」空间插件目录的整理助手。现在要对这个空间的插件目录做**完全重组**："
+            "由你重新设计整套目录结构，把全部插件安排到合适的目录里。\n\n"
+            f"【现有目录（仅供参考，可以沿用、也可以删除重建）】\n{directories_text}\n\n"
+            f"【全部插件】\n{plugins_text}\n\n"
             "【要求】\n"
-            "1. 每个插件都要给一个归属：`directory_key` 可以是【现有目录】里的 id，"
-            "也可以是你新建目录的 key；确实没有合适目录时用 null（未分类）。\n"
-            "2. 需要新建目录时放进 `directories` 数组：`key`（自定义标识，如 \"d1\"）、`name`、"
-            "`parent_key`（父目录的 id 或父目录的 key；一级目录用 null）。目录**最多两级**。\n"
-            "   `name` 是给用户看的目录显示名，必须是**简洁的中文业务描述**（如「作业执行」「主机管理」"
+            "1. 【全部插件】里的每一个插件都必须给出归属，不能遗漏：`directory_key` 填你最终目录树里的"
+            " `key`（新建目录的 key，或你想沿用的现有目录 id）；确实没有合适目录时用 null（未分类）。\n"
+            "2. 最终的目录树全部放进 `directories` 数组，每一项含 `key`（新建目录用自定义标识如 \"d1\"；"
+            "沿用现有目录就填它的 id）、`name`、`parent_key`（父目录的 key/id；一级目录用 null）。"
+            "目录**最多两级**。\n"
+            "3. **删除目录不需要理由**：现有目录只要你不放进 `directories`，就等于删除它——不管它下面"
+            "原来有没有插件或子目录（插件会由你在 `classifications` 里重新安排）。不要保留名字是纯数字、"
+            "纯编号或无意义的现有目录，重新建名字清晰的目录。\n"
+            "4. `name` 是给用户看的目录显示名，必须用**简洁的中文业务描述**（如「作业执行」「主机管理」"
             "「数据采集」），2～20 个字，能让人一眼看懂这个目录放什么；**禁止留空、禁止纯数字或编号**"
-            "（如 \"1\"、\"234\"）、禁止无意义的占位文字（如 \"目录1\"、\"新目录\"）。\n"
-            "3. 要删除某个现有目录，就**不要把它放进 `directories`**（提交的目录树就是最终状态）；"
-            "只允许删完全空的目录（没有插件、也没有子目录），拿不准就不要删。\n"
-            "4. 目录 id、插件 key 只能取自上面列出的值，不要编造。\n"
-            "5. 只输出下面这个 JSON，不要任何解释、前后缀文字或 markdown 代码块：\n"
-            '{"directories": [{"key": "d1", "name": "目录名", "parent_key": null}],'
+            "（如 \"1\"、\"234\"）、禁止无意义的占位文字（如 \"目录1\"、\"新目录\"）。"
+            "（如果用户在补充说明里明确要求某个目录用数字名，以用户要求为准。）\n"
+            "5. 目录 key 用你自己的编号（d1/d2…）或想沿用的现有目录 id；插件 key 只能取自【全部插件】，"
+            "不要编造。\n"
+            "6. 只输出下面这个 JSON，不要任何解释、前后缀文字或 markdown 代码块：\n"
+            '{"directories": [{"key": "d1", "name": "作业执行", "parent_key": null}],'
             ' "classifications": [{"key": "<插件 key>", "directory_key": "d1"}]}'
-            + (f"\n\n【用户补充需求】\n{content}" if content else "")
+            + (f"\n\n【用户补充需求（优先级最高，与上面冲突时以这里为准）】\n{content}" if content else "")
         )
-
-    @staticmethod
-    def _is_valid_directory_name(name):
-        """AI 新建目录的显示名校验：必须是能给用户看懂的中文业务描述。
-
-        智能体有时会偷懒返回纯数字（如 "1"、"234"）或空串，前端侧边栏直接拿 name
-        渲染，这种名字用户根本没法辨认，所以在服务端就挡掉——连同该目录下的插件
-        归属一起丢弃（宁可不分类，也不要落到看不懂的目录里）。
-        """
-        if not name:
-            return False
-        # 纯数字 / 纯标点 / 纯空白都不是有效的显示名
-        if not re.search(r"[\u4e00-\u9fffA-Za-z]", name):
-            return False
-        return True
 
     @classmethod
     def _validate_manage_plan(cls, space_id, plugin_keys, data):
-        """校验智能体给出的整理方案，只保留合法项。
+        """把智能体的"完全重组"方案整理成目录文档结构——**不做合理性裁剪**。
 
-        - 新建目录：key 不与现有目录 id 冲突、名称是有效的中文/英文业务描述（非空、
-          不能纯数字）、父级合法、层级不超过两级
-        - 插件归属：插件 key 必须在本次范围内；目录必须是现有目录 id 或本批新建目录 key
-        - 删除目录：**只允许删完全空的目录**（没有插件、没有子目录）——避免误删用户建的目录
+        设计决定（完全重组）：规则全部写进 prompt 约束模型，服务端不再判断"这个目录
+        该不该删/名字合不合理/层级对不对"，AI 给出的目录树和插件归属原样采纳。
+        这里只做两类必要的结构整理：
+
+        - `parent_key` / `directory_key` 统一成字符串（AI 可能返回数字 id）
+        - 给每个目录分配 `order`（前端整页保存需要；按 AI 给出的先后顺序）
+
+        现有目录里没出现在 AI `directories` 中的，即为删除（`omit_directory_ids`），
+        不再要求"必须是空目录"——完全重组下插件会由 AI 重新安排归属。
+
+        仅保留一层最基本的防越界插件 key 不在【全部插件】范围内时忽略（这是幻觉，
+        不是"合理性判断"；否则文档里会混入不存在的插件 id，前端保存会报错）。
         """
-        directories = list(PluginDirectory.objects.filter(space_id=space_id).only("id", "name", "parent_id"))
-        existing = {str(directory.id): directory for directory in directories}
+        directories = list(PluginDirectory.objects.filter(space_id=space_id).only("id"))
+        existing_ids = {str(directory.id) for directory in directories}
         valid_keys = set(plugin_keys)
 
-        # ---------------------------------------------------- 新建目录 ----
-        raw_new = data.get("directories")
-        new_by_key = {}
-        if isinstance(raw_new, list):
-            for item in raw_new:
-                if not isinstance(item, dict):
-                    continue
-                key = str(item.get("key") or "").strip()
-                name = str(item.get("name") or "").strip()
-                if not key or not cls._is_valid_directory_name(name):
-                    continue
-                if key in existing or key in new_by_key:
-                    continue  # key 与现有目录 id / 同批目录冲突，丢弃（防越界）
-                parent_key = item.get("parent_key")
-                parent_key = str(parent_key).strip() if parent_key not in (None, "") else None
-                new_by_key[key] = {"key": key, "name": name, "parent_key": parent_key}
-
-        # 校验父级 + 层级（父级必须是一级目录：现有的一级，或本批新建的一级）
-        valid_new = {}
-        for key, item in new_by_key.items():
-            parent_key = item["parent_key"]
-            if parent_key is None:
-                valid_new[key] = item
+        # ---------------------------------------------------- 目录树（原样采纳）----
+        directories_out = []
+        for index, item in enumerate(data.get("directories") or []):
+            if not isinstance(item, dict):
                 continue
-            if parent_key in existing:
-                if existing[parent_key].parent_id is not None:
-                    continue  # 父级是二级目录 -> 会变成三级，丢弃
-                valid_new[key] = item
+            key = str(item.get("key") or "").strip()
+            if not key:
                 continue
-            parent_item = new_by_key.get(parent_key)
-            if parent_item is None or parent_item["parent_key"] is not None:
-                continue  # 父级不存在，或父级自己也是二级 -> 超过两级
-            valid_new[key] = item
-
-        # 分配 order：一级目录接在现有一级之后；二级目录接在同父目录的现有二级之后
-        top_order = max([directory.order for directory in directories if directory.parent_id is None] or [0])
-        child_order = {}
-        for directory in directories:
-            if directory.parent_id is not None:
-                child_order[directory.parent_id] = max(child_order.get(directory.parent_id, 0), directory.order)
-        new_directories = []
-        for key, item in valid_new.items():
-            parent_key = item["parent_key"]
-            if parent_key is None:
-                top_order += 1
-                order = top_order
-            else:
-                # 父级可能是现有目录（真实 pk）或本批新建的一级目录（key）
-                group = parent_key if parent_key in existing else parent_key
-                order = child_order.get(group, 0) + 1
-                child_order[group] = order
-            new_directories.append(
-                {"key": key, "name": item["name"], "parent_key": parent_key, "order": order}
+            name = str(item.get("name") or "").strip()
+            parent_key = item.get("parent_key")
+            parent_key = str(parent_key).strip() if parent_key not in (None, "") else None
+            directories_out.append(
+                {"key": key, "name": name, "parent_key": parent_key, "order": index + 1}
             )
 
-        # ---------------------------------------------------- 插件归属 ----
-        assignments = {}
-        raw_items = data.get("classifications")
-        if isinstance(raw_items, list):
-            for item in raw_items:
-                if not isinstance(item, dict):
-                    continue
-                key = item.get("key")
-                if key not in valid_keys:
-                    continue
-                directory_key = item.get("directory_key")
-                if directory_key is None or directory_key == "":
-                    assignments[key] = None
-                    continue
-                directory_key = str(directory_key)
-                if directory_key in existing or directory_key in valid_new:
-                    assignments[key] = directory_key
+        # 现有目录中未被 AI 保留的 = 删除（不判断是否空目录/是否有子目录）
+        kept_keys = {item["key"] for item in directories_out}
+        omit_directory_ids = [id for id in existing_ids if id not in kept_keys]
 
-        # ---------------------------------------------------- 删除目录 ----
-        # 整页替换：AI 没放进 directories 的现有目录 = 它想删的。
-        # 只允许删**完全空**的（无插件、无子目录），其余保留（由调用方组装文档时补回）。
-        referenced_keys = set(valid_new)
-        for item in assignments.values():
-            if item:
-                referenced_keys.add(str(item))
-        child_ids = {d.parent_id for d in directories if d.parent_id}
-        used_directory_ids = set(
-            SpacePluginCatalogEntry.objects.filter(
-                space_id=space_id, directory_id__isnull=False
-            ).values_list("directory_id", flat=True)
-        )
-        omit_directory_ids = []
-        for directory in directories:
-            if str(directory.id) in referenced_keys:
+        # ---------------------------------------------------- 插件归属（原样采纳）----
+        assignments = {}
+        for item in data.get("classifications") or []:
+            if not isinstance(item, dict):
                 continue
-            if directory.id in child_ids or directory.id in used_directory_ids:
-                continue  # 有子目录或有插件 -> 不删
-            omit_directory_ids.append(str(directory.id))
+            key = item.get("key")
+            if key not in valid_keys:
+                continue  # 插件 key 不在本次范围内 = 模型幻觉，忽略
+            directory_key = item.get("directory_key")
+            if directory_key is None or directory_key == "":
+                assignments[key] = None
+                continue
+            assignments[key] = str(directory_key)
 
         return {
             "result": cls.RESULT_PATCH,
             "message": "",
-            "new_directories": new_directories,
+            "new_directories": directories_out,
             "assignments": assignments,
             "omit_directory_ids": omit_directory_ids,
         }

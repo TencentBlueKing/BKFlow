@@ -616,17 +616,19 @@ class DirectoryService:
         :param content: 用户额外提的需求，追加到固定 prompt 末尾
         :param thread_id: 智能体会话 id；传了就延续该会话（智能体读取历史记录）
 
+        **完全重组**语义：把本空间**全部插件**和现有目录一起交给 AI，由 AI 重新设计
+        整套目录结构——合理的目录可以继续用，不合理的直接不返回（=删除）。AI 给出的
+        目录树和插件归属原样采纳，服务端不做"是否该删/是否合理"的裁剪。
+
         **返回与 `GET directories/manage_data` 完全同构的目录文档**，前端可直接转成
         `manage_save` 的入参（整页替换）。外加三个字段：
 
         - `result` / `message`：AI 调用状态
         - `thread_id`：本次会话 id，用户接着追问时传回本接口
 
-        AI 新建目录用临时 key、删除空目录直接从 `directories` 里去掉；接口本身不写库。
+        AI 新建目录用临时 key；接口本身不写库，用户确认后随 `manage_save` 整页提交。
         """
-        queryset = SpacePluginCatalogEntry.objects.filter(
-            space_id=space_id, directory__isnull=True, is_deleted=False
-        )
+        queryset = SpacePluginCatalogEntry.objects.filter(space_id=space_id, is_deleted=False)
         plugin_keys = [
             f"{entry.plugin_type}:{entry.source_key}:{entry.plugin_code}"
             for entry in queryset.only("id", "plugin_type", "source_key", "plugin_code")
