@@ -26,6 +26,7 @@
           theme="primary"
           class="header-btn"
           :loading="saving"
+          :disabled="aiSmartLoading"
           @click="handleSave">
           {{ $t('保存') }}
         </bk-button>
@@ -78,6 +79,9 @@
             </div>
             <bk-button
               class="ai-btn"
+              :disabled="aiSmartLoading"
+              :loading="aiSmartLoading"
+              theme="primary"
               @click="showAiPanel">
               <i class="commonicon-icon common-icon-ai-meihua" />
               <span>{{ $t('AI 智能分类') }}</span>
@@ -87,6 +91,7 @@
             class="tool-btn"
             theme="primary"
             :outline="true"
+            :disabled="aiSmartLoading"
             @click="handleCreateCategory('')">
             <i class="bk-icon icon-plus btn-icon" />
             {{ $t('新建目录') }}
@@ -95,6 +100,7 @@
             class="tool-btn"
             theme="primary"
             :outline="true"
+            :disabled="aiSmartLoading"
             @click="handleCreateCategory(isUncategorized ? '' : selectedLevel1Id, 'child')">
             <i class="bk-icon icon-plus btn-icon" />
             {{ $t('新建子目录') }}
@@ -121,7 +127,7 @@
                 class="tool-btn"
                 theme="primary"
                 :outline="true"
-                :disabled="moveDisabled">
+                :disabled="moveDisabled || aiSmartLoading">
                 <i class="bk-icon icon-plus btn-icon" />
                 {{ $t('移动至...') }}
               </bk-button>
