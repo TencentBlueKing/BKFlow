@@ -349,7 +349,6 @@
             </template>
             <template v-else-if="isReviewTab || isUnusedTab">
               <bk-popconfirm
-                v-if="isReviewTab || row.status === 'disabled'"
                 trigger="click"
                 placement="bottom"
                 width="360"
@@ -396,10 +395,21 @@
                     </bk-popover>
                   </div>
                 </template>
+                <span
+                  v-if="row.status === 'expired'"
+                  v-bk-tooltips="$t('该插件在源头被下架，无法启用')">
+                  <bk-button
+                    text
+                    theme="primary"
+                    disabled>
+                    {{ $t('启用') }}
+                  </bk-button>
+                </span>
                 <bk-button
+                  v-else
                   text
                   theme="primary"
-                  :disabled="row.status === 'expired' || (passAiLoading && passRow && passRow.id === row.id)"
+                  :disabled="passAiLoading && passRow && passRow.id === row.id"
                   @click="handlePassClick(row)">
                   {{ $t('启用') }}
                 </bk-button>
