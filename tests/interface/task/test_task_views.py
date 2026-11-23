@@ -111,7 +111,7 @@ class TestTaskInterfaceAdminViewSet:
         )
         force_authenticate(request, user=self.admin_user)
 
-        response = view(request, space_id=self.space.id, pk=1)
+        response = view(request, space_id=self.space.id, task_id=1)
 
         assert response.status_code == 200
         mock_client.update_labels.assert_called_once()

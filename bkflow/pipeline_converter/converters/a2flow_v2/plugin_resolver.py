@@ -26,6 +26,7 @@ from pipeline.component_framework.models import ComponentModel
 from bkflow.bk_plugin.models import BKPlugin
 from bkflow.pipeline_converter.constants import A2FlowPluginType
 from bkflow.pipeline_converter.exceptions import A2FlowConvertError, ErrorTypes
+from bkflow.utils.admin import get_admin_username
 
 logger = logging.getLogger("root")
 
@@ -229,14 +230,14 @@ class PluginResolver:
         headers = client.gen_default_apigw_header(
             app_code=credential.content["bk_app_code"],
             app_secret=credential.content["bk_app_secret"],
-            username=self.username or "admin",
+            username=self.username or get_admin_username(),
         )
         list_result = client.request(
             url=meta_apis_url,
             method="GET",
             data={"limit": 200, "offset": 0},
             headers=headers,
-            username=self.username or "admin",
+            username=self.username or get_admin_username(),
         )
         client.validate_response_data(
             list_result.json_resp.get("data", {}), client.UNIFORM_API_LIST_RESPONSE_DATA_SCHEMA
@@ -254,7 +255,7 @@ class PluginResolver:
             method="GET",
             data={},
             headers=headers,
-            username=self.username or "admin",
+            username=self.username or get_admin_username(),
         )
         client.validate_response_data(
             meta_result.json_resp.get("data", {}), client.UNIFORM_API_META_RESPONSE_DATA_SCHEMA

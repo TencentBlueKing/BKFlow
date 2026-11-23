@@ -721,17 +721,9 @@ class TestTemplateSnapshot:
         assert snapshot.draft is False
         assert snapshot.data == self.pipeline_tree
 
-    def test_create_draft_snapshot_with_version(self):
-        """测试创建带版本号的草稿快照"""
-        snapshot = TemplateSnapshot.create_draft_snapshot(self.pipeline_tree, "admin", version="1.0.0")
-
-        assert snapshot.version == "1.0.0"
-        assert snapshot.creator == "admin"
-        assert snapshot.draft is False  # 有版本号时不是草稿
-
     def test_create_draft_snapshot_without_version(self):
         """测试创建不带版本号的草稿快照"""
-        snapshot = TemplateSnapshot.create_draft_snapshot(self.pipeline_tree, "admin")
+        snapshot = TemplateSnapshot.create_unpublished_snapshot(self.pipeline_tree, "admin", draft=True)
 
         assert snapshot.creator == "admin"
         assert snapshot.draft is True  # 无版本号时是草稿

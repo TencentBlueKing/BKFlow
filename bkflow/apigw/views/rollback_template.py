@@ -21,7 +21,6 @@ import logging
 
 from apigw_manager.apigw.decorators import apigw_require
 from blueapps.account.decorators import login_exempt
-from django.db import transaction
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -70,16 +69,21 @@ def rollback_template(request, space_id, template_id):
     except TemplateSnapshot.DoesNotExist:
         return JsonResponse({"result": False, "message": f"版本 {version} 不存在", "code": err_code.VALIDATION_ERROR.code})
 
-    with transaction.atomic():
-        pipeline_tree = snapshot.data
-        draft_template = instance.update_draft_snapshot(pipeline_tree, request.user.username, version)
-        # 回滚是把历史版本内容写回草稿，重算草稿(role=draft)的插件引用
-        PluginReferenceService.rebuild_template_references(
-            space_id=space_id,
-            template_id=instance.id,
-            role=TemplatePluginReferenceRole.DRAFT,
-            pipeline_tree=pipeline_tree,
-        )
+    TemplateSnapshot.create_unpublished_snapshot(
+        pipeline_tree=snapshot.data,
+        username=request.user.username,
+        desc=f"基于v{version}",
+        draft=True,
+        template_id=instance.id,
+    )
+
+    # 回滚是把历史版本内容写回草稿，重算草稿(role=draft)的插件引用
+    PluginReferenceService.rebuild_template_references(
+        space_id=space_id,
+        template_id=instance.id,
+        role=TemplatePluginReferenceRole.DRAFT,
+        pipeline_tree=snapshot.data,
+    )
 
     TemplateOperationRecord.objects.create(
         operate_source=TemplateOperationSource.api.name,
@@ -89,4 +93,4 @@ def rollback_template(request, space_id, template_id):
         extra_info={"version": version},
     )
 
-    return JsonResponse({"result": True, "data": draft_template.data, "code": err_code.SUCCESS.code})
+    return JsonResponse({"result": True, "data": snapshot.data, "code": err_code.SUCCESS.code})

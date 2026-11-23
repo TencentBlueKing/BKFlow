@@ -79,6 +79,38 @@ def enrich_task_list_result_labels(result, labels_map_getter=None):
     return result
 
 
+def _get_template_names_map(template_ids, space_id):
+    """按空间批量查询模板名称；不过滤软删模板，保证历史任务仍能展示流程名。"""
+    from bkflow.template.models import Template
+
+    return dict(Template.objects.filter(id__in=template_ids, space_id=space_id).values_list("id", "name"))
+
+
+def enrich_task_list_result_template_names(result, space_id, names_map_getter=None):
+    """按 template_id 批量补全任务列表的 template_name；旧 engine 无该字段或模板不存在时置空串。"""
+    if not isinstance(result, dict) or not result.get("result"):
+        return result
+    results = (result.get("data") or {}).get("results")
+    if not results:
+        return result
+
+    item_template_ids = []
+    for item in results:
+        try:
+            item_template_ids.append(int(item.get("template_id")))
+        except (TypeError, ValueError):
+            item_template_ids.append(None)
+
+    template_ids = {template_id for template_id in item_template_ids if template_id is not None}
+    if names_map_getter is None:
+        names_map_getter = _get_template_names_map
+    template_names = names_map_getter(template_ids, space_id) if template_ids else {}
+
+    for item, template_id in zip(results, item_template_ids):
+        item["template_name"] = template_names.get(template_id, "")
+    return result
+
+
 def parse_task_ids(task_ids_param):
     """解析逗号分隔的任务 ID，忽略空值和非法值。"""
     if not task_ids_param:

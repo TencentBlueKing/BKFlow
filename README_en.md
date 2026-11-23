@@ -30,7 +30,7 @@ An integrating application creates a space and templates through the gateway. It
 The standard Smart application identifier is `bk_flow`. Existing cloud applications can retain their registered identity, gateway, service addresses, and credentials using packaging and runtime environment settings.
 
 - [Deployment and compatibility guide](./docs/guide/release_compatibility_en.md)
-- [Current release notes](./version_logs_md_en/V1.11.14_2026-09-17.md)
+- [Current release notes](./version_logs_md_en/V1.12.0_2026-11-13.md)
 - [Release history](./version_logs_md_en)
 - [Chinese product and integration guides](./docs/guide)
 

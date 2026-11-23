@@ -35,6 +35,10 @@ const Configuration = {
         {
             rules: {
                 'content-rule': ({subject}) => {
+                    // 添加空值检查，避免 subject 为 null 时报错
+                    if (!subject || typeof subject !== 'string') {
+                        return [false, `Your subject should contain issue id`];
+                    }
                     const pattern = /#\d+$|--story=\d+$|--bug=\d+$/;
                     return [
                         pattern.test(subject.trim()),

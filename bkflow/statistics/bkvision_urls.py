@@ -1,4 +1,4 @@
-"""Django 4.2 routes for django-bkvision 1.2.0.
+"""Django 4.2 routes for django-bkvision.
 
 The SDK still imports the removed django.conf.urls.url. Keep its public paths
 and original decorated views here, without patching Django globally.

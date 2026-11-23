@@ -47,6 +47,8 @@ def get_template_list(request, space_id):
 
     filter_map = {
         "name": "name__icontains",
+        "creator": "creator__icontains",
+        "updated_by": "updated_by__icontains",
         "create_at_end": "create_at__lte",
         "create_at_start": "create_at__gte",
     }

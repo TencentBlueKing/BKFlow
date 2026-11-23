@@ -16,6 +16,7 @@ from io import BytesIO
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+from bkflow.utils.admin import get_admin_username
 from bkflow.utils.platform import use_apigw
 from packages.bkapi.bk_itsm4.shortcuts import get_client_by_username
 
@@ -32,7 +33,14 @@ class Command(BaseCommand):
             raise CommandError("Legacy platform mode does not initialize ITSM4 tenants")
         if not settings.ENABLE_MULTI_TENANT_MODE and tenant_id != "default":
             raise CommandError("Single-tenant mode only initializes the default tenant")
-        client = get_client_by_username("bk_admin", stage=settings.BK_APIGW_STAGE_NAME)
+
+        # ITSM 集成兼容性：保持历史默认操作员为 bk_admin
+        # 只有显式配置了 BKPAAS_ADMIN_USERNAME 时才使用新值，未配置时使用历史兼容值
+        username = get_admin_username()
+        if username == "admin":  # 检测到默认值，使用历史兼容值
+            username = "bk_admin"
+
+        client = get_client_by_username(username, stage=settings.BK_APIGW_STAGE_NAME)
         template_path = os.path.join(
             settings.BASE_DIR, "bkflow/contrib/itsm_workflow/template/itsm_migrate_template.json"
         )
