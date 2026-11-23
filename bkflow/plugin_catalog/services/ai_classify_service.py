@@ -244,6 +244,9 @@ class AiClassifyService:
             "也可以是你新建目录的 key；确实没有合适目录时用 null（未分类）。\n"
             "2. 需要新建目录时放进 `directories` 数组：`key`（自定义标识，如 \"d1\"）、`name`、"
             "`parent_key`（父目录的 id 或父目录的 key；一级目录用 null）。目录**最多两级**。\n"
+            "   `name` 是给用户看的目录显示名，必须是**简洁的中文业务描述**（如「作业执行」「主机管理」"
+            "「数据采集」），2～20 个字，能让人一眼看懂这个目录放什么；**禁止留空、禁止纯数字或编号**"
+            "（如 \"1\"、\"234\"）、禁止无意义的占位文字（如 \"目录1\"、\"新目录\"）。\n"
             "3. 要删除某个现有目录，就**不要把它放进 `directories`**（提交的目录树就是最终状态）；"
             "只允许删完全空的目录（没有插件、也没有子目录），拿不准就不要删。\n"
             "4. 目录 id、插件 key 只能取自上面列出的值，不要编造。\n"
@@ -253,11 +256,27 @@ class AiClassifyService:
             + (f"\n\n【用户补充需求】\n{content}" if content else "")
         )
 
+    @staticmethod
+    def _is_valid_directory_name(name):
+        """AI 新建目录的显示名校验：必须是能给用户看懂的中文业务描述。
+
+        智能体有时会偷懒返回纯数字（如 "1"、"234"）或空串，前端侧边栏直接拿 name
+        渲染，这种名字用户根本没法辨认，所以在服务端就挡掉——连同该目录下的插件
+        归属一起丢弃（宁可不分类，也不要落到看不懂的目录里）。
+        """
+        if not name:
+            return False
+        # 纯数字 / 纯标点 / 纯空白都不是有效的显示名
+        if not re.search(r"[\u4e00-\u9fffA-Za-z]", name):
+            return False
+        return True
+
     @classmethod
     def _validate_manage_plan(cls, space_id, plugin_keys, data):
         """校验智能体给出的整理方案，只保留合法项。
 
-        - 新建目录：key 不与现有目录 id 冲突、名称非空、父级合法、层级不超过两级
+        - 新建目录：key 不与现有目录 id 冲突、名称是有效的中文/英文业务描述（非空、
+          不能纯数字）、父级合法、层级不超过两级
         - 插件归属：插件 key 必须在本次范围内；目录必须是现有目录 id 或本批新建目录 key
         - 删除目录：**只允许删完全空的目录**（没有插件、没有子目录）——避免误删用户建的目录
         """
@@ -274,7 +293,7 @@ class AiClassifyService:
                     continue
                 key = str(item.get("key") or "").strip()
                 name = str(item.get("name") or "").strip()
-                if not key or not name:
+                if not key or not cls._is_valid_directory_name(name):
                     continue
                 if key in existing or key in new_by_key:
                     continue  # key 与现有目录 id / 同批目录冲突，丢弃（防越界）
