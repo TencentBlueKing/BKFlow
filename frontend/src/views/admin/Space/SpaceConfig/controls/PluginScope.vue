@@ -349,10 +349,10 @@
     .ps-kv-label {
       display: flex;
       flex-shrink: 0;
+      align-self: stretch;
       align-items: center;
       justify-content: flex-end;
       width: 100px;
-      height: 40px;
       padding-right: 12px;
       background: #f2f6fc;
       font-family: "PingFang SC";

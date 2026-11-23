@@ -195,7 +195,7 @@ export default {
         await this.loadSummary();
         this.reloadPluginList();
         this.$bkMessage({
-          message: this.$t('保存成功'),
+          message: this.$t('目录修改成功'),
           theme: 'success',
         });
       } catch (e) {
@@ -238,7 +238,7 @@ export default {
           });
         }
         await this.updatePluginStatus(data);
-        // 状态变更不影响目录树 / 推荐计数 / 插件总数，无需刷新概要
+        await this.loadSummary();
         this.reloadPluginList();
         this.$bkMessage({
           message: message || getStatusChangeMessage(status, key => this.$t(key)),
@@ -255,6 +255,7 @@ export default {
           ids: rows.map(item => item.id),
           status: mapBackendStatus(rows.length ? rows[0].status : '', status),
         });
+        await this.loadSummary();
         this.reloadPluginList();
         this.$bkMessage({
           message: message || getStatusChangeMessage(status, key => this.$t(key)),

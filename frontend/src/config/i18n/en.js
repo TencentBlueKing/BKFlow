@@ -1700,6 +1700,13 @@ const en = {
   不启用: 'Do Not Enable',
   原所属目录: 'Original Category',
   已停用: 'Disabled',
+  'AI 智能分类中': 'AI intelligent classification in progress',
+  'AI 智能分类失败，请重试': 'AI intelligent classification failed, please try again',
+  目录修改成功: 'Category updated successfully',
+  'AI 推荐已应用': 'AI recommendations applied',
+  修改目标目录: 'Modify Target Category',
+  '该插件从未启用，暂无停用配置': 'This plugin has never been enabled and has no disable settings',
+  'AI 暂无分类方案，请重试': 'No AI classification plan yet, please try again',
 };
 
 export default en;

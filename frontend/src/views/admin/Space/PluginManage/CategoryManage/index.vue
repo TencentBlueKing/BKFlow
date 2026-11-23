@@ -48,40 +48,41 @@
           </ul>
         </div>
         <div class="manage-toolbar">
-          <bk-popconfirm
-            ref="aiPopconfirm"
-            trigger="click"
+          <bk-popover
+            ref="aiPopover"
+            trigger="manual"
             placement="bottom-start"
-            ext-popover-cls="ai-classify-popover"
-            ext-cls="ai-classify-tippy"
+            theme="light"
+            ext-cls="ai-classify-popover ai-classify-tippy"
             :arrow="false"
             :tippy-options="{ duration: 0 }"
-            animation=""
-            cancel-text=""
-            confirm-text=""
-            :on-show="handleAiPanelShow"
-            width="400">
+            width="400"
+            @show="handleAiPanelShow">
             <div slot="content">
               <textarea
                 ref="aiTextarea"
                 v-model="aiPrompt"
                 class="ai-textarea"
+                :disabled="aiSmartLoading"
                 :placeholder="$t('(选填) 请用自然语言描述分类需求...')"
                 @keydown.enter.exact.prevent="submitAiClassify" />
               <div class="panel-footer">
                 <div
-                  :class="['ai-submit-btn', { 'is-active': !!aiPrompt.trim() }]"
+                  :class="['ai-submit-btn', { 'is-active': !!aiPrompt.trim()}]"
                   :title="$t('提交')"
                   @click="submitAiClassify">
-                  <bk-icon type="arrows-up" />
+                  <bk-icon
+                    type="arrows-up" />
                 </div>
               </div>
             </div>
-            <bk-button class="ai-btn">
+            <bk-button
+              class="ai-btn"
+              @click="showAiPanel">
               <i class="commonicon-icon common-icon-ai-meihua" />
               <span>{{ $t('AI 智能分类') }}</span>
             </bk-button>
-          </bk-popconfirm>
+          </bk-popover>
           <bk-button
             class="tool-btn"
             theme="primary"
@@ -129,10 +130,7 @@
                   :category-tree="categories"
                   :selectable-level="moveSelectableLevel"
                   :show-unclassified="moveShowUnclassified"
-                  :show-ai-recommend="moveShowAiRecommend"
                   :exclude-ids="moveExcludeIds"
-                  :ai-recommend-ids="moveAiRecommendIds"
-                  :ai-recommend-loading="moveAiLoading"
                   @select="handleMoveTo" />
               </template>
             </bk-popover>
@@ -186,8 +184,10 @@
           </div>
         </div>
 
-        <!-- 三栏：一级目录 | 二级目录（子目录 + 直属插件） | 插件 -->
-        <div class="manage-columns">
+        <!-- 三栏：一级目录 | 二级目录（子目录 + 直属插件）-->
+        <div
+          v-bkloading="{ isLoading: aiSmartLoading, title: $t('AI 智能分类中'), opacity: 1, color: '#fff' }"
+          class="manage-columns">
           <!-- 一级目录 -->
           <section class="column">
             <header class="column-header">
@@ -424,7 +424,7 @@
           <bk-input
             v-model.trim="createForm.name"
             :maxlength="32"
-            :placeholder="$t('请输入')"/>
+            :placeholder="$t('请输入')" />
         </bk-form-item>
       </bk-form>
     </bk-dialog>
@@ -531,8 +531,7 @@ export default {
       dirty: false,
       // AI 智能分类：自然语言分类需求（选填）
       aiPrompt: '',
-      moveAiRecommendIds: [],
-      moveAiLoading: false,
+      aiSmartLoading: false,
       deleteDialogVisible: false,
       deleteImpactLoading: false,
       deleteImpactItems: [],
@@ -669,15 +668,6 @@ export default {
     moveShowUnclassified() {
       return this.moveIsPluginOnly;
     },
-    // AI 分类
-    moveShowAiRecommend() {
-      return this.hasCheckedPlugin || !this.hasCheckedTopLevel;
-    },
-    // 勾选项中是否含一级目录
-    hasCheckedTopLevel() {
-      const ids = new Set(this.checkedCateIds);
-      return this.categories.some(cate => ids.has(cate.id));
-    },
     // 勾选项中是否含二级目录
     hasCheckedSecondLevel() {
       const ids = new Set(this.checkedCateIds);
@@ -783,7 +773,7 @@ export default {
       'saveDirectoryManage',
       'getCategoryDeleteImpact',
       'deleteCategory',
-      'aiClassify',
+      'aiSmartClassify',
     ]),
     directoriesToTree(directories = {}) {
       const nodes = Object.keys(directories).map(key => ({
@@ -1480,14 +1470,9 @@ export default {
     },
     // 移动至：插件改归属（可到未分类）+ 目录换父（只能挂到某个一级目录下）
     // 目标可选范围由面板按勾选内容收敛，这里只做落地的树/数据改动
-    // AI 推荐：调 ai_classify 拉取勾选插件的建议目录，有建议时面板内渲染推荐框，不关闭面板
-    handleMoveTo({ categoryId, isAiRecommend }) {
+    handleMoveTo({ categoryId }) {
       if (this.moveBlocked) {
         this.closeMovePopover();
-        return;
-      }
-      if (isAiRecommend) {
-        this.fetchMoveAiRecommend();
         return;
       }
       const idSet = new Set(this.checkedCateIds);
@@ -1552,28 +1537,6 @@ export default {
         return;
       }
       this.$bkMessage({ message: this.$t('移动成功'), theme: 'success' });
-    },
-    async fetchMoveAiRecommend() {
-      if (this.moveAiLoading) return;
-      const pluginIds = [...this.checkedPluginIds];
-      if (!pluginIds.length) {
-        this.$bkMessage({ message: this.$t('请先勾选插件后再使用 AI 推荐'), theme: 'warning' });
-        return;
-      }
-      this.moveAiLoading = true;
-      try {
-        const res = await this.aiClassify({ space_id: this.spaceId, plugin_ids: pluginIds });
-        if (res && res.result === 'patch') {
-          this.moveAiRecommendIds = Object.values(res.patch || {}).map(id => String(id));
-        } else {
-          const reason = res && res.result === 'error' && res.message ? res.message : '';
-          this.$bkMessage({ message: reason || this.$t('AI 暂无推荐分类，请手动选择'), theme: 'warning' });
-        }
-      } catch (e) {
-        this.$bkMessage({ message: this.$t('AI 推荐获取失败，请手动选择'), theme: 'error' });
-      } finally {
-        this.moveAiLoading = false;
-      }
     },
     closeMovePopover() {
       const popover = this.$refs.movePopover;
@@ -1691,31 +1654,56 @@ export default {
     },
     // AI 输入面板展开后聚焦输入框
     handleAiPanelShow() {
+      this.aiPrompt = '';
       this.$nextTick(() => {
         const textarea = this.$refs.aiTextarea;
         textarea && textarea.focus();
       });
     },
-    // 提交 AI 分类需求：Enter（不带 Shift）或点击箭头按钮触发
-    submitAiClassify() {
-      this.hideAiPanel();
-      // const prompt = this.aiPrompt.trim();
-      // TODO: 接入 AI 智能分类接口
-      this.$bkMessage({
-        message: this.$t('功能建设中，敬请期待'),
-        theme: 'warning',
-      });
-      this.aiPrompt = '';
+    showAiPanel() {
+      this.$refs.aiPopover.showHandler();
     },
-    hideAiPanel() {
-      const popconfirm = this.$refs.aiPopconfirm;
-      const popover = popconfirm && popconfirm.$refs.popover;
-      if (popover && popover.hideHandler) popover.hideHandler();
+    // 提交 AI 分类需求
+    async submitAiClassify() {
+      if (this.aiSmartLoading) return;
+      const content = this.aiPrompt.trim();
+      this.$refs.aiPopover.hideHandler();
+      this.aiSmartLoading = true;
+      try {
+        const res = await this.aiSmartClassify({
+          space_id: this.spaceId,
+          content,
+        });
+
+        if (res && res.result === 'empty') {
+          this.$bkMessage({ message: this.$t('AI 暂无分类方案，请重试'), theme: 'warning' });
+          return;
+        }
+        if (!res || res.result !== 'patch') {
+          this.$bkMessage({ message: res?.message || this.$t('AI 智能分类失败，请重试'), theme: 'error' });
+          return;
+        }
+        this.applyAiSuggestion(res);
+        this.aiPrompt = '';
+        this.$bkMessage({ message: this.$t('AI 智能分类已应用'), theme: 'success' });
+      } finally {
+        this.aiSmartLoading = false;
+      }
+    },
+    applyAiSuggestion(res) {
+      this.manageRevision = res.revision;
+      this.categories = this.directoriesToTree(res.directories || {});
+      this.plugins = (res.plugins || []).map(plugin => ({
+        ...plugin,
+        id: String(plugin.id),
+        directory_id: plugin.directory_id ? String(plugin.directory_id) : '',
+      }));
+      this.dirty = true;
+      this.resetSelection();
     },
     async handleSave() {
       this.saving = true;
       try {
-        // 整页保存：目录文档（order 必填整数）+ 插件归属（assignments 仅提交变化项）；成功后更新 revision 支持连续保存
         const assignments = {};
         this.plugins.forEach(({ id, directory_id: directoryId }) => {
           const next = directoryId ? String(directoryId) : '';
@@ -2352,21 +2340,17 @@ export default {
 .ai-classify-tippy {
     .tippy-tooltip {
         box-sizing: border-box;
-        top: 8px;
+        top: -10px;
+        left: -8px;
         padding: 0;
         background: #FFF;
         border: 1px solid #C1CDE5;
         border-radius: 8px;
         box-shadow: 0 2px 8px 0 rgba(25, 25, 41, 0.06);
-        .bk-popconfirm-content.popconfirm-more {
-            padding: 0;
-        }
     }
 }
 .ai-classify-popover {
-    .popconfirm-operate {
-        display: none;
-    }
+    padding: 8px;
 
     .panel-footer {
         display: flex;
@@ -2386,6 +2370,16 @@ export default {
         cursor: pointer;
         color: #fff;
         font-size: 28px;
+
+        &.is-loading {
+            cursor: default;
+            opacity: .8;
+        }
+    }
+    @keyframes ai-smart-rotate {
+        to {
+            transform: rotate(360deg);
+        }
     }
     .ai-textarea {
         display: block;
