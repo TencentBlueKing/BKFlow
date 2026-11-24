@@ -8069,3 +8069,46 @@ paths:
         descriptionEn: Plugin version diff
         enableWebsocket: false
         pluginConfigs: []
+  /sdk/plugin_catalog/plugins/migration_status/:
+    get:
+      operationId: sdk_plugin_catalog_migration_status
+      description: 画布侧判断空间是否已启用插件目录，返回 ready/migrated_at/legacy_snapshot；普通用户持 BKFLOW-TOKEN 可查
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: query
+        name: space_id
+        schema:
+          type: integer
+        required: true
+        description: 空间ID
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/plugin_catalog/plugins/migration_status/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Canvas plugin catalog migration status
+        enableWebsocket: false
+        pluginConfigs: []
