@@ -177,6 +177,49 @@ Save a workflow (SDK endpoint)
 
 
 
+### Save blocking (newly added disabled plugins)
+
+When saving adds nodes that reference disabled plugins relative to the baseline (current draft / current published version), this endpoint returns `result=false` (HTTP 200) with the full block list in `data`:
+
+```json
+{
+    "result": false,
+    "data": {
+        "detail": "New disabled plugins were added to the workflow; remove or replace them before saving",
+        "blocked_nodes": [
+            {
+                "plugin_type": "builtin",
+                "source_key": "builtin",
+                "plugin_code": "bk_wecom_robot",
+                "plugin_name": "WeCom Robot",
+                "node_id": "n_123",
+                "node_name": "Alert node",
+                "reason": "Migrated to the Send Notification plugin",
+                "replace_plugin": {
+                    "plugin_type": "builtin", "source_key": "builtin",
+                    "plugin_code": "bk_notify", "name": "Send Notification"
+                }
+            }
+        ]
+    },
+    "code": 500,
+    "message": "New disabled plugins were added to the workflow; remove or replace them before saving"
+}
+```
+
+| Field | Description |
+|---------|------|
+| `data.detail` | Notice text |
+| `data.blocked_nodes[].plugin_name` | Plugin display name |
+| `data.blocked_nodes[].node_id` / `node_name` | Node using the plugin; `node_id` is used for canvas highlighting |
+| `data.blocked_nodes[].reason` | Disable reason; empty string if the admin provided none |
+| `data.blocked_nodes[].replace_plugin` | Suggested replacement, null if none |
+| `plugin_type` / `source_key` / `plugin_code` | Plugin identity triple |
+
+Blocking is computed as the difference over (plugin identity, node_id) pairs: pre-existing disabled nodes are allowed, while copied nodes and nodes switched to a disabled plugin are blocked. It only applies to spaces that completed plugin catalog migration. The create-template endpoint has the same blocking behavior.
+
+> For display-only status banners in the node configuration panel, use `sdk_plugin_catalog_statuses`; do not use it as a pre-save check.
+
 ### Periodic trigger timezone
 
 `triggers[].config.timezone` accepts a valid IANA timezone (for example `Europe/Paris`). When omitted on creation, the effective user timezone of the request is saved. When omitted on update, the existing schedule timezone is preserved. Legacy schedules without this field retain the timezone already stored in Engine, regardless of the editor. Returned config retains timezone for new schedules; the UI uses it for display and previews.

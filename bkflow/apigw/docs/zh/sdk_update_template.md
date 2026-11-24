@@ -177,6 +177,49 @@
 
 
 
+### 流程保存拦截（新增已停用插件）
+
+保存时若相对基线（当前草稿 / 当前已发布版本）**新增**了已停用插件的节点，本接口返回 `result=false`（HTTP 200），`data` 中带完整拦截清单：
+
+```json
+{
+    "result": false,
+    "data": {
+        "detail": "流程中新增了已停用的插件，请移除或替换后再保存",
+        "blocked_nodes": [
+            {
+                "plugin_type": "builtin",
+                "source_key": "builtin",
+                "plugin_code": "bk_wecom_robot",
+                "plugin_name": "企业微信发机器人",
+                "node_id": "n_123",
+                "node_name": "边特来发告警",
+                "reason": "已统一迁移到「发送通知」插件，插件、组件机器人即将停用",
+                "replace_plugin": {
+                    "plugin_type": "builtin", "source_key": "builtin",
+                    "plugin_code": "bk_notify", "name": "发送通知"
+                }
+            }
+        ]
+    },
+    "code": 500,
+    "message": "流程中新增了已停用的插件，请移除或替换后再保存"
+}
+```
+
+| 字段 | 说明 |
+|---------|------|
+| `data.detail` | 提示文案 |
+| `data.blocked_nodes[].plugin_name` | 插件展示名 |
+| `data.blocked_nodes[].node_id` / `node_name` | 用了该插件的节点，`node_id` 用于画布高亮 |
+| `data.blocked_nodes[].reason` | 停用原因，管理员未填时为空串 |
+| `data.blocked_nodes[].replace_plugin` | 建议替换插件，无建议为 null |
+| `plugin_type` / `source_key` / `plugin_code` | 插件身份三元组 |
+
+拦截按 (插件身份, node_id) 二元组做差集：原本就存在的已停用节点放行，复制出的新节点与换成停用插件的节点拦截。仅对已完成插件目录迁移的空间生效。新建流程接口同样具备此拦截行为。
+
+> 打开节点配置面板的展示态状态查询请用 `sdk_plugin_catalog_statuses`，不要用其做保存前预校验。
+
 ### 定时触发器时区
 
 `triggers[].config.timezone` 可指定有效的 IANA 时区（例如 `Europe/Paris`）。新建时省略则保存当前请求的有效用户时区；编辑时省略则保留既有计划时区。历史未标时区的计划继续使用其已保存的 Engine 调度时区，不随编辑者切换。返回的 config 保留新计划的 timezone，界面按此显示和预览。
