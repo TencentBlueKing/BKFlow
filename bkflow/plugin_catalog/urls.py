@@ -22,6 +22,7 @@ from rest_framework.routers import DefaultRouter
 
 from bkflow.plugin_catalog.views.catalog import PluginCatalogAdminViewSet
 from bkflow.plugin_catalog.views.directory import DirectoryManageViewSet
+from bkflow.plugin_catalog.views.migration import PluginCatalogMigrationViewSet
 from bkflow.plugin_catalog.views.node import PluginNodeViewSet
 from bkflow.plugin_catalog.views.picker import PluginPickerViewSet
 from bkflow.plugin_catalog.views.strategy import StrategyViewSet
@@ -67,6 +68,12 @@ plugin_entry_urlpatterns = [
         r"^plugins/picker/$",
         PluginPickerViewSet.as_view({"get": "list"}, basename="plugin_catalog_picker"),
         name="plugin_catalog_picker-list",
+    ),
+    # 画布侧只读判断空间是否启用插件目录；权限与画布 picker/node 一致（放行 BKFLOW_TOKEN）
+    re_path(
+        r"^plugins/migration_status/$",
+        PluginCatalogMigrationViewSet.as_view({"get": "status"}, basename="plugin_catalog_migration"),
+        name="plugin_catalog_migration-status",
     ),
     # --- 12 节点配置（已停用提示）/ 13 节点配置（版本切换）---
     re_path(
