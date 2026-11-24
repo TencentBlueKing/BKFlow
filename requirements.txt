@@ -19,12 +19,12 @@ django-cors-headers==4.3.0
 djangorestframework==3.17.2
 django-filter==23.1
 drf-yasg==1.21.8
-blueapps==4.16.rc3
+blueapps==4.16.rc9
 gunicorn==23.0.0
 
 # jwt
 pyCryptodome==3.19.1
-PyJWT==2.4.0
+PyJWT==2.12.0
 cryptography==50.0.2
 bk-crypto-python-sdk==4.1.1
 bk-kms-sdk[gm]==1.0.0

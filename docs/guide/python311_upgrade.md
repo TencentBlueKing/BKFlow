@@ -24,7 +24,7 @@
 - jsonschema 2.5.1 → 4.23.0 后，应用及 Python 节点中的未声明版本 schema 继续按 Draft 4 校验；
   显式声明的版本或校验器仍受尊重，不修改第三方模块的全局默认行为。
 - 显式导入 `pytz`，保留定时节点已经存储的 datetime/tzinfo 对象形式及原有时区处理语义。
-- 保留 blueapps 4.16.rc3 和 APIGW 4.2.0，更新 Python 3.11 所需依赖；CI 运行版本改为 3.11。
+- 保留 blueapps 4.16.rc9 和 APIGW 4.2.0，更新 Python 3.11 所需依赖；CI 运行版本改为 3.11。
 - 保留 django-bkvision 1.2.0，通过 `bkflow.statistics.bkvision_urls` 调用 SDK 原有视图。
   SDK 1.2.0–1.2.4 仍导入 `django.conf.urls.url`；应用适配不修改 Django 全局行为，也不更换 SDK 鉴权视图。
 
