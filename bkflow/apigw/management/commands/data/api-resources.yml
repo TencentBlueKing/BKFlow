@@ -7754,3 +7754,318 @@ paths:
         descriptionEn: Auto save template
         enableWebsocket: false
         pluginConfigs: [ ]
+  /sdk/plugin_catalog/plugins/picker/:
+    get:
+      operationId: sdk_plugin_catalog_picker
+      description: 画布统一选择插件列表，返回启用状态插件与左侧目录树；不接收 scope_type/scope_id
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: query
+        name: space_id
+        schema:
+          type: integer
+        required: true
+        description: 空间ID
+      - in: query
+        name: directory_id
+        schema:
+          type: string
+          default: all
+        required: false
+        description: 目录筛选，all/recommend/uncategorized/具体目录id
+      - in: query
+        name: plugin_type
+        schema:
+          type: string
+          default: all
+          enum: [all, builtin, bk_plugin, api]
+        required: false
+        description: 插件类型筛选
+      - in: query
+        name: keyword
+        schema:
+          type: string
+          default: ''
+        required: false
+        description: 模糊匹配插件名称或描述
+      - in: query
+        name: ordering
+        schema:
+          type: string
+          default: recommend
+          enum: [recommend, -publish_time, publish_time, name, -usage_count, usage_count]
+        required: false
+        description: 排序方式
+      - in: query
+        name: page
+        schema:
+          type: integer
+          default: 1
+          minimum: 1
+        required: false
+        description: 页码，从1开始
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+          maximum: 200
+        required: false
+        description: 每页条数
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/plugin_catalog/plugins/picker/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Canvas plugin picker list
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/plugin_catalog/plugins/statuses/:
+    post:
+      operationId: sdk_plugin_catalog_statuses
+      description: 批量查询插件当前状态，供节点配置面板提示条展示；不做保存拦截预校验
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                space_id:
+                  type: integer
+                  description: 空间ID
+                items:
+                  type: array
+                  description: 插件身份列表
+                  items:
+                    type: object
+                    properties:
+                      plugin_type:
+                        type: string
+                        enum: [builtin, bk_plugin, api]
+                      source_key:
+                        type: string
+                        default: ''
+                        description: 来源id或空串，后端会归一化
+                      plugin_code:
+                        type: string
+                      plugin_version:
+                        type: string
+                        default: ''
+                    required:
+                    - plugin_type
+                    - plugin_code
+              required:
+              - space_id
+              - items
+        required: true
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/plugin_catalog/plugins/statuses/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Batch query plugin statuses
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/plugin_catalog/plugins/versions/:
+    get:
+      operationId: sdk_plugin_catalog_versions
+      description: 插件可选版本列表，返回 versions/default_version/latest_version
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      - in: query
+        name: space_id
+        schema:
+          type: integer
+        required: true
+        description: 空间ID
+      - in: query
+        name: plugin_type
+        schema:
+          type: string
+          enum: [builtin, bk_plugin, api]
+        required: true
+        description: 插件类型
+      - in: query
+        name: plugin_code
+        schema:
+          type: string
+        required: true
+        description: 插件标识
+      - in: query
+        name: source_key
+        schema:
+          type: string
+          default: ''
+        required: false
+        description: 来源id或空串，后端会归一化
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: get
+          path: /{env.api_sub_path}api/plugin_catalog/plugins/versions/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Plugin available versions
+        enableWebsocket: false
+        pluginConfigs: []
+  /sdk/plugin_catalog/plugins/version_diff/:
+    post:
+      operationId: sdk_plugin_catalog_version_diff
+      description: 版本切换/换插件的输入参数差异，返回 kept/added/inputs
+      parameters:
+      - in: header
+        name: X-Bk-Tenant-Id
+        required: false
+        schema:
+          type: string
+          maxLength: 32
+        description: 多租户开启时，全租户应用必填，单租户应用可省略（使用已认证应用租户）；必须与资源空间租户一致。若有已认证用户，其租户也必须一致。关闭多租户时忽略。
+      tags: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                space_id:
+                  type: integer
+                  description: 空间ID
+                from_plugin:
+                  type: object
+                  description: 切换前的插件身份
+                  properties:
+                    plugin_type:
+                      type: string
+                      enum: [builtin, bk_plugin, api]
+                    source_key:
+                      type: string
+                      default: ''
+                    plugin_code:
+                      type: string
+                    plugin_version:
+                      type: string
+                      default: ''
+                  required:
+                  - plugin_type
+                  - plugin_code
+                to_plugin:
+                  type: object
+                  description: 切换后的插件身份
+                  properties:
+                    plugin_type:
+                      type: string
+                      enum: [builtin, bk_plugin, api]
+                    source_key:
+                      type: string
+                      default: ''
+                    plugin_code:
+                      type: string
+                    plugin_version:
+                      type: string
+                      default: ''
+                  required:
+                  - plugin_type
+                  - plugin_code
+                current_inputs:
+                  type: object
+                  description: 当前节点上已有的输入参数值
+                  additionalProperties: true
+              required:
+              - space_id
+              - from_plugin
+              - to_plugin
+        required: true
+      x-bk-apigateway-resource:
+        isPublic: true
+        allowApplyPermission: true
+        matchSubpath: false
+        backend:
+          name: sdk
+          method: post
+          path: /{env.api_sub_path}api/plugin_catalog/plugins/version_diff/
+          matchSubpath: false
+          timeout: 0
+        authConfig:
+          userVerifiedRequired: true
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Plugin version diff
+        enableWebsocket: false
+        pluginConfigs: []
