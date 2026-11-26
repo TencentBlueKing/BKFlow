@@ -482,7 +482,20 @@ function getOrderedTree(data, cacheParamsData) {
   return orderedData;
 }
 
-export function getOrderNodeToNodeTree(pipelineTree) {
+// 在整棵子树上附加 uid（仅动态展开子流程时传入 uidPrefix）
+function applyUidToTreeNodes(nodes, uidPrefix) {
+  if (!uidPrefix || !Array.isArray(nodes)) return;
+  nodes.forEach((node) => {
+    if (node && node.id !== undefined) {
+      node.uid = `${uidPrefix}_${node.id}`;
+    }
+    if (node && Array.isArray(node.children)) {
+      applyUidToTreeNodes(node.children, uidPrefix);
+    }
+  });
+}
+
+export function getOrderNodeToNodeTree(pipelineTree, uidPrefix = '') {
   const sharedData = {
     curNodeIds: [],
     conditionOutgoing: [],
@@ -490,5 +503,6 @@ export function getOrderNodeToNodeTree(pipelineTree) {
     copyOrdered: [],
   };
   const children = getOrderedTree(pipelineTree, sharedData);
+  applyUidToTreeNodes(children, uidPrefix);
   return children;
 }
