@@ -26,6 +26,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from pytimeparse import parse
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.exceptions import CreateTokenException
@@ -48,17 +49,34 @@ from bkflow.utils import err_code
 @check_jwt_and_space
 @return_json_response
 def apply_token(request, space_id):
-    """
-    data : {
-        "space_id": 1,
-        "user": "xxx",
-        "resource_type": "TEMPLATE",
-        "resource_id": 1,
-        "permission_type": "VIEW"
-    }
-    """
+    """为网关认证的用户申请 Token。"""
     data = json.loads(request.body)
+    return _apply_token(data, space_id, request.user.username)
 
+
+@login_exempt
+@csrf_exempt
+@require_POST
+@apigw_require
+@return_json_response
+@check_jwt_and_space
+def apply_token_by_app(request, space_id):
+    """由已认证的应用为指定用户申请 Token。"""
+    if not getattr(getattr(request, "app", None), "verified", False):
+        raise PermissionDenied(_("缺少已认证的网关应用身份"))
+
+    data = json.loads(request.body)
+    user = data.get("user") if isinstance(data, dict) else None
+    if not isinstance(user, str) or not user.strip():
+        raise ValidationError({"user": [_("用户名必须是非空字符串")]})
+    if len(user) > 32:
+        raise ValidationError({"user": [_("用户名不能超过 32 个字符")]})
+
+    return _apply_token(data, space_id, user.strip())
+
+
+def _apply_token(data, space_id, username):
+    """校验申请并为指定用户签发或复用 Token。"""
     legacy_keys = {"resource_type", "resource_id", "permission_type"}
     is_composite_request = isinstance(data, dict) and not (legacy_keys & data.keys()) and "grants" in data
     if is_composite_request:
@@ -72,7 +90,7 @@ def apply_token(request, space_id):
     # 获取空间下的过期时间配置
     expiration = SpaceConfig.get_config(space_id, config_name=TokenExpirationConfig.name)
 
-    if not request.user.username:
+    if not username:
         raise CreateTokenException(_("用户名不能为空"))
 
     try:
@@ -90,7 +108,7 @@ def apply_token(request, space_id):
 
     token = issue_token(
         space_id,
-        request.user.username,
+        username,
         grants,
         expiration_seconds,
         SpaceConfig.get_config(space_id, TokenAutoRenewalConfig.name) == "true",

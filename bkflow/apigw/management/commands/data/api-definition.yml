@@ -34,6 +34,10 @@ stages:
                 period: 60
 
 grant_permissions:
+  - bk_app_code: "bk_fara"
+    grant_dimension: "resource"
+    resource_names:
+      - apply_token_by_app
   {% for app_code in settings.BK_APIGW_GRANT_APPS %}
   - bk_app_code: "{{ app_code }}"
     grant_dimension: "api"

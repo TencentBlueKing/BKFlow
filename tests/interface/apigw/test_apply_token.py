@@ -19,9 +19,11 @@ to the current version of the project delivered to anyone in the future.
 
 import datetime
 import json
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
+from django.urls import resolve
 from django.utils import timezone
 
 from bkflow.permission.models import Token
@@ -67,6 +69,7 @@ class TestApplyToken(TestCase):
             "resource_type": "TASK",
             "resource_id": "123",
             "permission_type": "VIEW",
+            "user": "ignored",
         }
 
         resp = self._apply_token(data)
@@ -75,6 +78,7 @@ class TestApplyToken(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp_data["result"])
         self.assertIn("token", resp_data["data"])
+        self.assertEqual(resp_data["data"]["user"], "username")
         self.assertEqual(resp_data["data"]["resource_type"], "TASK")
         self.assertEqual(resp_data["data"]["resource_id"], "123")
 
@@ -281,3 +285,63 @@ class TestApplyToken(TestCase):
 
         # 验证返回不同的 token（不同权限类型）
         self.assertNotEqual(token1, token2)
+
+
+@override_settings(BK_APIGW_REQUIRE_EXEMPT=False, ENABLE_MULTI_TENANT_MODE=True, TOKEN_COMPOSITE_ENABLED=True)
+class TestApplyTokenByApp(TestCase):
+    """测试应用态签发及空间权限约束。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.space = Space.objects.create(
+            app_code="bk_fara", platform_url="http://test.com", name="app_token_space", tenant_id="tenant-a"
+        )
+
+    def _apply(self, body, *, app_code="bk_fara", verified=True, tenant="tenant-a", has_jwt=True):
+        path = f"/apigw/space/{self.space.pk}/apply_token_by_app/"
+        request = RequestFactory().post(path, data=json.dumps(body), content_type="application/json")
+        request.META["HTTP_X_BK_TENANT_ID"] = tenant
+        if has_jwt:
+            request.jwt = SimpleNamespace(payload={})
+            request.app = SimpleNamespace(bk_app_code=app_code, verified=verified, tenant_mode="global")
+        match = resolve(path)
+        return match.func(request, **match.kwargs)
+
+    @patch("bkflow.apigw.serializers.token.TokenResourceValidator.validate")
+    def test_issue_for_target_user(self, mock_validate):
+        """没有用户会话时，单项及组合申请均为请求体中的用户签发。"""
+        grant = {"resource_type": "TASK", "resource_id": "123", "permission_type": "VIEW"}
+        single = json.loads(self._apply({"user": "target", **grant}).content)["data"]
+        composite = json.loads(self._apply({"user": "target", "grants": [grant]}).content)["data"]
+        self.assertEqual(single["user"], "target")
+        self.assertEqual(composite["user"], "target")
+        self.assertEqual(composite["grants"], [grant])
+        self.assertEqual(single["token"], composite["token"])
+        self.assertTrue(Token.verify(self.space.pk, "target", "TASK", "123", "VIEW", single["token"]))
+        self.assertFalse(Token.verify(self.space.pk, "other", "TASK", "123", "VIEW", single["token"]))
+        self.assertEqual(mock_validate.call_count, 2)
+
+    def test_reject_invalid_target_user(self):
+        """缺少用户名或格式非法时拒绝申请。"""
+        grant = {"resource_type": "TASK", "resource_id": "123", "permission_type": "VIEW"}
+        for user_data in ({}, {"user": ""}, {"user": "  "}, {"user": None}, {"user": 123}, {"user": "a" * 33}):
+            with self.subTest(user_data=user_data):
+                result = json.loads(self._apply({**grant, **user_data}).content)
+                self.assertFalse(result["result"])
+                self.assertEqual(result["code"], 400)
+                self.assertIn("user", result["message"])
+        self.assertFalse(Token.objects.filter(space_id=self.space.pk).exists())
+
+    def test_reject_unauthorized_application(self):
+        """缺少应用身份、空间绑定或租户匹配时拒绝申请。"""
+        grant = {"resource_type": "TASK", "resource_id": "123", "permission_type": "VIEW"}
+        for identity in (
+            {"has_jwt": False},
+            {"verified": False},
+            {"app_code": "other-app"},
+            {"tenant": "tenant-b"},
+        ):
+            with self.subTest(identity=identity):
+                response = self._apply({"user": "target", **grant}, **identity)
+                self.assertEqual(response.status_code, 403)
+        self.assertFalse(Token.objects.filter(space_id=self.space.pk).exists())

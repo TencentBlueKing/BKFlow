@@ -25,7 +25,7 @@ from module_settings import BKFLOWModuleType
 urlpatterns = []
 
 if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
-    from bkflow.apigw.views.apply_token import apply_token
+    from bkflow.apigw.views.apply_token import apply_token, apply_token_by_app
     from bkflow.apigw.views.apply_webhook_configs import apply_webhook_configs
     from bkflow.apigw.views.batch_delete_template import batch_delete_template
     from bkflow.apigw.views.create_credential import create_credential
@@ -89,6 +89,7 @@ if settings.BKFLOW_MODULE.type == BKFLOWModuleType.interface:
         re_path(r"^create_space/$", create_space),
         re_path(r"^grant_apigw_permissions_to_app/$", grant_apigw_permissions_to_app),
         re_path(r"^space/(?P<space_id>\d+)/apply_token/$", apply_token),
+        re_path(r"^space/(?P<space_id>\d+)/apply_token_by_app/$", apply_token_by_app),
         re_path(r"^space/(?P<space_id>\d+)/revoke_token/$", revoke_token),
         re_path(r"^space/(?P<space_id>\d+)/create_template/$", create_template),
         re_path(r"^space/(?P<space_id>\d+)/get_template_list/$", get_template_list),

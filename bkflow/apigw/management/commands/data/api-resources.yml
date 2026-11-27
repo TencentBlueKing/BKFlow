@@ -82,7 +82,7 @@ paths:
       operationId: apply_token
       description: 申请token
       tags: []
-      responses:
+      responses: &apply_token_responses
         default:
           description: ''
           content:
@@ -230,7 +230,7 @@ paths:
                       \u4e0d\u662f\u5408\u6cd5\u9009\u9879\u3002"}'
                     code: 400
                     data: null
-      parameters:
+      parameters: &apply_token_parameters
       - in: header
         name: X-Bk-Tenant-Id
         required: false
@@ -266,7 +266,7 @@ paths:
         required: true
         content:
           application/json:
-            schema:
+            schema: &apply_token_request_schema
               type: object
               additionalProperties: true
               description: 顶层出现任意旧字段时优先旧格式并忽略grants，缺少旧字段报原必填错误。仅无旧字段且含grants时用新格式。TOKEN_COMPOSITE_ENABLED默认开启；未设置BKAPP_TOKEN_COMPOSITE_ENABLED时启用，显式配置仅字面量true（大小写不敏感）启用，1/0/false不启用。开关不影响已有组合票据消费。
@@ -350,6 +350,48 @@ paths:
                           - MOCK
                           description: 不新增资源与操作组合限制；FLOW_* 仅为展示标记，不接受签发
                 title: grants申请（不得含旧顶层字段）
+  /space/{space_id}/apply_token_by_app/:
+    post:
+      operationId: apply_token_by_app
+      description: 应用为指定用户申请 BKFLOW-TOKEN
+      tags: []
+      responses:
+        <<: *apply_token_responses
+        '403':
+          description: 应用缺少网关认证、资源调用权限或目标空间权限，或请求租户不匹配。
+      parameters: *apply_token_parameters
+      x-bk-apigateway-resource:
+        isPublic: false
+        allowApplyPermission: false
+        matchSubpath: false
+        backend:
+          method: post
+          path: /{env.api_sub_path}apigw/space/{space_id}/apply_token_by_app/
+          matchSubpath: false
+          timeout: 0
+          name: default
+        authConfig:
+          userVerifiedRequired: false
+          appVerifiedRequired: true
+          resourcePermissionRequired: true
+        disabledStages: []
+        descriptionEn: Apply for a BKFLOW-TOKEN for a specified user as an application
+        enableWebsocket: false
+        pluginConfigs: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              <<: *apply_token_request_schema
+              required:
+              - user
+              properties:
+                user:
+                  type: string
+                  minLength: 1
+                  maxLength: 32
+                  description: 被授予权限的用户名。去除首尾空白后必须非空。
   /space/{space_id}/revoke_token/:
     post:
       operationId: revoke_token
