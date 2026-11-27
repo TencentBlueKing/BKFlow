@@ -1930,7 +1930,7 @@
               this.historyInfo.unshift(...respData.histories);
             }
             // 获取记录详情
-            await this.onSelectExecuteRecord(this.historyInfo.length, this.historyInfo);
+            await this.onSelectExecuteRecord(this.historyInfo.length, this.historyInfo, requestId);
             if (!this.isCurrentNodeDetailRequest(requestId)) return;
             const taskInfo = respData.outputsInfo.find(item => item.key === 'task_id') || {};
             this.currentSubflowTaskId = taskInfo.value || ''; // 子流程的任务id
@@ -2028,12 +2028,13 @@
         this.loadNodeInfo(true);
       },
       // 切换执行次数
-      async onSelectExecuteRecord(time, historyInfo) {
+      async onSelectExecuteRecord(time, historyInfo, parentRequestId = null) {
         this.currentExecuteTime = time;
         const record = historyInfo[time - 1];
         if (record) {
           if (!('isExpand' in record)) {
-            const requestId = this.startNodeDetailRequest();
+             // parentRequestId：初始化流程内部调用时传入，复用外层请求 id，避免递增计数作废外层请求导致 loading 无法关闭
+            const requestId = parentRequestId || this.startNodeDetailRequest();
             const filledRecord = await this.setFillRecordField(record, requestId);
             if (!filledRecord || !this.isCurrentNodeDetailRequest(requestId)) return;
             this.executeInfo = filledRecord;

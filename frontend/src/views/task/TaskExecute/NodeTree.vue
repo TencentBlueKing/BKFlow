@@ -136,6 +136,8 @@
       };
       return {
         curSelectId: '',
+        activeUid: '', // 当前精确选中节点的uid（区分同模板多子流程内层同 id 节点）
+        selectedBareId: '', // 当前精确选中节点的裸 id，用于 defaultActiveId回填
         treeData: [],
         subTreeData: [],
         showIcon: false,
@@ -204,7 +206,8 @@
       defaultActiveId: {
         handler(val) {
           if (val) {
-            this.setDefaultActiveId(this.treeData, this.treeData, val);
+            const activeId = (val === this.selectedBareId && this.activeUid) ? this.activeUid : val;
+            this.setDefaultActiveId(this.treeData, this.treeData, activeId);
           }
         },
         deep: true,
@@ -221,6 +224,10 @@
       },
     },
     methods: {
+      // 节点唯一标识：内层子流程节点带 uid，其余（顶层/循环体/历史数据）退化为裸 id
+      getNodeUid(node) {
+        return node ? (node.uid || node.id) : '';
+      },
       findSubChildren(data, id, node = []) {
         data?.forEach((item) => {
             if (item.children) {
@@ -249,8 +256,9 @@
         const states = {};
         if (!nodes || !Array.isArray(nodes)) return states;
         nodes.forEach((node) => {
-          if (node.id && (node.expanded || node.selected)) {
-            states[node.id] = { expanded: node.expanded, selected: node.selected };
+          const nodeUid = this.getNodeUid(node);
+          if (nodeUid && (node.expanded || node.selected)) {
+            states[nodeUid] = { expanded: node.expanded, selected: node.selected };
           }
           if (node.children) {
             Object.assign(states, this.saveNodeInteractionStates(node.children));
@@ -262,9 +270,10 @@
       restoreNodeInteractionStates(nodes, states) {
         if (!nodes || !Array.isArray(nodes) || !states) return;
         nodes.forEach((node) => {
-          if (node.id && states[node.id]) {
-            this.$set(node, 'expanded', states[node.id].expanded);
-            this.$set(node, 'selected', states[node.id].selected);
+          const nodeUid = this.getNodeUid(node);
+          if (nodeUid && states[nodeUid]) {
+            this.$set(node, 'expanded', states[nodeUid].expanded);
+            this.$set(node, 'selected', states[nodeUid].selected);
           }
           if (node.children) {
             this.restoreNodeInteractionStates(node.children, states);
@@ -325,8 +334,8 @@
         // 回退节点
         if (node.isLoop) conditionClass = 'callback-condition';
 
-        // 根据当前选中状态设置节点激活样式-选中样式
-        const isActive = this.curSelectId === node.id ? 'is-node-active' : 'default-tpl-node';
+        // 根据当前选中状态设置节点激活样式-选中样式（按 uid 判定，区分同模板多子流程内层同 id 节点）
+        const isActive = this.curSelectId === this.getNodeUid(node) ? 'is-node-active' : 'default-tpl-node';
         // 根据节点是否有父节点设置节点样式-节点样式
         const nodeClass = node.parent !== null ? `node ${this.nodeStateMap[node.state]} ` : `root-node ${this.nodeStateMap[node.state]}`;
         // 处理条件分支
@@ -364,11 +373,25 @@
           </span>
         );
       },
-      setDefaultActiveId(data, nodes, id) {
+      setDefaultActiveId(data, nodes, id, resolvedUid) {
         this.curSelectId = id;
+        let matchUid = resolvedUid;
+        if (!matchUid) {
+          matchUid = id;
+          // 入参本身是 uid 直接用
+          const isUid = this.findNodeByUid(nodes, id);
+          // 裸id则优先命中当前已选中节点
+          if (!isUid) {
+            const bareMatches = this.findNodesByBareId(nodes, id);
+            const selectedOne = bareMatches.find(node => node.selected);
+            matchUid = this.getNodeUid(selectedOne || bareMatches[0] || { id });
+          }
+          this.activeUid = matchUid;
+          this.selectedBareId = id;
+        }
         if (nodes) {
           nodes.forEach((node) => {
-            if (node.id === id) {
+            if (this.getNodeUid(node) === matchUid) {
               this.$set(node, 'selected', true);
               if (this.setDefaultGateway) {
                 this.$set(node, 'expanded', true);
@@ -381,10 +404,32 @@
               this.$set(node, 'selected', false);
             }
             if (node.children) {
-              this.setDefaultActiveId(data, node.children, id);
+              this.setDefaultActiveId(data, node.children, id, matchUid);
             }
           });
         }
+      },
+      // 按 uid 精确查找节点
+      findNodeByUid(nodes, uid) {
+        if (!nodes || !Array.isArray(nodes)) return null;
+        for (const node of nodes) {
+          if (this.getNodeUid(node) === uid) return node;
+          if (node.children) {
+            const found = this.findNodeByUid(node.children, uid);
+            if (found) return found;
+          }
+        }
+        return null;
+      },
+      // 按裸 id 收集所有匹配节点（同模板多子流程内层节点会命中多个）
+      findNodesByBareId(nodes, id) {
+        const result = [];
+        if (!nodes || !Array.isArray(nodes)) return result;
+        nodes.forEach((node) => {
+          if (node.id === id) result.push(node);
+          if (node.children) result.push(...this.findNodesByBareId(node.children, id));
+        });
+        return result;
       },
       setExpand(node) {
         if (node.parent) {
@@ -427,7 +472,11 @@
         if (type === 'gatewayCondition' && node.isGateway) {
           e?.stopPropagation(); // 阻止事件冒泡，避免 bk-tree 默认展开行为
           this.setDefaultGateway = true;
-          this.curSelectId = node.id || node.name;
+          // 与 tpl 的 isActive 统一按 uid 判定（子流程内层条件节点同样带 uid）
+          const conditionUid = this.getNodeUid(node);
+          this.curSelectId = conditionUid || node.name;
+          this.activeUid = conditionUid;
+          this.selectedBareId = node.id;
           this.$emit('onOpenGatewayInfo', { ...node.callbackData, outgoing: node.outgoing, taskId: node.taskId }, true);
           return;
         }
@@ -458,7 +507,8 @@
             node.id = node.callbackData ? node.callbackData.id : node.id;
           }
         }
-        if (this.curSelectId === node.id) {
+        const nodeUid = this.getNodeUid(node);
+        if (this.curSelectId === nodeUid) {
           // 画布节点参数入口 子流程选中状态可点击
           // if (node.component?.code === 'subprocess_plugin') {
           //   this.cacheSubflowSelectNode[this.curSelectTreeId] = tools.deepClone(this.treeData);
@@ -470,18 +520,21 @@
           node.id = node.cacheId ? node.cacheId : node.id;
           return;
         }
-        this.curSelectId = node.id;
+        this.curSelectId = nodeUid;
+        this.activeUid = nodeUid;
+        this.selectedBareId = node.id;
         const nodeType = this.getNodeType(node, type);
 
         node.selected = nodeType !== 'subflow';
         // let rootNode = node;
         if (!node.id) return;
 
-        this.setDefaultActiveId(this.treeData, this.treeData, node.id);
+        // 按 uid 精确设置选中态；emit 仍传裸 id，保持下游契约不变
+        this.setDefaultActiveId(this.treeData, this.treeData, nodeUid, nodeUid);
         this.$emit('onSelectNode', node.id, nodeType, node);
         // 取缓存id--汇聚网关的退回节点
         node.id = node.cacheId ? node.cacheId : node.id;
-        node.selected = node.id === this.curSelectId;
+        node.selected = this.getNodeUid(node) === this.curSelectId;
 
         // 选中后,非tree列表切换到已展开tree时默认展开
         if (node.selected) {

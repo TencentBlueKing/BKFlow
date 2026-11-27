@@ -672,7 +672,7 @@
         'getTaskInstanceData',
         'getBatchNodeOutput',
         'getBatchTaskPipeline',
-        'getBatchTaskStates'
+        'getBatchTaskStates',
       ]),
       ...mapActions('atomForm/', [
         'loadSingleAtomList',
@@ -685,7 +685,9 @@
         this.copyOrdered = [];
         this.converNodeList = [];
         this.conditionOutgoing = [];
-        const data = this.getOrderedTree(this.completePipelineData);// 外层无子流程的节点pipelineTree
+        // 顶层树构造上下文：四个去重集合直接引用组件级集合，uidPrefix 为空串（顶层行为不变）
+        const rootCtx = this.createTreeCtx();
+        const data = this.getOrderedTree(this.completePipelineData, rootCtx);// 外层无子流程的节点pipelineTree
         data.forEach((item) => {
           if (['subprocess_plugin', 'subcanvas_plugin'].includes(item?.component?.code)) {
             this.addUnexecued(item);
@@ -839,7 +841,7 @@
           const outputDataList = batchOutputRes?.data || [];
           const nodeTaskMap = allSubCanvasNodes.map((nodeItem) => {
             const outputs = outputDataList.find(item => Object.prototype.hasOwnProperty.call(item, nodeItem.id));
-            const taskId = outputs?.[nodeItem.id] ? outputs[nodeItem.id][0]['task_id'] : null;
+            const taskId = outputs?.[nodeItem.id] ? outputs[nodeItem.id][0].task_id : null;
             if (taskId) {
               this.$set(this.pipelineData.activities[nodeItem.id], 'subcanvasTaskId', taskId);
             }
@@ -1200,10 +1202,8 @@
         }
       },
       findSubCanvasParentActivity(nodeId) {
-        return Object.values(this.pipelineData.activities).find(
-          act => act?.component?.code === 'subcanvas_plugin'
-            && act.pipeline?.location?.some(loc => loc.id === nodeId)
-        );
+        return Object.values(this.pipelineData.activities).find(act => act?.component?.code === 'subcanvas_plugin'
+            && act.pipeline?.location?.some(loc => loc.id === nodeId));
       },
       isNodeInSubCanvas(id) {
         return !!this.findSubCanvasParentActivity(id);
@@ -1733,7 +1733,39 @@
             break;
         }
       },
-      getOrderedTree(data) {
+      // 创建树构造上下文：四集合可指定（顶层引用 this.*，子流程用独立空数组），uidPrefix 用于区分同模板多子流程的内层节点
+      createTreeCtx(uidPrefix = '', collections = null) {
+        return {
+          nodeIds: collections ? collections.nodeIds : this.nodeIds,
+          copyOrdered: collections ? collections.copyOrdered : this.copyOrdered,
+          converNodeList: collections ? collections.converNodeList : this.converNodeList,
+          conditionOutgoing: collections ? collections.conditionOutgoing : this.conditionOutgoing,
+          uidPrefix,
+        };
+      },
+      // 构造子流程 children 时使用独立去重集合，避免兄弟子流程内层同 id 节点互相污染
+      createSubCtx(uidPrefix) {
+        return this.createTreeCtx(uidPrefix, {
+          nodeIds: [],
+          copyOrdered: [],
+          converNodeList: [],
+          conditionOutgoing: [],
+        });
+      },
+      // 在整棵子树上统一附加 uid（仅子流程内层需要）
+      applyUidToTreeNodes(nodes, uidPrefix) {
+        if (!uidPrefix || !Array.isArray(nodes)) return;
+        nodes.forEach((node) => {
+          if (node && node.id !== undefined) {
+            node.uid = `${uidPrefix}_${node.id}`;
+          }
+          if (node && Array.isArray(node.children)) {
+            this.applyUidToTreeNodes(node.children, uidPrefix);
+          }
+        });
+      },
+      getOrderedTree(data, ctx) {
+        const curCtx = ctx || this.createTreeCtx();
         const startNode = tools.deepClone(data.start_event);
         const endNode = tools.deepClone(data.end_event);
         const fstLine = startNode.outgoing;
@@ -1747,9 +1779,10 @@
           name: this.$t('结束节点'),
           expanded: false,
         });
-        this.retrieveLines(data, fstLine, orderedData, false);
+        this.retrieveLines(data, fstLine, orderedData, false, false, curCtx);
         orderedData.push(endEvent);
         // 过滤root最上层汇聚网关
+        this.applyUidToTreeNodes(orderedData, curCtx.uidPrefix);
         return orderedData;
       },
       /**
@@ -1760,7 +1793,9 @@
        * @param {Boolean} isLoop 条件网关节点是否有循环
        *
        */
-      async retrieveLines(data, lineId, ordered, isLoop = false, isNoDirectLoopCondition = false) {
+      async retrieveLines(data, lineId, ordered, isLoop = false, isNoDirectLoopCondition = false, ctx) {
+        const curCtx = ctx || this.createTreeCtx();
+        const { nodeIds, copyOrdered, converNodeList, conditionOutgoing } = curCtx;
         const { end_event, activities, gateways, flows } = data;
         const currentNode = flows[lineId].target;
         const endEvent = end_event.id === currentNode ? tools.deepClone(end_event) : undefined;
@@ -1768,7 +1803,7 @@
         const gateway = tools.deepClone(gateways[currentNode]);
         const node = endEvent || activity || gateway;
         // 如果是循环处理且当前节点已经在ordered列表中,则停止递归避免无限循环
-        if (ordered.findIndex(item => item.id === node.id) !== -1 || this.nodeIds.includes(node.id)) {
+        if (ordered.findIndex(item => item.id === node.id) !== -1 || nodeIds.includes(node.id)) {
           return;
         }
         // 如果节点存在且尚未添加到有序数组中
@@ -1781,14 +1816,14 @@
             outgoing = node.outgoing ? [node.outgoing] : [];
           }
           // 检查当前节点是否已存在于节点ID列表中（避免重复处理）
-          if (this.copyOrdered.some(item => item.id === node.id)) {
+          if (copyOrdered.some(item => item.id === node.id)) {
             return;
           }
-          const isAt = !this.nodeIds.includes(node.id);
+          const isAt = !nodeIds.includes(node.id);
           // 网关节点处理
           if (gateway) {
             const gatewayClone = tools.deepClone(gateway);
-            this.copyOrdered.push(gatewayClone);
+            copyOrdered.push(gatewayClone);
             const name = NODE_DICT[gateway.type.toLowerCase()];
             gateway.title = name;
             gateway.name = name;
@@ -1808,15 +1843,15 @@
                 let isNoDirectLoopCondition = false;
 
                 // 判断是否为回退连线: 回退直连、非直连
-                if (curNode && (ordered.find(ite => ite.id === curNode.id || this.nodeIds.find(ite => ite === curNode.id)))) {
+                if (curNode && (ordered.find(ite => ite.id === curNode.id || nodeIds.find(ite => ite === curNode.id)))) {
                   isLoopCondition = true;
                   isNoDirectLoopCondition = false;
                   targetNode = [activities[flows[item].target]];
                 } else { // 非直连
-                   isLoopCondition = checkConditionLoop(item, flows, activities, gateways, isLoop ? this.copyOrdered : ordered, this.nodeIds);
+                   isLoopCondition = checkConditionLoop(item, flows, activities, gateways, isLoop ? copyOrdered : ordered, nodeIds);
                    isNoDirectLoopCondition = isLoopCondition;
                    if (isLoopCondition) {
-                    targetNode = findLoopTarget(item, flows, activities, gateways, isLoop ? this.copyOrdered : ordered, this.nodeIds);
+                    targetNode = findLoopTarget(item, flows, activities, gateways, isLoop ? copyOrdered : ordered, nodeIds);
                    }
                 }
 
@@ -1883,18 +1918,18 @@
               gateway.children.push(...conditions);
               // 递归处理条件
               gateway.children = gateway.children.map((item) => {
-                this.retrieveLines(data, item.outgoing, item.children, item.isLoop, item.isNoDirectLoopCondition);
-                if (item.children.length === 0) this.conditionOutgoing.push(item.outgoing);
+                this.retrieveLines(data, item.outgoing, item.children, item.isLoop, item.isNoDirectLoopCondition, curCtx);
+                if (item.children.length === 0) conditionOutgoing.push(item.outgoing);
                 item.children.forEach((i) => {
-                  if (!this.nodeIds.includes(i.id)) {
-                    this.nodeIds.push(i.id);
+                  if (!nodeIds.includes(i.id)) {
+                    nodeIds.push(i.id);
                   }
                 });
                 return item;
               });
               ordered.push(gateway);
               outgoing.forEach((line) => {
-                this.retrieveLines(data, line, ordered);
+                this.retrieveLines(data, line, ordered, false, false, curCtx);
               });
             } else if (isAt && gateway.type === 'ParallelGateway') { // 并行网关处理
               // 为每个并行分支创建默认条件节点
@@ -1909,16 +1944,16 @@
               }));
               gateway.children.push(...defaultCondition);
               defaultCondition.forEach((item) => {
-                this.retrieveLines(data, item.outgoing, item.children, false, false);
+                this.retrieveLines(data, item.outgoing, item.children, false, false, curCtx);
                 item.children.forEach((i) => {
-                  if (!this.nodeIds.includes(i.id)) {
-                    this.nodeIds.push(i.id);
+                  if (!nodeIds.includes(i.id)) {
+                    nodeIds.push(i.id);
                   }
                 });
               });
               ordered.push(gateway);
               outgoing.forEach((line) => {
-                this.retrieveLines(data, line, ordered);
+                this.retrieveLines(data, line, ordered, false, false, curCtx);
               });
             }
             // 汇聚网关处理
@@ -1926,7 +1961,7 @@
               // 判断ordered中 汇聚网关的incoming是否存在
               const list = [];
               const converList = Object.assign({}, activities, gateways);
-              this.nodeIds.forEach((item) => {
+              nodeIds.forEach((item) => {
                 if (converList[item]) {
                   list.push(converList[item]);
                 }
@@ -1945,7 +1980,7 @@
               if (!prev) {
                 const nearestGateway = findNearestGatewayByIncoming(gateway, flows, activities, gateways);
                 if (nearestGateway) {
-                  prev = tools.deepClone(this.copyOrdered.find(item => item.id === nearestGateway.id));
+                  prev = tools.deepClone(copyOrdered.find(item => item.id === nearestGateway.id));
                   if (!prev) {
                     prev = nearestGateway;
                   }
@@ -1959,54 +1994,56 @@
               if (prev
                 && prev.children
                 && !prev.children.find(item => item.id === gateway.id)
-                && !this.converNodeList.includes(gateway.id)) {
-                this.converNodeList.push(gateway.id);
+                && !converNodeList.includes(gateway.id)) {
+                converNodeList.push(gateway.id);
                 prev.children.push(gateway);
-                this.copyOrdered.forEach((item) => {
+                copyOrdered.forEach((item) => {
                   if (item.id === prev.id) {
                     item.children = tools.deepClone(prev.children);
                   }
                 });
               }
               ordered.push(gateway);
-              if (!this.nodeIds.includes(gateway.id)) {
-                this.nodeIds.push(gateway.id);
+              if (!nodeIds.includes(gateway.id)) {
+                nodeIds.push(gateway.id);
               }
               outgoing.forEach((line) => {
-                this.retrieveLines(data, line, ordered);
+                this.retrieveLines(data, line, ordered, false, false, curCtx);
               });
             }
           } else if (activity) { // 任务节点
             // 循环路径中的任务节点
             if (isLoop) {
               if (isNoDirectLoopCondition) {
-                if (!this.nodeIds.includes(activity.id)) {
-                    this.nodeIds.push(activity.id);
+                if (!nodeIds.includes(activity.id)) {
+                    nodeIds.push(activity.id);
                 }
                 activity.title = activity.name;
                 activity.expanded = !(activity.type === 'SubProcess' || ['subprocess_plugin', 'subcanvas_plugin'].includes(activity.component.code) || activity.type === 'loopGroupNode');
                 ordered.push(activity);
-                if (!this.nodeIds.includes(activity.id)) {
-                  this.nodeIds.push(activity.id);
+                if (!nodeIds.includes(activity.id)) {
+                  nodeIds.push(activity.id);
                 }
-                this.retrieveLines(data, activity.outgoing, ordered, isLoop, isNoDirectLoopCondition);
+                this.retrieveLines(data, activity.outgoing, ordered, isLoop, isNoDirectLoopCondition, curCtx);
               }
               return;
             }
             if (isAt) { // 节点不存在于节点ID列表（nodeIds）
-              if (!this.nodeIds.includes(activity.id)) {
-                  this.nodeIds.push(activity.id);
+              if (!nodeIds.includes(activity.id)) {
+                  nodeIds.push(activity.id);
               }
-              this.copyOrdered.push(activity);
+              copyOrdered.push(activity);
               // 处理子流程节点和循环流节点
               if (activity.type === 'SubProcess' || activity.component?.code === 'subprocess_plugin') {
                 // 只递归第一层 子流程的子流程不递归
                 // const  recursionDepth = 0;
+                // 子流程内层节点使用独立去重集合 + uid 前缀，避免同模板兄弟子流程内层 id 互相污染
+                const subCtx = this.createSubCtx(activity.id);
                 if (activity.pipeline) {
-                  activity.children = this.getOrderedTree(activity.pipeline);
+                  activity.children = this.getOrderedTree(activity.pipeline, subCtx);
                 } else {
                   if (activity.component?.data && activity.component.data?.subprocess && activity.component.data?.subprocess?.value?.pipeline) {
-                    activity.children = this.getOrderedTree(activity.component.data.subprocess.value.pipeline);
+                    activity.children = this.getOrderedTree(activity.component.data.subprocess.value.pipeline, subCtx);
                   }
                 }
               } else if (activity.component?.code === 'subcanvas_plugin') {
@@ -2019,7 +2056,7 @@
               ordered.push(activity);
             }
             outgoing.forEach((line) => {
-              this.retrieveLines(data, line, ordered);
+              this.retrieveLines(data, line, ordered, false, false, curCtx);
             });
           }
         }
