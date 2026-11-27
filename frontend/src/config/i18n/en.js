@@ -1707,6 +1707,7 @@ const en = {
   修改目标目录: 'Modify Target Category',
   '该插件从未启用，暂无停用配置': 'This plugin has never been enabled and has no disable settings',
   'AI 暂无分类方案，请重试': 'No AI classification plan yet, please try again',
+  移动至目标目录: 'Move to Target Category',
 };
 
 export default en;

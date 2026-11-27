@@ -128,8 +128,8 @@
                 theme="primary"
                 :outline="true"
                 :disabled="moveDisabled || aiSmartLoading">
-                <i class="bk-icon icon-plus btn-icon" />
-                {{ $t('移动至...') }}
+                <i class="bk-icon icon-sort btn-move-icon" />
+                {{ $t('移动至目标目录') }}
               </bk-button>
               <template slot="content">
                 <category-select-panel
@@ -1872,6 +1872,16 @@ export default {
 
       .btn-icon {
         font-size: 20px;
+      }
+      .btn-move-icon {
+        font-size: 15px;
+        color: #fff;
+        transform: rotate(90deg);
+        top: 0px !important;
+        margin-right: 4px;
+      }
+      &.is-disabled .btn-move-icon {
+        color: #C1CDE5;
       }
       .del-icon {
         font-size: 16px;
