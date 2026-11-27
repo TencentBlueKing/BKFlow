@@ -57,3 +57,53 @@ class TestGetLabelRefCount(LabelApigwTestBase):
         self.assertEqual(data["data"][str(root.id)]["task_count"], 3)
         self.assertEqual(data["data"][str(leaf.id)]["template_count"], 1)
         self.assertEqual(data["data"][str(leaf.id)]["task_count"], 1)
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.apigw.views.get_label_ref_count.TaskComponentClient")
+    def test_scope_request_fails_when_engine_does_not_echo_scope_applied(self, mock_client):
+        """带 scope 请求时，若引擎未回显 scope_applied（旧引擎），接口必须明确失败而非静默返回错口径。"""
+        leaf = self.create_label("leaf", ["task", "template"])
+
+        # 旧引擎：仅返回 result/data，没有 scope_applied
+        mock_client.return_value.get_task_label_ref_count.return_value = {
+            "result": True,
+            "data": {str(leaf.id): 999},
+        }
+
+        url = (
+            f"/apigw/space/{self.space.id}/get_label_ref_count/"
+            f"?label_ids={leaf.id}&scope_type=project&scope_value=1"
+        )
+        resp = self.client.get(path=url)
+        data = json.loads(resp.content)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(data["result"], False)
+        self.assertIn("engine", data["message"].lower())
+
+    @override_settings(
+        BK_APIGW_REQUIRE_EXEMPT=True, MIDDLEWARE=("tests.interface.apigw.middlewares.OverrideMiddleware",)
+    )
+    @patch("bkflow.apigw.views.get_label_ref_count.TaskComponentClient")
+    def test_scope_request_succeeds_when_engine_echoes_matching_scope(self, mock_client):
+        """带 scope 请求时，引擎回显匹配的 scope_applied（新引擎），接口正常返回。"""
+        leaf = self.create_label("leaf", ["task", "template"])
+
+        mock_client.return_value.get_task_label_ref_count.return_value = {
+            "result": True,
+            "data": {str(leaf.id): 3},
+            "scope_applied": True,
+        }
+
+        url = (
+            f"/apigw/space/{self.space.id}/get_label_ref_count/"
+            f"?label_ids={leaf.id}&scope_type=project&scope_value=1"
+        )
+        resp = self.client.get(path=url)
+        data = json.loads(resp.content)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(data["result"], True)
+        self.assertEqual(data["data"][str(leaf.id)]["task_count"], 3)

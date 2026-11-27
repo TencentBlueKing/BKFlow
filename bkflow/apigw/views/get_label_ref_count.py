@@ -40,6 +40,16 @@ def get_label_ref_count(request, space_id):
     task_result = client.get_task_label_ref_count(int(space_id), ",".join(all_query_label_ids), scope_type, scope_value)
     if not task_result.get("result"):
         return task_result
+
+    # 当携带作用域参数时，旧版引擎不认识 scope_type / scope_value 会静默丢弃，直接失败以避免与本地按作用域过滤出的模板数产生口径不一致。
+    if scope_type is not None and scope_value is not None:
+        if task_result.get("scope_applied") is not True:
+            return {
+                "result": False,
+                "data": None,
+                "message": "The current task engine does not support scope filtering; please upgrade the engine module",
+                "code": err_code.VALIDATION_ERROR.code,
+            }
     label_task_ref_count_map = task_result.get("data") or {}
 
     # 仅统计属于当前空间、且流程作用域匹配的模板，避免统计到其他空间或作用域的引用
