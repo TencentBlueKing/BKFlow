@@ -282,7 +282,8 @@
           <!-- 引用流程数 -->
           <span
             v-else-if="col.id === 'ref_count'"
-            class="ref-count">
+            class="ref-count"
+            @click="handleNameClick(row)">
             {{ row.ref_count }}
           </span>
           <span v-else>{{ row[col.id] || "--" }}</span>
