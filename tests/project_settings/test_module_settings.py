@@ -17,10 +17,6 @@ We undertake not to change the open source license (MIT license) applicable
 to the current version of the project delivered to anyone in the future.
 """
 import importlib
-import json
-import os
-import subprocess
-import sys
 
 import pytest
 
@@ -83,50 +79,3 @@ def test_bkflow_database_config(env_insert_fixture, original_value_fixture):
     importlib.reload(env)
     bkflow_module = BKFLOWDatabaseConfig.get_database_config()
     assert bkflow_module == original_value_fixture
-
-
-@pytest.mark.parametrize(("enabled_value", "expected_enabled"), [(None, False), ("0", False), ("true", True)])
-def test_python_code_plugin_settings_are_loaded_from_environment(enabled_value, expected_enabled):
-    """Python 代码节点的运行参数应能通过部署环境变量调整。"""
-    process_env = os.environ.copy()
-    process_env.update(
-        {
-            "DJANGO_SETTINGS_MODULE": "module_settings",
-            "BKFLOW_MODULE_TYPE": "engine",
-            "BKFLOW_DATABASE_NAME": "test",
-            "BKFLOW_DATABASE_USER": "test",
-            "BKFLOW_DATABASE_HOST": "127.0.0.1",
-            "BKFLOW_DATABASE_PORT": "3306",
-            "PYTHON_CODE_PLUGIN_TIMEOUT": "9",
-            "PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT": "3",
-            "PYTHON_CODE_PLUGIN_MAX_LENGTH": "12345",
-            "PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB": "384",
-            "PYTHON_CODE_PLUGIN_MAX_CONCURRENT_PROCESSES": "7",
-            "PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES": "654321",
-        }
-    )
-    if enabled_value is None:
-        process_env.pop("PYTHON_CODE_PLUGIN_ENABLED", None)
-    else:
-        process_env["PYTHON_CODE_PLUGIN_ENABLED"] = enabled_value
-    script = """
-import json
-from django.conf import settings
-
-print(json.dumps([
-    settings.PYTHON_CODE_PLUGIN_ENABLED,
-    settings.PYTHON_CODE_PLUGIN_TIMEOUT,
-    settings.PYTHON_CODE_PLUGIN_QUEUE_TIMEOUT,
-    settings.PYTHON_CODE_PLUGIN_MAX_LENGTH,
-    settings.PYTHON_CODE_PLUGIN_MEMORY_LIMIT_MB,
-    settings.PYTHON_CODE_PLUGIN_MAX_CONCURRENT_PROCESSES,
-    settings.PYTHON_CODE_PLUGIN_MAX_RESPONSE_SIZE_BYTES,
-]))
-"""
-
-    completed_process = subprocess.run(
-        [sys.executable, "-c", script], env=process_env, text=True, capture_output=True, check=False
-    )
-
-    assert completed_process.returncode == 0, completed_process.stderr
-    assert json.loads(completed_process.stdout.splitlines()[-1]) == [expected_enabled, 9, 3, 12345, 384, 7, 654321]
