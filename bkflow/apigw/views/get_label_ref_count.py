@@ -10,6 +10,7 @@ from bkflow.apigw.decorators import check_jwt_and_space, return_json_response
 from bkflow.apigw.serializers.label import LabelRefCountSerializer
 from bkflow.contrib.api.collections.task import TaskComponentClient
 from bkflow.label.models import Label, TemplateLabelRelation
+from bkflow.template.models import Template
 from bkflow.utils import err_code
 
 
@@ -24,6 +25,8 @@ def get_label_ref_count(request, space_id):
     ser.is_valid(raise_exception=True)
 
     label_ids = ser.validated_data["label_ids"].split(",")
+    scope_type = ser.validated_data.get("scope_type")
+    scope_value = ser.validated_data.get("scope_value")
 
     all_child = Label.objects.filter(space_id=int(space_id), parent_id__in=label_ids).values("id", "parent_id")
     label_child_map = {}
@@ -34,13 +37,31 @@ def get_label_ref_count(request, space_id):
     all_query_label_ids = list(set(label_ids + [cid for ids in label_child_map.values() for cid in ids]))
 
     client = TaskComponentClient(space_id=int(space_id))
-    task_result = client.get_task_label_ref_count(int(space_id), ",".join(all_query_label_ids))
+    task_result = client.get_task_label_ref_count(int(space_id), ",".join(all_query_label_ids), scope_type, scope_value)
     if not task_result.get("result"):
         return task_result
+
+    # 当携带作用域参数时，旧版引擎不认识 scope_type / scope_value 会静默丢弃，直接失败以避免与本地按作用域过滤出的模板数产生口径不一致。
+    if scope_type is not None and scope_value is not None:
+        if task_result.get("scope_applied") is not True:
+            return {
+                "result": False,
+                "data": None,
+                "message": "The current task engine does not support scope filtering; please upgrade the engine module",
+                "code": err_code.VALIDATION_ERROR.code,
+            }
     label_task_ref_count_map = task_result.get("data") or {}
+
+    # 仅统计属于当前空间、且流程作用域匹配的模板，避免统计到其他空间或作用域的引用
+    space_template_filter = {"space_id": int(space_id)}
+    if scope_type is not None and scope_value is not None:
+        space_template_filter["scope_type"] = scope_type
+        space_template_filter["scope_value"] = scope_value
+    space_template_ids = Template.objects.filter(**space_template_filter).values_list("id", flat=True)
 
     aggregation_qs = (
         TemplateLabelRelation.objects.filter(label_id__in=all_query_label_ids)
+        .filter(template_id__in=space_template_ids)
         .values("label_id")
         .annotate(count=Count("id"))
     )

@@ -65,11 +65,7 @@ def clean_expired_auto_save_snapshots():
         template_expired_ids = [sid for sid, ctime in items if sid != latest_id and ctime < expired_time]
         if template_expired_ids:
             expired_ids.extend(template_expired_ids)
-            logger.info(
-                "[clean_expired_auto_save_snapshots] template_id=%s, expired_to_delete=%s",
-                template_id,
-                len(template_expired_ids),
-            )
+    logger.info("[clean_expired_auto_save_snapshots] expired_ids=%s", expired_ids)
 
     deleted_count = 0
     if expired_ids:

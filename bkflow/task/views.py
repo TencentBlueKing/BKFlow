@@ -249,15 +249,33 @@ class TaskInstanceViewSet(
         ser.is_valid(raise_exception=True)
         validated_params = ser.validated_data
         label_ids = validated_params["label_ids"].split(",")
-        queryset = (
-            TaskLabelRelation.objects.filter(label_id__in=label_ids).values("label_id").annotate(count=Count("id"))
+        space_id = validated_params["space_id"]
+        scope_type = validated_params.get("scope_type")
+        scope_value = validated_params.get("scope_value")
+
+        # 仅统计属于当前空间、且流程作用域匹配的任务，避免统计到其他空间或作用域的引用
+        space_task_filter = {"space_id": space_id}
+        scope_applied = False
+        if scope_type is not None and scope_value is not None:
+            space_task_filter["scope_type"] = scope_type
+            space_task_filter["scope_value"] = scope_value
+            scope_applied = True
+        space_task_ids = TaskInstance.objects.filter(**space_task_filter).values_list("id", flat=True)
+
+        # 获取任务引用数量
+        aggregation_qs = (
+            TaskLabelRelation.objects.filter(label_id__in=label_ids)
+            .filter(task_id__in=space_task_ids)
+            .values("label_id")
+            .annotate(count=Count("id"))
         )
-        label_template_count_map = {item["label_id"]: item["count"] for item in queryset}
+        label_task_count_map = {item["label_id"]: item["count"] for item in aggregation_qs}
+
         result = {}
         for label_id in label_ids:
-            result[label_id] = label_template_count_map.get(int(label_id), 0)
+            result[label_id] = label_task_count_map.get(int(label_id), 0)
 
-        return Response(result)
+        return Response({"result": True, "data": result, "message": "success", "scope_applied": scope_applied})
 
     @action(detail=False, methods=["post"], serializer_class=DeleteTaskLabelRelationSerializer)
     def delete_task_label_relation(self, request, *args, **kwargs):
@@ -530,9 +548,9 @@ class TaskInstanceViewSet(
         if not task_ids:
             return Response({})
         task_id_list = task_ids.split(",")
-        tasks = TaskInstance.objects.filter(id__in=task_id_list, space_id=space_id).values(
-            "id", "execution_snapshot_id"
-        )
+        tasks = TaskInstance.objects.filter(
+            id__in=task_id_list, space_id=space_id, is_deleted=False, is_expired=False
+        ).values("id", "execution_snapshot_id")
         snapshot_ids = [task["execution_snapshot_id"] for task in tasks if task["execution_snapshot_id"]]
 
         snapshot_map = (
@@ -563,7 +581,7 @@ class TaskInstanceViewSet(
         space_id = ser.validated_data["space_id"]
         node_ids = ser.validated_data["node_ids"]
         try:
-            task_instance = TaskInstance.objects.get(id=task_id, space_id=space_id)
+            task_instance = TaskInstance.objects.get(id=task_id, space_id=space_id, is_deleted=False, is_expired=False)
         except TaskInstance.DoesNotExist:
             return Response({"result": False, "data": None, "message": "task not found"})
 

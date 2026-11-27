@@ -37,6 +37,15 @@ class LabelListFilterSerializer(serializers.Serializer):
 
 class LabelRefCountSerializer(serializers.Serializer):
     label_ids = serializers.CharField(required=True, help_text=_("标签ID列表，逗号分隔"))
+    scope_type = serializers.CharField(help_text=_("流程范围类型，传入时仅统计该作用域下的引用"), required=False)
+    scope_value = serializers.CharField(help_text=_("流程范围值，需与 scope_type 同时传入"), required=False)
+
+    def validate(self, attrs):
+        scope_type = attrs.get("scope_type")
+        scope_value = attrs.get("scope_value")
+        if (scope_type is None) != (scope_value is None):
+            raise serializers.ValidationError(_("scope_type 与 scope_value 必须同时传入或同时省略"))
+        return attrs
 
     def validate_label_ids(self, value):
         label_ids_str = str(value).strip()
